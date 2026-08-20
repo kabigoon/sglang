@@ -3041,6 +3041,19 @@ class ModelRunner(ModelRunnerKVCacheMixin):
     ) -> Tuple[
         Union[LogitsProcessorOutput, PPProxyTensors, EmbeddingPoolerOutput], bool
     ]:
+        print(
+            "\n[FORWARD_EXTEND enter]",
+            "\ninput_ids=", forward_batch.input_ids,
+            "\npositions=", forward_batch.positions,
+            "\nseq_lens=", forward_batch.seq_lens,
+            "\nout_cache_loc=", forward_batch.out_cache_loc,
+            "\nreq_pool_indices=", forward_batch.req_pool_indices,
+            "\nskip_attn_backend_init=", skip_attn_backend_init,
+            flush=True,
+        )
+        import inspect
+        print("\n[MODEL object]", type(self.model), flush=True)
+        print("\n[MODEL file]", inspect.getfile(type(self.model)), flush=True)
         # Setup extra arguments
         kwargs = {}
         if self.support_pp:
@@ -3086,6 +3099,32 @@ class ModelRunner(ModelRunnerKVCacheMixin):
                 # e.g. Moss-VL's prefill cross-attention custom mask.
                 self.model.prepare_forward_batch(forward_batch)
             self.attn_backend.init_forward_metadata(forward_batch)
+        meta = getattr(self.attn_backend, "forward_metadata", None)
+        print(
+            "\n[FORWARD_EXTEND after init_forward_metadata]",
+            "\nattn_backend=", type(self.attn_backend),
+            "\nmetadata type=", type(meta),
+            flush=True,
+        )
+
+        if meta is not None:
+            for name in [
+                "qo_indptr",
+                "kv_indptr",
+                "kv_indices",
+                "max_extend_len",
+                "extend_seq_lens",
+                "extend_prefix_lens",
+            ]:
+                v = getattr(meta, name, None)
+                if v is not None:
+                    print(
+                        f"  meta.{name}:",
+                        v,
+                        "shape=",
+                        getattr(v, "shape", None),
+                        flush=True,
+                    )
 
         ctx = (
             self.device_timer.wrap(metadata={"category": "extend"})
@@ -3099,6 +3138,22 @@ class ModelRunner(ModelRunnerKVCacheMixin):
                 forward_batch,
                 **kwargs,
             )
+        print(
+            "\n[FORWARD_EXTEND after model.forward]",
+            "ret type=", type(ret),
+            flush=True,
+        )
+
+        for name in ["next_token_logits", "hidden_states"]:
+            v = getattr(ret, name, None)
+            if v is not None:
+                print(
+                    f"  ret.{name}:",
+                    "\nshape=", getattr(v, "shape", None),
+                    "\ndtype=", getattr(v, "dtype", None),
+                    "\ndevice=", getattr(v, "device", None),
+                    flush=True,
+                )
         return (ret, can_run_graph)
 
     def forward_idle(
@@ -3255,6 +3310,18 @@ class ModelRunner(ModelRunnerKVCacheMixin):
         else:
             ctx_mgr = forward_context(ForwardContext(attn_backend=self.attn_backend))
         with ctx_mgr:
+            print(
+                "\n[MODEL_RUNNER._forward_raw enter]",
+                "\nmode=", forward_batch.forward_mode,
+                "\nis_decode=", forward_batch.forward_mode.is_decode(),
+                "\nis_extend=", forward_batch.forward_mode.is_extend(include_draft_extend_v2=True),
+                "\ninput_ids=", forward_batch.input_ids,
+                "\npositions=", forward_batch.positions,
+                "\nseq_lens=", forward_batch.seq_lens,
+                "\nout_cache_loc=", forward_batch.out_cache_loc,
+                "\nattn_backend=", type(self.attn_backend),
+                flush=True,
+            )
             mode_check = (
                 forward_batch.forward_mode.is_cpu_graph
                 if self.device == "cpu"
@@ -3265,7 +3332,12 @@ class ModelRunner(ModelRunnerKVCacheMixin):
                 and self.graph_runner
                 and self.graph_runner.can_run(forward_batch)
             )
-
+            print(
+                "\n[MODEL_RUNNER._forward_raw graph check]",
+                "\ncan_run_graph=", can_run_graph,
+                "\ngraph_runner=", type(self.graph_runner),
+                flush=True,
+            )
             # Hisparse coordinator — backends now read it from self.model_runner.
             if (
                 forward_batch.forward_mode.is_decode()
@@ -3312,9 +3384,15 @@ class ModelRunner(ModelRunnerKVCacheMixin):
             # Hisparse coordinator — backends now read it from self.model_runner.
             if self.hisparse_coordinator is not None:
                 self.hisparse_coordinator.num_real_reqs.fill_(forward_batch.batch_size)
-
+            print(
+                "\n[MODEL_RUNNER._forward_raw before dispatch]",
+                "\nglobal_num_tokens_cpu=", getattr(forward_batch, "global_num_tokens_cpu", None),
+                "\nnum_token_non_padded=", getattr(forward_batch, "num_token_non_padded", None),
+                flush=True,
+            )
             # Forward without cuda graph
             if forward_batch.forward_mode.is_decode():
+                print("\n[MODEL_RUNNER._forward_raw dispatch] forward_decode", flush=True)
                 ret = self.forward_decode(
                     forward_batch,
                     skip_attn_backend_init=skip_attn_backend_init,
@@ -3327,6 +3405,7 @@ class ModelRunner(ModelRunnerKVCacheMixin):
                     forward_count=split_forward_count,
                 )
             elif forward_batch.forward_mode.is_extend(include_draft_extend_v2=True):
+                print("\n[MODEL_RUNNER._forward_raw dispatch] forward_extend", flush=True)
                 ret, can_run_graph = self.forward_extend(
                     forward_batch,
                     skip_attn_backend_init=skip_attn_backend_init,

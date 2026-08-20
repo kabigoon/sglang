@@ -452,6 +452,15 @@ class TpModelWorker(BaseTpWorker):
         is_verify: bool = False,
         skip_attn_backend_init=False,
     ) -> GenerationBatchResult:
+        print(
+            "\n[FW_GEN enter]",
+            "\nbatch type=", type(batch),
+            "\nmode=", getattr(batch, "forward_mode", None),
+            "\ninput_ids=", getattr(batch, "input_ids", None),
+            "\nseq_lens=", getattr(batch, "seq_lens", None),
+            "\nout_cache_loc=", getattr(batch, "out_cache_loc", None),
+            flush=True,
+        )
         # FIXME(lsyin): maybe remove skip_attn_backend_init in forward_batch_generation,
         #               which requires preparing replay to always be in this function
 
@@ -461,6 +470,18 @@ class TpModelWorker(BaseTpWorker):
             self.set_hicache_consumer(batch.hicache_consumer_index)
 
             forward_batch = ForwardBatch.init_new(batch, self.model_runner)
+            print(
+                "\n[FW_GEN after ForwardBatch.init_new]",
+                "\nforward_batch type=", type(forward_batch),
+                "\nmode=", getattr(forward_batch, "forward_mode", None),
+                "\ninput_ids=", getattr(forward_batch, "input_ids", None),
+                "\npositions=", getattr(forward_batch, "positions", None),
+                "\nseq_lens=", getattr(forward_batch, "seq_lens", None),
+                "\nout_cache_loc=", getattr(forward_batch, "out_cache_loc", None),
+                "\nreq_pool_indices=", getattr(forward_batch, "req_pool_indices", None),
+                "\nis_prefill_only=", getattr(forward_batch, "is_prefill_only", None),
+                flush=True,
+            )
         else:
             # FIXME(lsyin): unify the interface of forward_batch
             assert forward_batch is not None
@@ -473,6 +494,13 @@ class TpModelWorker(BaseTpWorker):
                 forward_batch,
                 pp_proxy_tensors=pp_proxy_tensors,
                 skip_attn_backend_init=skip_attn_backend_init,
+            )
+            print(
+                "\n[FW_GEN after model_runner.forward]",
+                "\nout type=", type(out),
+                "\nlogits_output type=", type(out.logits_output),
+                "\ncan_run_graph=", getattr(out, "can_run_graph", None),
+                flush=True,
             )
             logits_output, can_run_cuda_graph = out.logits_output, out.can_run_graph
             batch_result = GenerationBatchResult(
@@ -506,6 +534,11 @@ class TpModelWorker(BaseTpWorker):
                 # For normal requests, sample the next token ids.
                 batch_result.next_token_ids = self.model_runner.sample(
                     logits_output, forward_batch
+                )
+                print(
+                    "\n[FW_GEN after sample]",
+                    "\nnext_token_ids=", batch_result.next_token_ids,
+                    flush=True,
                 )
             else:
                 # For prefill-only requests, create dummy token IDs on CPU

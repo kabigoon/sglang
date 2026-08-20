@@ -188,11 +188,57 @@ class Qwen2Attention(nn.Module):
         hidden_states: torch.Tensor,
         forward_batch: ForwardBatch,
     ) -> torch.Tensor:
+        if self.attn.layer_id == 0:
+            print(
+                "\n[Qwen2Attention layer0 enter]",
+                "\npositions=", positions,
+                "\nhidden_states shape=", hidden_states.shape,
+                "\ndtype=", hidden_states.dtype,
+                "\nmode=", forward_batch.forward_mode,
+                flush=True,
+            )
         qkv, _ = self.qkv_proj(hidden_states)
+        if self.attn.layer_id == 0:
+            print(
+                "\n[Qwen2Attention layer0 after qkv_proj]",
+                "\nqkv shape=", qkv.shape,
+                "\ndtype=", qkv.dtype,
+                flush=True,
+            )
         q, k, v = qkv.split([self.q_size, self.kv_size, self.kv_size], dim=-1)
+        if self.attn.layer_id == 0:
+            print(
+                "\n[Qwen2Attention layer0 qkv split]",
+                "\nq shape=", q.shape,
+                "\nk shape=", k.shape,
+                "\nv shape=", v.shape,
+                flush=True,
+            )
         q, k = self.rotary_emb(positions, q, k)
+        if self.attn.layer_id == 0:
+            print(
+                "\n[Qwen2Attention layer0 after rope]",
+                "\nq shape=", q.shape,
+                "\nk shape=", k.shape,
+                "\nv shape=", v.shape,
+                flush=True,
+            )
         attn_output = self.attn(q, k, v, forward_batch)
+        if self.attn.layer_id == 0:
+            print(
+                "\n[Qwen2Attention layer0 after self.attn]",
+                "\nattn_output shape=", attn_output.shape,
+                "\ndtype=", attn_output.dtype,
+                flush=True,
+            )
         output, _ = self.o_proj(attn_output)
+        if self.attn.layer_id == 0:
+            print(
+                "\n[Qwen2Attention layer0 after o_proj]",
+                "\noutput shape=", output.shape,
+                "\ndtype=", output.dtype,
+                flush=True,
+            )
         return output
 
 
@@ -366,8 +412,25 @@ class Qwen2Model(nn.Module):
             hidden_states = pp_proxy_tensors["hidden_states"]
             residual = pp_proxy_tensors["residual"]
 
+        print(
+            "\n[Qwen2Model after embed]",
+            "\ninput_ids=", input_ids,
+            "\npositions=", positions,
+            "\nhidden_states shape=", hidden_states.shape,
+            "\ndtype=", hidden_states.dtype,
+            "\ndevice=", hidden_states.device,
+            flush=True,
+        )
+
         aux_hidden_states = []
         for i in range(self.start_layer, self.end_layer):
+            if i == self.start_layer or i == self.end_layer - 1:
+                print(
+                    f"\n[Qwen2Model before layer {i}]",
+                    "\nhidden_states shape=", hidden_states.shape,
+                    "\nresidual is None=", residual is None,
+                    flush=True,
+                )
             if i in self.layers_to_capture:
                 aux_hidden_states.append(
                     hidden_states + residual if residual is not None else hidden_states
@@ -379,6 +442,13 @@ class Qwen2Model(nn.Module):
                 forward_batch,
                 residual,
             )
+            if i == self.start_layer or i == self.end_layer - 1:
+                print(
+                    f"\n[Qwen2Model after layer {i}]",
+                    "\nhidden_states shape=", hidden_states.shape,
+                    "\nresidual is None=", residual is None,
+                    flush=True,
+                )
         if not self.pp_group.is_last_rank:
             return PPProxyTensors(
                 {
@@ -392,6 +462,13 @@ class Qwen2Model(nn.Module):
                     hidden_states = self.norm(hidden_states)
                 else:
                     hidden_states, _ = self.norm(hidden_states, residual)
+        print(
+            "\n[Qwen2Model after final norm]",
+            "\nhidden_states shape=", hidden_states.shape,
+            "\ndtype=", hidden_states.dtype,
+            "\ndevice=", hidden_states.device,
+            flush=True,
+        )
 
         if len(aux_hidden_states) == 0:
             return hidden_states
@@ -492,12 +569,26 @@ class Qwen2ForCausalLM(nn.Module):
         get_embedding: bool = False,
         pp_proxy_tensors: Optional[PPProxyTensors] = None,
     ) -> torch.Tensor:
+        print(
+            "\n[Qwen2ForCausalLM.forward enter]",
+            "input_ids=", input_ids,
+            "positions=", positions,
+            "mode=", forward_batch.forward_mode,
+            flush=True,
+        )
         hidden_states = self.model(
             input_ids,
             positions,
             forward_batch,
             input_embeds,
             pp_proxy_tensors=pp_proxy_tensors,
+        )
+        print(
+            "[Qwen2ForCausalLM after self.model]",
+            "hidden_states shape=", getattr(hidden_states, "shape", None),
+            "dtype=", getattr(hidden_states, "dtype", None),
+            "device=", getattr(hidden_states, "device", None),
+            flush=True,
         )
         aux_hidden_states = None
         if self.capture_aux_hidden_states:

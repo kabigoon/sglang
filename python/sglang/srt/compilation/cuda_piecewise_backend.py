@@ -165,7 +165,7 @@ class CUDAPiecewiseBackend:
                     # make the cudagraph capture very slow.
                     # therefore, we only run gc for the first graph,
                     # and disable gc for the rest of the graphs.
-                    stack.enter_context(patch("gc.collect", lambda: None))
+                    stack.enter_context(patch("gc.collect", lambda: None))+
                     stack.enter_context(patch("torch.cuda.empty_cache", lambda: None))
                 # mind-exploding: carefully manage the reference and memory.
                 stream = get_pcg_capture_stream()

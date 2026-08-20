@@ -1368,13 +1368,94 @@ class Scheduler(
         while True:
             # Receive requests
             recv_reqs = self.request_receiver.recv_requests()
+            dbg_recv_printed = False
+            if recv_reqs and not dbg_recv_printed:
+                print("\n[DEBUG recv_reqs summary]")
+                print("type:", type(recv_reqs))
+                print("len:", len(recv_reqs))
+
+                for i, req in enumerate(recv_reqs):
+                    print(f"req[{i}] type:", type(req))
+                    if hasattr(req, "__dict__"):
+                        print(f"req[{i}] fields:", list(req.__dict__.keys()))
+
+                        for name in ["rid", "text", "input_ids", "sampling_params", "stream"]:
+                            if hasattr(req, name):
+                                print(f"  {name} =", repr(getattr(req, name))[:500])
+
+                print("[END]\n", flush=True)
+                dbg_recv_printed = True
+
+            if recv_reqs:
+                print("\n[BEFORE process_input_requests]")
+                if hasattr(self, "waiting_queue"):
+                    print("waiting_queue len:", len(self.waiting_queue))
+                print("recv rid:", [r.rid for r in recv_reqs])
+                print("recv input_ids:", [list(r.input_ids) for r in recv_reqs])
+                print("[END BEFORE]\n", flush=True)
+
             self.process_input_requests(recv_reqs)
+
+            if recv_reqs:
+                print("\n[AFTER process_input_requests]")
+                if hasattr(self, "waiting_queue"):
+                    print("waiting_queue len:", len(self.waiting_queue))
+
+                    for i, r in enumerate(list(self.waiting_queue)[-5:]):
+                        print(f"waiting_queue[{i - min(5, len(self.waiting_queue))}] type:", type(r))
+                        if hasattr(r, "rid"):
+                            print("  rid:", r.rid)
+                        if hasattr(r, "origin_input_ids"):
+                            print("  origin_input_ids:", r.origin_input_ids)
+                        if hasattr(r, "fill_ids"):
+                            print("  fill_ids:", r.fill_ids)
+                        if hasattr(r, "sampling_params"):
+                            print("  sampling_params:", type(r.sampling_params))
+
+                print("[END AFTER]\n", flush=True)
             if self._engine_paused:
                 continue
 
             # Get the next batch to run
+            if recv_reqs:
+                print("\n[BEFORE get_next_batch_to_run]")
+                print("waiting_queue len:", len(self.waiting_queue))
+                for i, r in enumerate(self.waiting_queue[-3:]):
+                    print(f"  waiting[{i}] rid:", r.rid)
+                    print("    origin_input_ids:", list(r.origin_input_ids))
+                    print("    output_ids:", list(r.output_ids))
+                    print("    prefix_indices:", getattr(r, "prefix_indices", None))
+                print("[END BEFORE]\n", flush=True)
             batch = self.get_next_batch_to_run()
             self.cur_batch = batch
+            if recv_reqs or batch:
+                print("\n[AFTER get_next_batch_to_run]")
+                print("waiting_queue len:", len(self.waiting_queue))
+                print("batch type:", type(batch))
+
+                if batch:
+                    print("batch.forward_mode:", batch.forward_mode)
+                    print("batch req num:", len(batch.reqs))
+
+                    for i, r in enumerate(batch.reqs):
+                        print(f"   batch.req[{i}] rid:", r.rid)
+                        print("    origin_input_ids:", list(r.origin_input_ids))
+                        print("    output_ids:", list(r.output_ids))
+                        print("    prefix_indices:", getattr(r, "prefix_indices", None))
+
+                    for name in [
+                        "input_ids",
+                        "seq_lens",
+                        "extend_num_tokens",
+                        "extend_seq_lens",
+                        "extend_prefix_lens",
+                        "req_pool_indices",
+                        "out_cache_loc",
+                    ]:
+                        if hasattr(batch, name):
+                            print(f"batch.{name}:", getattr(batch, name))
+
+                print("[END AFTER]\n", flush=True)
 
             # Launch the current batch
             if batch:
@@ -2902,6 +2983,15 @@ class Scheduler(
         """Run a batch."""
         self.forward_ct += 1
         batch.forward_iter = self.forward_ct
+        print(
+            "\n[RUN_BATCH enter]",
+            "forward_iter=", self.forward_ct + 1,
+            "mode=", batch.forward_mode,
+            "input_ids=", batch.input_ids,
+            "seq_lens=", batch.seq_lens,
+            "out_cache_loc=", batch.out_cache_loc,
+            flush=True,
+        )
 
         # Whether to run the profiler
         self.profiler_manager._profile_batch_predicate(batch)
@@ -2982,10 +3072,21 @@ class Scheduler(
                 batch_result = self.model_worker.forward_batch_generation(
                     batch, **kwargs
                 )
+                print(
+                    "[RUN_BATCH after forward]",
+                    "result type=", type(batch_result),
+                    "next_token_ids=", getattr(batch_result, "next_token_ids", None),
+                    flush=True,
+                )
                 # PP intermediate ranks return None; DLLM returns a per-req list.
                 # Only the tensor case maps onto batch.input_ids as next-iter input.
                 if isinstance(batch_result.next_token_ids, torch.Tensor):
                     batch.input_ids = batch_result.next_token_ids.to(torch.int64)
+                print(
+                    "[RUN_BATCH after set batch.input_ids]",
+                    "batch.input_ids=", batch.input_ids,
+                    flush=True,
+                )
                 self.update_cache_from_scheduler(batch, batch_result)
 
             # These 2 values are needed for processing the output, but the values can be

@@ -112,6 +112,19 @@ class RadixAttention(nn.Module):
         save_kv_cache: bool = True,
         **kwargs,
     ):
+        dbg = getattr(self, "layer_id", None) == 0
+        if dbg:
+            print(
+                "\n[RadixAttention layer0 enter]",
+                "\nmode=", forward_batch.forward_mode,
+                "\nis_extend=", forward_batch.forward_mode.is_extend(),
+                "\nq shape=", getattr(q, "shape", None),
+                "\nk shape before=", getattr(k, "shape", None),
+                "\nv shape before=", getattr(v, "shape", None),
+                "\nsave_kv_cache=", save_kv_cache,
+                "\nbackend=", type(get_attn_backend()),
+                flush=True,
+            )
         if k is not None:
             # For cross-layer sharing, kv can be None
             assert v is not None
@@ -120,6 +133,16 @@ class RadixAttention(nn.Module):
                 v = v.view(-1, self.tp_v_head_num, self.v_head_dim)
             else:
                 k = k.view(-1, self.tp_k_head_num, self.v_head_dim)
+        if dbg:
+            print(
+                "\n[RadixAttention layer0 after kv view]",
+                "\nq shape=", getattr(q, "shape", None),
+                "\nk shape=", getattr(k, "shape", None),
+                "\nv shape=", getattr(v, "shape", None),
+                "\nout_cache_loc=", getattr(forward_batch, "out_cache_loc", None),
+                "\nseq_lens=", getattr(forward_batch, "seq_lens", None),
+                flush=True,
+            )
 
         if forward_batch.forward_mode.is_extend() and get_forward_context() is not None:
             if self.qk_head_dim != self.v_head_dim:
@@ -136,6 +159,26 @@ class RadixAttention(nn.Module):
                 )
             return output
         else:
+            backend = get_attn_backend()
+            if getattr(self, "layer_id", None) == 0:
+                import inspect
+
+                forward_fn = type(backend).forward
+
+                print(
+                    "\n[RadixAttention layer0 decode dispatch]",
+                    "\nbackend object type=", type(backend),
+                    "\nbackend class=", backend.__class__,
+                    "\nforward qualname=", getattr(forward_fn, "__qualname__", None),
+                    "\nforward file=", inspect.getsourcefile(forward_fn),
+                    "\nforward line=", inspect.getsourcelines(forward_fn)[1],
+                    flush=True,
+                )
+                print(
+                    "\n[backend mro]",
+                    [cls.__name__ for cls in type(backend).mro()],
+                    flush=True,
+                )
             return get_attn_backend().forward(
                 q,
                 k,
