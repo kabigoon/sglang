@@ -266,6 +266,13 @@ def forward_mla_prepare_npu(
                 forward_batch=forward_batch,
                 layer_id=m.layer_id,
             )
+    print("[Enter] [forward_mla_prepare_npu]")
+    print(f"[MLA_PREPARE] hidden_states:  {list(hidden_states.shape)}  ← 输入 (7168维)")
+    print(f"[MLA_PREPARE] qkv_latent:     {list(qkv_latent.shape)}  ← fused_qkv_a_proj (低秩压缩)")
+    print(f"[MLA_PREPARE] q_lora:         {list(q_lora.shape)}  ← Q 低秩表示 ({q_lora_rank}维)")
+    print(f"[MLA_PREPARE] latent_cache:   {list(latent_cache.shape)}  ← KV 低秩表示 (MLA核心!)")
+    print(f"[MLA_PREPARE] q (full head):  {list(q.shape)}  ← Q 升维到完整维度")
+    print(f"[MLA_PREPARE] q_nope_out:     {list(q_nope_out.shape)}  ← q_nope @ w_kc 投影到 {kv_lora_rank}维空间")
 
     return (
         q_pe,
