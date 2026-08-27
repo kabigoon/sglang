@@ -24,8 +24,29 @@ if TYPE_CHECKING:
     from sglang.srt.utils import BumpAllocator
 _use_ag_after_qlora = envs.SGLANG_USE_AG_AFTER_QLORA.get()
 
+import traceback
+import functools
 
+def print_stack_first_n(n=3):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            if torch.distributed.get_rank() == 0:
+                if not hasattr(wrapper, '_call_count'):
+                    wrapper._call_count = 0
+                if wrapper._call_count < n:
+                    print(f"=== {func.__name__} 第 {wrapper._call_count + 1} 次调用堆栈 ===")
+                    traceback.print_stack()
+                    wrapper._call_count += 1
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
+
+def print_rank0(msg):
+    if torch.distributed.get_rank() == 0:
+        print(msg)
 # region MHA
+@print_stack_first_n(3)
 def forward_mha_prepare_npu(
     m: "DeepseekV2AttentionMLA",
     positions: torch.Tensor,
@@ -128,7 +149,7 @@ def forward_mha_prepare_npu(
     k = m._concat_and_cast_mha_k(k_nope, k_pe, forward_batch)
     return q, k, v, forward_batch
 
-
+@print_stack_first_n(3)
 def forward_mha_core_npu(
     m: "DeepseekV2AttentionMLA",
     q: torch.Tensor,
@@ -144,8 +165,12 @@ def forward_mha_core_npu(
 
 # endregion
 
+def print_rank_0(msg):
+    if torch.distributed.get_rank() == 0:
+        print(msg)
 
 # region MLA
+@print_stack_first_n(3)
 def forward_mla_prepare_npu(
     m: "DeepseekV2AttentionMLA",
     positions: torch.Tensor,
@@ -154,7 +179,20 @@ def forward_mla_prepare_npu(
     zero_allocator: "BumpAllocator",
     layer_scatter_modes,
 ):
+    print_rank0("\n**********************************************************************")
+    print_rank0("[forward_mla_prepare_npu] enter")
     if is_mla_preprocess_enabled():
+        print_rank0(f"\n[NPU_MLA_PRE] Layer {m.layer_id} | === INPUT ===")
+        print_rank0(f"[NPU_MLA_PRE] hidden_states.shape: {hidden_states.shape} (dtype: {hidden_states.dtype})")
+        if hasattr(positions, 'shape'):
+            print_rank0(f"[NPU_MLA_PRE] positions.shape: {positions.shape}")
+        else:
+            print_rank0(f"[NPU_MLA_PRE] positions: {positions}")  # 可能是 list/int
+        # 顺便打印模型关键维度，方便对照
+        print_rank0(f"[NPU_MLA_PRE] num_local_heads: {m.num_local_heads}, qk_head_dim: {m.qk_head_dim}")
+        print_rank0(f"[NPU_MLA_PRE] qk_nope_head_dim: {m.qk_nope_head_dim}, qk_rope_head_dim: {m.qk_rope_head_dim}")
+        if hasattr(forward_batch, 'seq_lens'):
+            print_rank0(f"[NPU_MLA_PRE] forward_batch.seq_lens (after): {forward_batch.seq_lens}")
         if not hasattr(m, "mla_preprocess"):
             m.mla_preprocess = NPUFusedMLAPreprocess(
                 m.fused_qkv_a_proj_with_mqa,
@@ -181,6 +219,14 @@ def forward_mla_prepare_npu(
             positions, hidden_states, forward_batch, zero_allocator
         )
         topk_indices = None
+        print_rank0(f"\n[NPU_MLA_PRE] Layer {m.layer_id} | === OUTPUT (after NPUFusedMLAPreprocess) ===")
+        print_rank0(f"[NPU_MLA_PRE] q_pe.shape: {q_pe.shape}")                 # 带 RoPE 的 Query
+        print_rank0(f"[NPU_MLA_PRE] k_pe.shape: {k_pe.shape}")                 # 带 RoPE 的 Key
+        print_rank0(f"[NPU_MLA_PRE] q_nope_out.shape: {q_nope_out.shape}")     # 内容 Query（已映射到 Key 空间）
+        print_rank0(f"[NPU_MLA_PRE] k_nope.shape: {k_nope.shape}")             # 内容 Key
+        # 检查 forward_batch 内部是否有变化（如果它是对象，可以打印其关键属性，假设有 seq_lens）
+        if hasattr(forward_batch, 'seq_lens'):
+            print_rank0(f"[NPU_MLA_PRE] forward_batch.seq_lens (after): {forward_batch.seq_lens}")
     else:
         q_lora = None
         if m.q_lora_rank is not None:
@@ -278,7 +324,7 @@ def forward_mla_prepare_npu(
         topk_indices,
     )
 
-
+@print_stack_first_n(3)
 def forward_mla_core_npu(
     m: "DeepseekV2AttentionMLA",
     q_pe: torch.Tensor,
@@ -335,6 +381,7 @@ def forward_mla_core_npu(
 
 
 # region DSA
+@print_stack_first_n(3)
 def forward_dsa_prepare_npu(
     m: "DeepseekV2AttentionMLA",
     positions: torch.Tensor,
@@ -472,7 +519,7 @@ def forward_dsa_prepare_npu(
         positions,
     )
 
-
+@print_stack_first_n(3)
 def forward_dsa_core_npu(
     m: "DeepseekV2AttentionMLA",
     q_pe: torch.Tensor,
@@ -527,7 +574,7 @@ def forward_dsa_core_npu(
     else:
         return output, topk_indices
 
-
+@print_stack_first_n(3)
 def npu_mla_preprocess(
     m: "DeepseekV2AttentionMLA",
     hidden_states: torch.Tensor,
