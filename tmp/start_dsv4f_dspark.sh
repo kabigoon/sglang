@@ -12,20 +12,25 @@ source /usr/local/Ascend/nnal/atb/set_env.sh
 # incompatible system custom_transformer under /usr/local/Ascend.
 VLLM_ASCEND_ROOT=/home/a00821909/vllm-ascend
 VLLM_CUSTOM_VENDOR="${VLLM_ASCEND_ROOT}/vllm_ascend/_cann_ops_custom/vendors/custom_transformer"
-SYSTEM_CUSTOM_VENDOR=/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer
 VLLM_CUSTOM_OPAPI_LIB="${VLLM_CUSTOM_VENDOR}/op_api/lib"
+VLLM_CUSTOM_OPAPI="${VLLM_CUSTOM_OPAPI_LIB}/libcust_opapi.so"
 VLLM_ASCEND_BINDING="${VLLM_ASCEND_ROOT}/build/vllm_ascend_C.cpython-312-x86_64-linux-gnu.so"
 
-# Resolve the updated A5 sparse-attention ops from VLLM_CUSTOM_VENDOR first,
-# then fall back to the system package for ops absent from the partial build
-# (for example aclnnCompressor).
-export ASCEND_CUSTOM_OPP_PATH="${VLLM_CUSTOM_VENDOR}:${SYSTEM_CUSTOM_VENDOR}:/usr/local/Ascend/cann-9.1.0/opp/vendors/customize"
+# A complete, internally consistent custom_transformer package must provide
+# both the updated sparse-attention ops and the other DSV4 ops. Mixing it with
+# the system custom_transformer causes duplicate tiling registration.
+export ASCEND_CUSTOM_OPP_PATH="${VLLM_CUSTOM_VENDOR}:/usr/local/Ascend/cann-9.1.0/opp/vendors/customize"
 export LD_LIBRARY_PATH="${VLLM_CUSTOM_OPAPI_LIB}:${VLLM_ASCEND_ROOT}/build:${LD_LIBRARY_PATH}"
 export SGLANG_DSPARK_A5_EXTRA_OPS_SO="${VLLM_ASCEND_BINDING}"
 
 VLLM_CUSTOM_OPMASTER="${VLLM_CUSTOM_VENDOR}/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so"
 if grep -aFq 'oriSparseIndices is not supported now' "${VLLM_CUSTOM_OPMASTER}"; then
     echo "ERROR: selected vllm-ascend tiling library is the old build: ${VLLM_CUSTOM_OPMASTER}" >&2
+    exit 1
+fi
+if ! grep -aFq 'aclnnCompressorGetWorkspaceSize' "${VLLM_CUSTOM_OPAPI}"; then
+    echo "ERROR: selected vllm-ascend custom-op package does not contain aclnnCompressor: ${VLLM_CUSTOM_OPAPI}" >&2
+    echo "Rebuild the complete Ascend 950 custom-op package before starting SGLang." >&2
     exit 1
 fi
 echo "A5 DSpark binding: ${SGLANG_DSPARK_A5_EXTRA_OPS_SO}"
@@ -140,5 +145,4 @@ python3 -m sglang.launch_server --model-path ${MODEL_PATH} \
     # -skip-server-warmup 
     # # --ep-size 2
     # --cuda-graph-backend-decode disable
-
 
