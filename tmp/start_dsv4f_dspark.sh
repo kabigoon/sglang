@@ -4,9 +4,28 @@ sysctl -w vm.swappiness=0
 sysctl -w kernel.numa_balancing=0
 
 source /usr/local/Ascend/ascend-toolkit/latest/opp/vendors/customize/bin/set_env.bash
-source /usr/local/Ascend/ascend-toolkit/latest/opp/vendors/custom_transformer/bin/set_env.bash
 source /usr/local/Ascend/ascend-toolkit/latest/set_env.sh
 source /usr/local/Ascend/nnal/atb/set_env.sh
+
+# A5 DSpark must use the custom_transformer built from this vllm-ascend tree.
+# Do not append the inherited ASCEND_CUSTOM_OPP_PATH here: it may contain the
+# incompatible system custom_transformer under /usr/local/Ascend.
+VLLM_ASCEND_ROOT=/home/a00821909/vllm-ascend
+VLLM_CUSTOM_VENDOR="${VLLM_ASCEND_ROOT}/vllm_ascend/_cann_ops_custom/vendors/custom_transformer"
+VLLM_CUSTOM_OPAPI_LIB="${VLLM_CUSTOM_VENDOR}/op_api/lib"
+VLLM_ASCEND_BINDING="${VLLM_ASCEND_ROOT}/build/vllm_ascend_C.cpython-312-x86_64-linux-gnu.so"
+
+export ASCEND_CUSTOM_OPP_PATH="${VLLM_CUSTOM_VENDOR}:/usr/local/Ascend/cann-9.1.0/opp/vendors/customize"
+export LD_LIBRARY_PATH="${VLLM_CUSTOM_OPAPI_LIB}:${VLLM_ASCEND_ROOT}/build:${LD_LIBRARY_PATH}"
+export SGLANG_DSPARK_A5_EXTRA_OPS_SO="${VLLM_ASCEND_BINDING}"
+
+VLLM_CUSTOM_OPMASTER="${VLLM_CUSTOM_VENDOR}/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so"
+if grep -aFq 'oriSparseIndices is not supported now' "${VLLM_CUSTOM_OPMASTER}"; then
+    echo "ERROR: selected vllm-ascend tiling library is the old build: ${VLLM_CUSTOM_OPMASTER}" >&2
+    exit 1
+fi
+echo "A5 DSpark binding: ${SGLANG_DSPARK_A5_EXTRA_OPS_SO}"
+echo "A5 DSpark custom OPP: ${ASCEND_CUSTOM_OPP_PATH}"
 
 
 export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
@@ -78,7 +97,6 @@ export SGLANG_DSV4_REASONING_EFFORT=max
 # Dspark
 export SGLANG_RAGGED_VERIFY_MODE=static
 export SGLANG_DSPARK_FAST_KERNEL=0
-export SGLANG_DSPARK_A5_EXTRA_OPS_SO=/home/a00821909/vllm-ascend/build/vllm_ascend_C.cpython-312-x86_64-linux-gnu.so
 
 python3 -m sglang.launch_server --model-path ${MODEL_PATH} \
     --page-size 128 \
@@ -118,7 +136,6 @@ python3 -m sglang.launch_server --model-path ${MODEL_PATH} \
     # -skip-server-warmup 
     # # --ep-size 2
     # --cuda-graph-backend-decode disable
-
 
 
 
