@@ -12,6 +12,104 @@ import torch
 
 logger = logging.getLogger(__name__)
 
+_DSPARK_A5_TRACE_ENV = "SGLANG_DSPARK_A5_TRACE_OP_LIBS"
+_DSPARK_A5_LIBRARY_MARKERS = (
+    "vllm_ascend_c",
+    "libcust_opapi",
+    "libcust_opmaster",
+    "libcust_opsproto",
+    "liboptiling",
+    "custom_transformer",
+)
+_DSPARK_A5_OLD_TILING_MARKER = b"oriSparseIndices is not supported now"
+_DSPARK_A5_NEW_TILING_MARKER = b"cuSeqLensOriKv is not supported now"
+_DSPARK_A5_TRACED_STAGES: set[str] = set()
+
+
+def _file_contains_marker(path: Path, marker: bytes) -> bool:
+    """Search a potentially large shared library without reading it all at once."""
+    overlap = max(len(marker) - 1, 0)
+    tail = b""
+    try:
+        with path.open("rb") as file:
+            while chunk := file.read(1024 * 1024):
+                data = tail + chunk
+                if marker in data:
+                    return True
+                tail = data[-overlap:] if overlap else b""
+    except OSError:
+        return False
+    return False
+
+
+def _mapped_dspark_a5_libraries() -> list[Path]:
+    maps_path = Path("/proc/self/maps")
+    if not maps_path.is_file():
+        return []
+
+    paths: set[Path] = set()
+    try:
+        for line in maps_path.read_text(errors="replace").splitlines():
+            fields = line.split(maxsplit=5)
+            if len(fields) < 6 or not fields[5].startswith("/"):
+                continue
+            raw_path = fields[5].removesuffix(" (deleted)")
+            if any(marker in raw_path.lower() for marker in _DSPARK_A5_LIBRARY_MARKERS):
+                paths.add(Path(raw_path))
+    except OSError:
+        return []
+    return sorted(paths, key=str)
+
+
+def trace_dspark_a5_op_libraries(stage: str) -> None:
+    """Log the DSpark binding/API/tiling libraries mapped by this process.
+
+    Torch's dispatcher identifies an operator by namespace and schema, not by a
+    source-file path.  ``/proc/self/maps`` is therefore the reliable way to see
+    which ELF objects back the registered binding and the ACLNN host tiling.
+    """
+    if os.environ.get(_DSPARK_A5_TRACE_ENV, "0").lower() not in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }:
+        return
+    if stage in _DSPARK_A5_TRACED_STAGES:
+        return
+    _DSPARK_A5_TRACED_STAGES.add(stage)
+
+    logger.warning(
+        "[DSpark A5 op trace][%s] binding_env=%s custom_opp=%s",
+        stage,
+        os.environ.get("SGLANG_DSPARK_A5_EXTRA_OPS_SO"),
+        os.environ.get("ASCEND_CUSTOM_OPP_PATH"),
+    )
+    loaded_libraries = getattr(torch.ops, "loaded_libraries", None)
+    if isinstance(loaded_libraries, set):
+        logger.warning(
+            "[DSpark A5 op trace][%s] torch.ops.loaded_libraries=%s",
+            stage,
+            sorted(loaded_libraries),
+        )
+
+    mapped = _mapped_dspark_a5_libraries()
+    if not mapped:
+        logger.warning(
+            "[DSpark A5 op trace][%s] no matching shared libraries in /proc/self/maps",
+            stage,
+        )
+        return
+    for path in mapped:
+        logger.warning(
+            "[DSpark A5 op trace][%s] mapped=%s old_ori_rejection=%s "
+            "new_cuseq_rejection=%s",
+            stage,
+            path,
+            _file_contains_marker(path, _DSPARK_A5_OLD_TILING_MARKER),
+            _file_contains_marker(path, _DSPARK_A5_NEW_TILING_MARKER),
+        )
+
 
 @dataclass
 class OpLibSpec:
@@ -123,6 +221,9 @@ class TorchOpLoader:
                 f"{library_path}. Ensure its dependent CANN/custom-op libraries "
                 "are visible through LD_LIBRARY_PATH and the Ascend OPP setup."
             ) from exc
+
+        if self._spec.so_env == "SGLANG_DSPARK_A5_EXTRA_OPS_SO":
+            trace_dspark_a5_op_libraries("after torch.ops.load_library")
 
         missing = self._missing_ops()
         if missing:

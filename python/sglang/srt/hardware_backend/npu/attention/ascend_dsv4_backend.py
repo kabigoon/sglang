@@ -18,6 +18,9 @@ from sglang.kernels.ops.speculative.dspark.dspark_attn_metadata import (
 from sglang.srt.environ import envs
 from sglang.srt.hardware_backend.npu.attention.ascend_backend import AscendAttnBackend
 from sglang.srt.hardware_backend.npu.dsv4.dsv4_rope import Dsv4NpuRoPE, rope_cos_sin
+from sglang.srt.hardware_backend.npu.extra_ops_loader import (
+    trace_dspark_a5_op_libraries,
+)
 from sglang.srt.hardware_backend.npu.utils import is_npu_arch35
 from sglang.srt.layers.cp.base import get_cp_strategy
 from sglang.srt.model_executor.forward_batch_info import DSV4OutCacheLoc, ForwardMode
@@ -2047,7 +2050,14 @@ class DeepseekV4AscendAttnBackend(
                 "seqused_kv": actual_seq_lengths_kv,
             }
             metadata_op, _ = _sparse_attn_ops()
-        kernel_metadata = {"c1a_metadata": metadata_op(**c1a_kwargs)}
+        if use_external_draft_ops:
+            trace_dspark_a5_op_libraries("before metadata op")
+        try:
+            c1a_metadata = metadata_op(**c1a_kwargs)
+        finally:
+            if use_external_draft_ops:
+                trace_dspark_a5_op_libraries("after metadata op")
+        kernel_metadata = {"c1a_metadata": c1a_metadata}
 
         if self._dsv4_has_c4:
             c4a_overrides = {
@@ -2155,7 +2165,7 @@ class DeepseekV4AscendAttnBackend(
             softmax_scale=layer.scaling,
             cmp_ratio=1,
         )
-        if self._is_dspark_draft_worker:
+        if self._is_dspark_draft_worker and not use_external_draft_ops:
             attn_kwargs["cu_seqlens_ori_kv"] = fm.actual_seq_lengths_q_pa
         ori_sparse_indices = getattr(fm, "ori_sparse_indices", None)
         if ori_sparse_indices is not None:
@@ -2163,7 +2173,11 @@ class DeepseekV4AscendAttnBackend(
         q_arg = attn_kwargs.pop("q")
         if use_external_draft_ops:
             _, attn_op = _dspark_draft_arch35_sparse_attn_ops()
-            out, _ = attn_op(q_arg, **attn_kwargs)
+            trace_dspark_a5_op_libraries("before attention op")
+            try:
+                out, _ = attn_op(q_arg, **attn_kwargs)
+            finally:
+                trace_dspark_a5_op_libraries("after attention op")
         elif self._is_dspark_draft_worker:
             out, _ = torch.ops.npu.sparse_attn_sharedkv(q_arg, **attn_kwargs)
         else:

@@ -3,8 +3,10 @@ echo performance | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
 sysctl -w vm.swappiness=0
 sysctl -w kernel.numa_balancing=0
 
+# Keep the system customize package, but do not register the system
+# custom_transformer package: it contains an older A5 sparse-attention tiling
+# implementation with the same operator name as vllm-ascend.
 source /usr/local/Ascend/ascend-toolkit/latest/opp/vendors/customize/bin/set_env.bash
-source /usr/local/Ascend/ascend-toolkit/latest/opp/vendors/custom_transformer/bin/set_env.bash
 source /usr/local/Ascend/ascend-toolkit/latest/set_env.sh
 source /usr/local/Ascend/nnal/atb/set_env.sh
 
@@ -78,7 +80,39 @@ export SGLANG_DSV4_REASONING_EFFORT=max
 # Dspark
 export SGLANG_RAGGED_VERIFY_MODE=static
 export SGLANG_DSPARK_FAST_KERNEL=0
-export SGLANG_DSPARK_A5_EXTRA_OPS_SO=/home/a00821909/vllm-ascend/build/vllm_ascend_C.cpython-312-x86_64-linux-gnu.so
+export SGLANG_DSPARK_A5_TRACE_OP_LIBS=1
+
+# These assignments must stay after all Ascend/ATB set_env scripts so that the
+# vllm-ascend A5 operator package has the final lookup priority.
+VLLM_ASCEND_ROOT=/home/a00821909/vllm-ascend
+VLLM_ASCEND_VENDOR="${VLLM_ASCEND_ROOT}/vllm_ascend/_cann_ops_custom/vendors/custom_transformer"
+VLLM_ASCEND_TILING_SO="${VLLM_ASCEND_VENDOR}/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so"
+
+export ASCEND_CUSTOM_OPP_PATH="${VLLM_ASCEND_VENDOR}"
+export LD_LIBRARY_PATH="${VLLM_ASCEND_VENDOR}/op_api/lib:${VLLM_ASCEND_ROOT}/build:${LD_LIBRARY_PATH}"
+export SGLANG_DSPARK_A5_EXTRA_OPS_SO="${VLLM_ASCEND_ROOT}/build/vllm_ascend_C.cpython-312-x86_64-linux-gnu.so"
+
+# NPU DeepSeek-V4 deployments can report asymmetric post-HCCL free memory.
+# The KV-cache planner still uses the minimum free memory across all ranks.
+export SGLANG_ENABLE_TP_MEMORY_INBALANCE_CHECK=0
+
+if [ ! -r "${VLLM_ASCEND_TILING_SO}" ]; then
+    echo "ERROR: A5 custom-op tiling library is not readable: ${VLLM_ASCEND_TILING_SO}" >&2
+    exit 1
+fi
+
+echo "[A5 custom-op preflight] user=$(id -un) uid=$(id -u)"
+echo "[A5 custom-op preflight] ASCEND_CUSTOM_OPP_PATH=${ASCEND_CUSTOM_OPP_PATH}"
+echo "[A5 custom-op preflight] SGLANG_DSPARK_A5_EXTRA_OPS_SO=${SGLANG_DSPARK_A5_EXTRA_OPS_SO}"
+stat -c '[A5 custom-op preflight] owner=%U:%G mode=%a file=%n' \
+    "${VLLM_ASCEND_TILING_SO}" \
+    "${VLLM_ASCEND_VENDOR}/op_api/lib/libcust_opapi.so" \
+    "${SGLANG_DSPARK_A5_EXTRA_OPS_SO}"
+if grep -aq 'oriSparseIndices is not supported now' "${VLLM_ASCEND_TILING_SO}"; then
+    echo "ERROR: selected A5 tiling library still contains the old oriSparseIndices rejection" >&2
+    exit 1
+fi
+echo "[A5 custom-op preflight] selected tiling library supports oriSparseIndices"
 
 python3 -m sglang.launch_server --model-path ${MODEL_PATH} \
     --page-size 128 \
@@ -118,7 +152,5 @@ python3 -m sglang.launch_server --model-path ${MODEL_PATH} \
     # -skip-server-warmup 
     # # --ep-size 2
     # --cuda-graph-backend-decode disable
-
-
 
 
