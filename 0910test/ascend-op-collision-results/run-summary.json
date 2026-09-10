@@ -1,0 +1,10 @@
+{
+  "results": {
+    "sparse-only": 0,
+    "custom-import-then-sparse": 0,
+    "compressor-then-sparse": 1,
+    "sparse-then-compressor-then-sparse": 1
+  },
+  "parent_environment": "/home/a00821909/sglang/0910test/ascend-op-collision-results/parent-environment.json",
+  "static_elf_inventory": "/home/a00821909/sglang/0910test/ascend-op-collision-results/static-elf-inventory.json"
+}
