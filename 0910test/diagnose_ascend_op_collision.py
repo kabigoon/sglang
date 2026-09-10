@@ -65,6 +65,9 @@ SCENARIOS = (
     "sparse-then-compressor-then-sparse",
 )
 DEFAULT_SYSTEM_VENDOR = Path("/usr/local/Ascend/cann-9.1.0/opp/vendors/customize")
+DEFAULT_VENDOR_CONFIG = Path(
+    "/usr/local/Ascend/ascend-toolkit/latest/opp/vendors/config.ini"
+)
 SYSTEM_TRANSFORMER_FRAGMENT = "/opp/vendors/custom_transformer/"
 
 
@@ -130,6 +133,19 @@ def parse_args() -> argparse.Namespace:
         "--ld-debug",
         action="store_true",
         help="Enable ld.so library/binding traces in the output directory",
+    )
+    parser.add_argument(
+        "--vendor-config",
+        type=Path,
+        default=DEFAULT_VENDOR_CONFIG,
+        help=(
+            "CANN vendors/config.ini to snapshot in every process; the diagnostic "
+            f"does not modify it (default: {DEFAULT_VENDOR_CONFIG})"
+        ),
+    )
+    parser.add_argument(
+        "--expected-load-priority",
+        help="Fail before importing torch if config.ini does not contain this value",
     )
     parser.add_argument("--child", action="store_true", help=argparse.SUPPRESS)
     return parser.parse_args()
@@ -243,7 +259,63 @@ def child_command(
         command.extend(("--sparse-vendor", str(args.sparse_vendor)))
     for vendor in system_vendors:
         command.extend(("--system-vendor", str(vendor)))
+    if args.vendor_config:
+        command.extend(("--vendor-config", str(args.vendor_config)))
+    if args.expected_load_priority is not None:
+        command.extend(("--expected-load-priority", args.expected_load_priority))
     return command
+
+
+def vendor_config_snapshot(path: Path | None) -> dict[str, Any] | None:
+    if path is None:
+        return None
+    requested = path.expanduser()
+    result: dict[str, Any] = {
+        "requested_path": str(requested),
+        "exists": requested.exists(),
+    }
+    try:
+        result["realpath"] = str(requested.resolve(strict=False))
+        raw = requested.read_bytes()
+        text = raw.decode("utf-8", errors="replace")
+        values = []
+        for line in text.splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith(("#", ";")):
+                continue
+            key, separator, value = stripped.partition("=")
+            if separator and key.strip() == "load_priority":
+                values.append(value.strip())
+        stat = requested.stat()
+        result.update(
+            {
+                "readable": True,
+                "size": len(raw),
+                "sha256": hashlib.sha256(raw).hexdigest(),
+                "mode": oct(stat.st_mode & 0o7777),
+                "load_priority_values": values,
+                "content": text,
+            }
+        )
+    except OSError as exc:
+        result.update({"readable": False, "error": repr(exc)})
+    return result
+
+
+def validate_vendor_config(
+    snapshot_data: dict[str, Any] | None, expected: str | None
+) -> None:
+    if expected is None:
+        return
+    if snapshot_data is None:
+        raise RuntimeError("--expected-load-priority requires --vendor-config")
+    actual = snapshot_data.get("load_priority_values", [])
+    if actual != [expected]:
+        raise RuntimeError(
+            "Unexpected vendors/config.ini load_priority: "
+            f"expected {[expected]!r}, got {actual!r}; "
+            f"config={snapshot_data.get('requested_path')}"
+        )
 
 
 def elf_dynamic_tags(path: Path) -> list[str]:
@@ -330,6 +402,8 @@ def run_parent(args: argparse.Namespace) -> int:
         raise RuntimeError(f"System vendor directories are missing: {missing_vendors}")
     args.output_dir.mkdir(parents=True, exist_ok=True)
     scenarios = SCENARIOS if args.scenario == "all" else (args.scenario,)
+    config_snapshot = vendor_config_snapshot(args.vendor_config)
+    validate_vendor_config(config_snapshot, args.expected_load_priority)
 
     parent_environment = {
         "python_executable": sys.executable,
@@ -340,6 +414,8 @@ def run_parent(args: argparse.Namespace) -> int:
         "sparse_vendor": str(vendor),
         "system_vendors": [str(path) for path in system_vendors],
         "opp_mode": args.opp_mode,
+        "vendor_config": config_snapshot,
+        "expected_load_priority": args.expected_load_priority,
         "inherited_environment": {
             name: os.getenv(name)
             for name in (
@@ -373,6 +449,10 @@ def run_parent(args: argparse.Namespace) -> int:
     print("system vendors:", system_vendors)
     print("inherited ASCEND_CUSTOM_OPP_PATH:", os.getenv("ASCEND_CUSTOM_OPP_PATH"))
     print("reports:", args.output_dir)
+    if config_snapshot is not None:
+        print("vendor config:", config_snapshot.get("requested_path"))
+        print("vendor config realpath:", config_snapshot.get("realpath"))
+        print("load_priority:", config_snapshot.get("load_priority_values"))
     print("parent environment:", parent_environment_path)
     print("static ELF inventory:", inventory_path)
     for item in inventory["files"]:
@@ -418,6 +498,7 @@ def run_parent(args: argparse.Namespace) -> int:
                 "results": results,
                 "parent_environment": str(parent_environment_path),
                 "static_elf_inventory": str(inventory_path),
+                "vendor_config": config_snapshot,
             },
             indent=2,
             ensure_ascii=False,
@@ -650,9 +731,8 @@ def call_compressor(torch: Any, device: Any, report: dict[str, Any]) -> bool:
         state_cache = torch.zeros(
             (1, 8, state_width), dtype=torch.float32, device=device
         )
-        ape = torch.zeros(
-            (ratio, coff * head_dim), dtype=torch.bfloat16, device=device
-        )
+        # The system custom::compressor OpDef requires APE to be FLOAT.
+        ape = torch.zeros((ratio, coff * head_dim), dtype=torch.float32, device=device)
         norm_weight = torch.ones(hidden_size, dtype=torch.float32, device=device)
         rope_sin = torch.zeros((1, 64), dtype=torch.float32, device=device)
         rope_cos = torch.ones((1, 64), dtype=torch.float32, device=device)
@@ -844,6 +924,8 @@ def run_child(args: argparse.Namespace) -> int:
     if scenario == "all":
         raise RuntimeError("--child requires one concrete scenario")
     args.output_dir.mkdir(parents=True, exist_ok=True)
+    config_snapshot = vendor_config_snapshot(args.vendor_config)
+    validate_vendor_config(config_snapshot, args.expected_load_priority)
     report: dict[str, Any] = {
         "scenario": scenario,
         "pid": os.getpid(),
@@ -851,6 +933,8 @@ def run_child(args: argparse.Namespace) -> int:
         "binding": str(binding),
         "sparse_vendor": str(vendor),
         "system_vendors": [str(path) for path in (args.system_vendor or [])],
+        "vendor_config_before_torch_import": config_snapshot,
+        "expected_load_priority": args.expected_load_priority,
         "environment": {
             "ASCEND_CUSTOM_OPP_PATH": os.getenv("ASCEND_CUSTOM_OPP_PATH"),
             "LD_LIBRARY_PATH": os.getenv("LD_LIBRARY_PATH"),
