@@ -1,0 +1,16 @@
+{
+  "started_at_unix": 1789034817.6510425,
+  "priority_style": "path",
+  "load_priority": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer",
+  "requested_config": "/usr/local/Ascend/ascend-toolkit/latest/opp/vendors/config.ini",
+  "effective_config": "/usr/local/Ascend/cann-9.1.0/opp/vendors/config.ini",
+  "original": {
+    "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/config.ini",
+    "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/config.ini",
+    "exists": false
+  },
+  "active_sha256": "5a4ec780aeebbfc8d12b7179cf6ac5ba72c2f7e014d68168d08a2ac3d2484868",
+  "restored": true,
+  "diagnostic_returncode": 0,
+  "finished_at_unix": 1789034851.4179842
+}

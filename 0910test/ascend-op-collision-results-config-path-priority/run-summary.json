@@ -1,0 +1,23 @@
+{
+  "results": {
+    "sparse-only": 1,
+    "custom-import-then-sparse": 1,
+    "compressor-then-sparse": 1,
+    "sparse-then-compressor-then-sparse": 1
+  },
+  "parent_environment": "/home/a00821909/sglang/0910test/ascend-op-collision-results-config-path-priority/parent-environment.json",
+  "static_elf_inventory": "/home/a00821909/sglang/0910test/ascend-op-collision-results-config-path-priority/static-elf-inventory.json",
+  "vendor_config": {
+    "requested_path": "/usr/local/Ascend/ascend-toolkit/latest/opp/vendors/config.ini",
+    "exists": true,
+    "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/config.ini",
+    "readable": true,
+    "size": 98,
+    "sha256": "5a4ec780aeebbfc8d12b7179cf6ac5ba72c2f7e014d68168d08a2ac3d2484868",
+    "mode": "0o644",
+    "load_priority_values": [
+      "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer"
+    ],
+    "content": "load_priority=/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer\n"
+  }
+}
