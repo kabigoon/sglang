@@ -1,0 +1,10 @@
+{
+  "results": {
+    "sparse-only": 1,
+    "custom-import-then-sparse": 1,
+    "compressor-then-sparse": 1,
+    "sparse-then-compressor-then-sparse": 1
+  },
+  "parent_environment": "0910test/ascend-op-collision-results-with-system-transformer/parent-environment.json",
+  "static_elf_inventory": "0910test/ascend-op-collision-results-with-system-transformer/static-elf-inventory.json"
+}

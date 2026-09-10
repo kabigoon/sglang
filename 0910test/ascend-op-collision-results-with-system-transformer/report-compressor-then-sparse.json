@@ -1,0 +1,819 @@
+{
+  "scenario": "compressor-then-sparse",
+  "pid": 100024,
+  "python": "3.12.13 (main, Aug  3 2026, 07:03:35) [GCC 11.4.0]",
+  "binding": "/home/a00821909/vllm-ascend/build/vllm_ascend_C.cpython-312-x86_64-linux-gnu.so",
+  "sparse_vendor": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer",
+  "system_vendors": [
+    "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer",
+    "/usr/local/Ascend/cann-9.1.0/opp/vendors/customize"
+  ],
+  "environment": {
+    "ASCEND_CUSTOM_OPP_PATH": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer:/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer:/usr/local/Ascend/cann-9.1.0/opp/vendors/customize",
+    "LD_LIBRARY_PATH": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_api/lib:/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_api/lib:/usr/local/Ascend/cann-9.1.0/opp/vendors/customize/op_api/lib:/home/a00821909/vllm-ascend/build:/usr/local/Ascend/nnal/atb/latest/atb/cxx_abi_1/lib:/usr/local/Ascend/nnal/atb/latest/atb/cxx_abi_1/examples:/usr/local/Ascend/nnal/atb/latest/atb/cxx_abi_1/tests/atbopstest:/usr/local/Ascend/cann-9.1.0/lib64:/usr/local/Ascend/cann-9.1.0/lib64/plugin/opskernel:/usr/local/Ascend/cann-9.1.0/lib64/plugin/nnengine:/usr/local/Ascend/cann-9.1.0/opp/built-in/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64:/usr/local/Ascend/driver/lib64:/usr/local/Ascend/driver/lib64/common:/usr/local/Ascend/driver/lib64/driver:/usr/local/Ascend/ascend-toolkit/latest/tools/aml/lib64:/usr/local/Ascend/ascend-toolkit/latest/tools/aml/lib64/plugin:/usr/local/Ascend/ascend-toolkit/latest/lib64:/usr/local/Ascend/ascend-toolkit/latest/lib64/plugin/opskernel:/usr/local/Ascend/ascend-toolkit/latest/lib64/plugin/nnengine:/usr/local/Ascend/ascend-toolkit/latest/opp/built-in/op_impl/ai_core/tbe/op_tiling:/usr/local/python3.12.13/lib",
+    "LD_DEBUG_OUTPUT": null
+  },
+  "events": [
+    {
+      "event": "import_custom_module",
+      "ok": true,
+      "module": "custom_ops",
+      "module_file": "/usr/local/python3.12.13/lib/python3.12/site-packages/custom_ops/__init__.py"
+    },
+    {
+      "event": "call_compressor",
+      "ok": false,
+      "error": "RuntimeError('call aclnnCompressor failed')",
+      "traceback": "Traceback (most recent call last):\n  File \"/home/a00821909/sglang/0910test/diagnose_ascend_op_collision.py\", line 659, in call_compressor\n    result = torch.ops.custom.compressor(\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/python3.12.13/lib/python3.12/site-packages/torch/_ops.py\", line 1209, in __call__\n    return self._op(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^\nRuntimeError: call aclnnCompressor failed\n"
+    },
+    {
+      "event": "load_binding",
+      "ok": true,
+      "path": "/home/a00821909/vllm-ascend/build/vllm_ascend_C.cpython-312-x86_64-linux-gnu.so"
+    },
+    {
+      "event": "call_sparse_attention",
+      "label": "after-compressor",
+      "ok": false,
+      "error": "RuntimeError('call aclnnKvQuantSparseAttnSharedkv failed, detail:[PID: 100024] 2026-09-10-03:39:34.395.299 Execution_Error(EZ1009): Failed to execute operator Compressor_19. Reason: The dtype or format of the actual input or output parameter of the operator is inconsistent with that defined in the operator prototype OpDef, details of parameter are x(DT_BFLOAT16, ND), wkv(DT_BFLOAT16, ND), wgate(DT_BFLOAT16, ND), stateCacheRef(DT_FLOAT, ND), ape(DT_BFLOAT16, ND), normWeight(DT_FLOAT, ND), ropeSin(DT_FLOAT, ND), ropeCos(DT_FLOAT, ND), stateBlockTableOptional(DT_INT32, ND), cuSeqlensOptional(DT_INT32, ND), sequsedOptional(DT_INT32, ND), startPosOptional(DT_INT32, ND), cmpKvOut(DT_BFLOAT16, ND), stateCacheRef(DT_FLOAT, ND).\\nTraceBack (most recent call last):\\n        Supported dtype and format list is:\\n        SupportInfo[0]: x(DT_BFLOAT16, ND), wkv(DT_BFLOAT16, ND), wgate(DT_BFLOAT16, ND), stateCacheRef(DT_FLOAT, ND), ape(DT_FLOAT, ND), normWeight(DT_FLOAT, ND), ropeSin(DT_FLOAT, ND), ropeCos(DT_FLOAT, ND), stateBlockTableOptional(DT_INT32, ND), cuSeqlensOptional(DT_INT32, ND), sequsedOptional(DT_INT32, ND), startPosOptional(DT_INT32, ND), cmpKvOut(DT_BFLOAT16, ND), stateCacheRef(DT_FLOAT, ND)\\n        SupportInfo[1]: x(DT_FLOAT16, ND), wkv(DT_FLOAT16, ND), wgate(DT_FLOAT16, ND), stateCacheRef(DT_FLOAT, ND), ape(DT_FLOAT, ND), normWeight(DT_FLOAT, ND), ropeSin(DT_FLOAT, ND), ropeCos(DT_FLOAT, ND), stateBlockTableOptional(DT_INT32, ND), cuSeqlensOptional(DT_INT32, ND), sequsedOptional(DT_INT32, ND), startPosOptional(DT_INT32, ND), cmpKvOut(DT_FLOAT16, ND), stateCacheRef(DT_FLOAT, ND)\\n        Check NnopbaseExecutorTilingAndUpdateBinInfo(executor) failed\\n        Check NnopbaseExecutorMatchCache(executor) failed\\n        Check NnopbaseRunForWorkspace(*executor, workspaceSize) failed\\n        oriSparseIndices is not supported now, it must be nullptr.[FUNC:CheckUnrequiredParaExistence][FILE:kv_quant_sparse_attn_sharedkv_check_existance.cpp][LINE:63]\\n        Failed to execute operator KvQuantSparseAttnSharedkv_0. Reason: Failed to execute tiling function.\\n        Check NnopbaseExecutorDoTiling(executor) failed\\n        Check NnopbaseExecutorTilingAndUpdateBinInfo(executor) failed\\n        Check NnopbaseExecutorMatchCache(executor) failed\\n        Check NnopbaseRunForWorkspace(*executor, workspaceSize) failed\\n')",
+      "traceback": "Traceback (most recent call last):\n  File \"/home/a00821909/sglang/0910test/diagnose_ascend_op_collision.py\", line 788, in call_sparse_attention\n    out, softmax_lse = attention_op(\n                       ^^^^^^^^^^^^^\n  File \"/usr/local/python3.12.13/lib/python3.12/site-packages/torch/_ops.py\", line 1209, in __call__\n    return self._op(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^\nRuntimeError: call aclnnKvQuantSparseAttnSharedkv failed, detail:[PID: 100024] 2026-09-10-03:39:34.395.299 Execution_Error(EZ1009): Failed to execute operator Compressor_19. Reason: The dtype or format of the actual input or output parameter of the operator is inconsistent with that defined in the operator prototype OpDef, details of parameter are x(DT_BFLOAT16, ND), wkv(DT_BFLOAT16, ND), wgate(DT_BFLOAT16, ND), stateCacheRef(DT_FLOAT, ND), ape(DT_BFLOAT16, ND), normWeight(DT_FLOAT, ND), ropeSin(DT_FLOAT, ND), ropeCos(DT_FLOAT, ND), stateBlockTableOptional(DT_INT32, ND), cuSeqlensOptional(DT_INT32, ND), sequsedOptional(DT_INT32, ND), startPosOptional(DT_INT32, ND), cmpKvOut(DT_BFLOAT16, ND), stateCacheRef(DT_FLOAT, ND).\nTraceBack (most recent call last):\n        Supported dtype and format list is:\n        SupportInfo[0]: x(DT_BFLOAT16, ND), wkv(DT_BFLOAT16, ND), wgate(DT_BFLOAT16, ND), stateCacheRef(DT_FLOAT, ND), ape(DT_FLOAT, ND), normWeight(DT_FLOAT, ND), ropeSin(DT_FLOAT, ND), ropeCos(DT_FLOAT, ND), stateBlockTableOptional(DT_INT32, ND), cuSeqlensOptional(DT_INT32, ND), sequsedOptional(DT_INT32, ND), startPosOptional(DT_INT32, ND), cmpKvOut(DT_BFLOAT16, ND), stateCacheRef(DT_FLOAT, ND)\n        SupportInfo[1]: x(DT_FLOAT16, ND), wkv(DT_FLOAT16, ND), wgate(DT_FLOAT16, ND), stateCacheRef(DT_FLOAT, ND), ape(DT_FLOAT, ND), normWeight(DT_FLOAT, ND), ropeSin(DT_FLOAT, ND), ropeCos(DT_FLOAT, ND), stateBlockTableOptional(DT_INT32, ND), cuSeqlensOptional(DT_INT32, ND), sequsedOptional(DT_INT32, ND), startPosOptional(DT_INT32, ND), cmpKvOut(DT_FLOAT16, ND), stateCacheRef(DT_FLOAT, ND)\n        Check NnopbaseExecutorTilingAndUpdateBinInfo(executor) failed\n        Check NnopbaseExecutorMatchCache(executor) failed\n        Check NnopbaseRunForWorkspace(*executor, workspaceSize) failed\n        oriSparseIndices is not supported now, it must be nullptr.[FUNC:CheckUnrequiredParaExistence][FILE:kv_quant_sparse_attn_sharedkv_check_existance.cpp][LINE:63]\n        Failed to execute operator KvQuantSparseAttnSharedkv_0. Reason: Failed to execute tiling function.\n        Check NnopbaseExecutorDoTiling(executor) failed\n        Check NnopbaseExecutorTilingAndUpdateBinInfo(executor) failed\n        Check NnopbaseExecutorMatchCache(executor) failed\n        Check NnopbaseRunForWorkspace(*executor, workspaceSize) failed\n\n"
+    }
+  ],
+  "snapshots": [
+    {
+      "stage": "after torch_npu import",
+      "mapped_libraries": [
+        {
+          "path": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "realpath": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "size": 1386712,
+          "inode": 159910104,
+          "first_4m_sha256": "5ecdc5caad06c2c3",
+          "old_tiling_marker": false,
+          "new_tiling_marker": true
+        },
+        {
+          "path": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "realpath": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "size": 206864,
+          "inode": 159913600,
+          "first_4m_sha256": "134487adb776281f",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/built-in/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/liboptiling.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/built-in/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/liboptiling.so",
+          "size": 29747760,
+          "inode": 359531372,
+          "first_4m_sha256": "dcf231d2ab4980a0",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/built-in/op_proto/lib/linux/x86_64/libopsproto.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/built-in/op_proto/lib/linux/x86_64/libopsproto.so",
+          "size": 30071920,
+          "inode": 359531429,
+          "first_4m_sha256": "4c3f0bde9f8ba4e2",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "size": 2287832,
+          "inode": 366351651,
+          "first_4m_sha256": "9ce34cfce1361f2b",
+          "old_tiling_marker": true,
+          "new_tiling_marker": true
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "size": 776208,
+          "inode": 366351686,
+          "first_4m_sha256": "5d3ed2adfd91220e",
+          "old_tiling_marker": true,
+          "new_tiling_marker": true
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/customize/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/customize/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "size": 33929456,
+          "inode": 366352268,
+          "first_4m_sha256": "9cb7bce1c6826a59",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/customize/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/customize/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "size": 11052248,
+          "inode": 366352291,
+          "first_4m_sha256": "a344e38c16494b25",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        }
+      ],
+      "global_symbol_owners": {
+        "aclnnCompressorGetWorkspaceSize": null,
+        "aclnnCompressor": null,
+        "aclnnKvQuantSparseAttnSharedkvMetadataGetWorkspaceSize": null,
+        "aclnnKvQuantSparseAttnSharedkvMetadata": null,
+        "aclnnKvQuantSparseAttnSharedkvGetWorkspaceSize": null,
+        "aclnnKvQuantSparseAttnSharedkv": null
+      },
+      "ops": {
+        "custom::compressor": {
+          "registered": false,
+          "error": "AttributeError(\"'_OpNamespace' 'custom' object has no attribute 'compressor'\")"
+        },
+        "_C_ascend::npu_kv_quant_sparse_attn_sharedkv_metadata": {
+          "registered": false,
+          "error": "AttributeError(\"'_OpNamespace' '_C_ascend' object has no attribute 'npu_kv_quant_sparse_attn_sharedkv_metadata'\")"
+        },
+        "_C_ascend::npu_kv_quant_sparse_attn_sharedkv": {
+          "registered": false,
+          "error": "AttributeError(\"'_OpNamespace' '_C_ascend' object has no attribute 'npu_kv_quant_sparse_attn_sharedkv'\")"
+        }
+      },
+      "torch_ops_loaded_libraries": [
+        "/usr/local/python3.12.13/lib/python3.12/site-packages/torch_npu/lib/libop_plugin_atb.so"
+      ]
+    },
+    {
+      "stage": "after custom module import",
+      "mapped_libraries": [
+        {
+          "path": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "realpath": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "size": 1386712,
+          "inode": 159910104,
+          "first_4m_sha256": "5ecdc5caad06c2c3",
+          "old_tiling_marker": false,
+          "new_tiling_marker": true
+        },
+        {
+          "path": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "realpath": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "size": 206864,
+          "inode": 159913600,
+          "first_4m_sha256": "134487adb776281f",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/built-in/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/liboptiling.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/built-in/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/liboptiling.so",
+          "size": 29747760,
+          "inode": 359531372,
+          "first_4m_sha256": "dcf231d2ab4980a0",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/built-in/op_proto/lib/linux/x86_64/libopsproto.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/built-in/op_proto/lib/linux/x86_64/libopsproto.so",
+          "size": 30071920,
+          "inode": 359531429,
+          "first_4m_sha256": "4c3f0bde9f8ba4e2",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "size": 2287832,
+          "inode": 366351651,
+          "first_4m_sha256": "9ce34cfce1361f2b",
+          "old_tiling_marker": true,
+          "new_tiling_marker": true
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "size": 776208,
+          "inode": 366351686,
+          "first_4m_sha256": "5d3ed2adfd91220e",
+          "old_tiling_marker": true,
+          "new_tiling_marker": true
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/customize/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/customize/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "size": 33929456,
+          "inode": 366352268,
+          "first_4m_sha256": "9cb7bce1c6826a59",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/customize/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/customize/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "size": 11052248,
+          "inode": 366352291,
+          "first_4m_sha256": "a344e38c16494b25",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/python3.12.13/lib/python3.12/site-packages/custom_ops/custom_ops_lib.cpython-312-x86_64-linux-gnu.so",
+          "realpath": "/usr/local/python3.12.13/lib/python3.12/site-packages/custom_ops/custom_ops_lib.cpython-312-x86_64-linux-gnu.so",
+          "size": 93036040,
+          "inode": 366352349,
+          "first_4m_sha256": "813637ccd6aebb72",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        }
+      ],
+      "global_symbol_owners": {
+        "aclnnCompressorGetWorkspaceSize": null,
+        "aclnnCompressor": null,
+        "aclnnKvQuantSparseAttnSharedkvMetadataGetWorkspaceSize": null,
+        "aclnnKvQuantSparseAttnSharedkvMetadata": null,
+        "aclnnKvQuantSparseAttnSharedkvGetWorkspaceSize": null,
+        "aclnnKvQuantSparseAttnSharedkv": null
+      },
+      "ops": {
+        "custom::compressor": {
+          "registered": true,
+          "schema": "custom::compressor(Tensor x, Tensor wkv, Tensor wgate, Tensor(a!) state_cache, Tensor ape, Tensor norm_weight, Tensor rope_sin, Tensor rope_cos, int rope_head_dim, int cmp_ratio, *, Tensor? state_block_table=None, Tensor? cu_seqlens=None, Tensor? seqused=None, Tensor? start_pos=None, int coff=1, float norm_eps=9.9999999999999995e-07, int rotary_mode=1, int cache_mode=1) -> Tensor",
+          "dispatch_table": "PrivateUse1: registered at /__w/sgl-kernel-npu/cann-recipes-infer/ops/ascendc/torch_ops_extension/custom_ops/csrc/npu_compressor.cpp:145 [kernel]\nMeta: registered at /__w/sgl-kernel-npu/cann-recipes-infer/ops/ascendc/torch_ops_extension/custom_ops/csrc/npu_compressor.cpp:151 [kernel]\nSparsePrivateUse1: registered at ../torch_npu/csrc/aten/VariableFallbackKernel.cpp:270 [backend fallback]\nBackendSelect: fallthrough registered at /pytorch/aten/src/ATen/core/BackendSelectFallbackKernel.cpp:3 [backend fallback]\nPython: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:198 [backend fallback]\nFuncTorchDynamicLayerBackMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:477 [backend fallback]\nFunctionalize: registered at /pytorch/aten/src/ATen/FunctionalizeFallbackKernel.cpp:384 [backend fallback]\nNamed: registered at /pytorch/aten/src/ATen/core/NamedRegistrations.cpp:5 [backend fallback]\nConjugate: registered at /pytorch/aten/src/ATen/ConjugateFallback.cpp:17 [backend fallback]\nNegative: registered at /pytorch/aten/src/ATen/native/NegateFallback.cpp:18 [backend fallback]\nZeroTensor: registered at /pytorch/aten/src/ATen/ZeroTensorFallback.cpp:115 [backend fallback]\nADInplaceOrView: fallthrough registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:103 [backend fallback]\nAutogradOther: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:62 [backend fallback]\nAutogradCPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:66 [backend fallback]\nAutogradCUDA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:74 [backend fallback]\nAutogradXLA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:86 [backend fallback]\nAutogradMPS: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:94 [backend fallback]\nAutogradXPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:70 [backend fallback]\nAutogradHPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:107 [backend fallback]\nAutogradLazy: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:90 [backend fallback]\nAutogradMTIA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:78 [backend fallback]\nAutogradMAIA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:82 [backend fallback]\nAutogradPrivateUse1: registered at ../torch_npu/csrc/aten/VariableFallbackKernel.cpp:233 [backend fallback]\nAutogradMeta: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:98 [backend fallback]\nTracer: registered at /pytorch/torch/csrc/autograd/TraceTypeManual.cpp:296 [backend fallback]\nAutocastCPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:324 [backend fallback]\nAutocastMTIA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:468 [backend fallback]\nAutocastMAIA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:506 [backend fallback]\nAutocastXPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:544 [backend fallback]\nAutocastMPS: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:209 [backend fallback]\nAutocastCUDA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:165 [backend fallback]\nAutocastPrivateUse1: fallthrough registered at ../torch_npu/csrc/aten/AutoCastOps.cpp:20 [backend fallback]\nFuncTorchBatched: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:727 [backend fallback]\nBatchedNestedTensor: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:754 [backend fallback]\nFuncTorchVmapMode: fallthrough registered at /pytorch/aten/src/ATen/functorch/VmapModeRegistrations.cpp:22 [backend fallback]\nBatched: registered at /pytorch/aten/src/ATen/LegacyBatchingRegistrations.cpp:1072 [backend fallback]\nVmapMode: fallthrough registered at /pytorch/aten/src/ATen/VmapModeRegistrations.cpp:32 [backend fallback]\nFuncTorchGradWrapper: registered at /pytorch/aten/src/ATen/functorch/TensorWrapper.cpp:210 [backend fallback]\nPythonTLSSnapshot: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:206 [backend fallback]\nFuncTorchDynamicLayerFrontMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:473 [backend fallback]\nPreDispatch: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:210 [backend fallback]\nPythonDispatcher: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:202 [backend fallback]\n"
+        },
+        "_C_ascend::npu_kv_quant_sparse_attn_sharedkv_metadata": {
+          "registered": false,
+          "error": "AttributeError(\"'_OpNamespace' '_C_ascend' object has no attribute 'npu_kv_quant_sparse_attn_sharedkv_metadata'\")"
+        },
+        "_C_ascend::npu_kv_quant_sparse_attn_sharedkv": {
+          "registered": false,
+          "error": "AttributeError(\"'_OpNamespace' '_C_ascend' object has no attribute 'npu_kv_quant_sparse_attn_sharedkv'\")"
+        }
+      },
+      "torch_ops_loaded_libraries": [
+        "/usr/local/python3.12.13/lib/python3.12/site-packages/torch_npu/lib/libop_plugin_atb.so"
+      ]
+    },
+    {
+      "stage": "after custom.compressor call",
+      "mapped_libraries": [
+        {
+          "path": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_api/lib/libcust_opapi.so",
+          "realpath": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_api/lib/libcust_opapi.so",
+          "size": 92600,
+          "inode": 159910116,
+          "first_4m_sha256": "69a609fff1dc8e0f",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "realpath": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "size": 1386712,
+          "inode": 159910104,
+          "first_4m_sha256": "5ecdc5caad06c2c3",
+          "old_tiling_marker": false,
+          "new_tiling_marker": true
+        },
+        {
+          "path": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "realpath": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "size": 206864,
+          "inode": 159913600,
+          "first_4m_sha256": "134487adb776281f",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/built-in/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/liboptiling.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/built-in/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/liboptiling.so",
+          "size": 29747760,
+          "inode": 359531372,
+          "first_4m_sha256": "dcf231d2ab4980a0",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/built-in/op_proto/lib/linux/x86_64/libopsproto.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/built-in/op_proto/lib/linux/x86_64/libopsproto.so",
+          "size": 30071920,
+          "inode": 359531429,
+          "first_4m_sha256": "4c3f0bde9f8ba4e2",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_api/lib/libcust_opapi.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_api/lib/libcust_opapi.so",
+          "size": 192424,
+          "inode": 366350803,
+          "first_4m_sha256": "e1d11523d2a0cbbf",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "size": 2287832,
+          "inode": 366351651,
+          "first_4m_sha256": "9ce34cfce1361f2b",
+          "old_tiling_marker": true,
+          "new_tiling_marker": true
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "size": 776208,
+          "inode": 366351686,
+          "first_4m_sha256": "5d3ed2adfd91220e",
+          "old_tiling_marker": true,
+          "new_tiling_marker": true
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/customize/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/customize/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "size": 33929456,
+          "inode": 366352268,
+          "first_4m_sha256": "9cb7bce1c6826a59",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/customize/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/customize/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "size": 11052248,
+          "inode": 366352291,
+          "first_4m_sha256": "a344e38c16494b25",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/python3.12.13/lib/python3.12/site-packages/custom_ops/custom_ops_lib.cpython-312-x86_64-linux-gnu.so",
+          "realpath": "/usr/local/python3.12.13/lib/python3.12/site-packages/custom_ops/custom_ops_lib.cpython-312-x86_64-linux-gnu.so",
+          "size": 93036040,
+          "inode": 366352349,
+          "first_4m_sha256": "813637ccd6aebb72",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        }
+      ],
+      "global_symbol_owners": {
+        "aclnnCompressorGetWorkspaceSize": null,
+        "aclnnCompressor": null,
+        "aclnnKvQuantSparseAttnSharedkvMetadataGetWorkspaceSize": null,
+        "aclnnKvQuantSparseAttnSharedkvMetadata": null,
+        "aclnnKvQuantSparseAttnSharedkvGetWorkspaceSize": null,
+        "aclnnKvQuantSparseAttnSharedkv": null
+      },
+      "ops": {
+        "custom::compressor": {
+          "registered": true,
+          "schema": "custom::compressor(Tensor x, Tensor wkv, Tensor wgate, Tensor(a!) state_cache, Tensor ape, Tensor norm_weight, Tensor rope_sin, Tensor rope_cos, int rope_head_dim, int cmp_ratio, *, Tensor? state_block_table=None, Tensor? cu_seqlens=None, Tensor? seqused=None, Tensor? start_pos=None, int coff=1, float norm_eps=9.9999999999999995e-07, int rotary_mode=1, int cache_mode=1) -> Tensor",
+          "dispatch_table": "PrivateUse1: registered at /__w/sgl-kernel-npu/cann-recipes-infer/ops/ascendc/torch_ops_extension/custom_ops/csrc/npu_compressor.cpp:145 [kernel]\nMeta: registered at /__w/sgl-kernel-npu/cann-recipes-infer/ops/ascendc/torch_ops_extension/custom_ops/csrc/npu_compressor.cpp:151 [kernel]\nSparsePrivateUse1: registered at ../torch_npu/csrc/aten/VariableFallbackKernel.cpp:270 [backend fallback]\nBackendSelect: fallthrough registered at /pytorch/aten/src/ATen/core/BackendSelectFallbackKernel.cpp:3 [backend fallback]\nPython: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:198 [backend fallback]\nFuncTorchDynamicLayerBackMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:477 [backend fallback]\nFunctionalize: registered at /pytorch/aten/src/ATen/FunctionalizeFallbackKernel.cpp:384 [backend fallback]\nNamed: registered at /pytorch/aten/src/ATen/core/NamedRegistrations.cpp:5 [backend fallback]\nConjugate: registered at /pytorch/aten/src/ATen/ConjugateFallback.cpp:17 [backend fallback]\nNegative: registered at /pytorch/aten/src/ATen/native/NegateFallback.cpp:18 [backend fallback]\nZeroTensor: registered at /pytorch/aten/src/ATen/ZeroTensorFallback.cpp:115 [backend fallback]\nADInplaceOrView: fallthrough registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:103 [backend fallback]\nAutogradOther: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:62 [backend fallback]\nAutogradCPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:66 [backend fallback]\nAutogradCUDA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:74 [backend fallback]\nAutogradXLA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:86 [backend fallback]\nAutogradMPS: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:94 [backend fallback]\nAutogradXPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:70 [backend fallback]\nAutogradHPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:107 [backend fallback]\nAutogradLazy: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:90 [backend fallback]\nAutogradMTIA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:78 [backend fallback]\nAutogradMAIA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:82 [backend fallback]\nAutogradPrivateUse1: registered at ../torch_npu/csrc/aten/VariableFallbackKernel.cpp:233 [backend fallback]\nAutogradMeta: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:98 [backend fallback]\nTracer: registered at /pytorch/torch/csrc/autograd/TraceTypeManual.cpp:296 [backend fallback]\nAutocastCPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:324 [backend fallback]\nAutocastMTIA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:468 [backend fallback]\nAutocastMAIA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:506 [backend fallback]\nAutocastXPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:544 [backend fallback]\nAutocastMPS: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:209 [backend fallback]\nAutocastCUDA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:165 [backend fallback]\nAutocastPrivateUse1: fallthrough registered at ../torch_npu/csrc/aten/AutoCastOps.cpp:20 [backend fallback]\nFuncTorchBatched: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:727 [backend fallback]\nBatchedNestedTensor: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:754 [backend fallback]\nFuncTorchVmapMode: fallthrough registered at /pytorch/aten/src/ATen/functorch/VmapModeRegistrations.cpp:22 [backend fallback]\nBatched: registered at /pytorch/aten/src/ATen/LegacyBatchingRegistrations.cpp:1072 [backend fallback]\nVmapMode: fallthrough registered at /pytorch/aten/src/ATen/VmapModeRegistrations.cpp:32 [backend fallback]\nFuncTorchGradWrapper: registered at /pytorch/aten/src/ATen/functorch/TensorWrapper.cpp:210 [backend fallback]\nPythonTLSSnapshot: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:206 [backend fallback]\nFuncTorchDynamicLayerFrontMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:473 [backend fallback]\nPreDispatch: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:210 [backend fallback]\nPythonDispatcher: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:202 [backend fallback]\n"
+        },
+        "_C_ascend::npu_kv_quant_sparse_attn_sharedkv_metadata": {
+          "registered": false,
+          "error": "AttributeError(\"'_OpNamespace' '_C_ascend' object has no attribute 'npu_kv_quant_sparse_attn_sharedkv_metadata'\")"
+        },
+        "_C_ascend::npu_kv_quant_sparse_attn_sharedkv": {
+          "registered": false,
+          "error": "AttributeError(\"'_OpNamespace' '_C_ascend' object has no attribute 'npu_kv_quant_sparse_attn_sharedkv'\")"
+        }
+      },
+      "torch_ops_loaded_libraries": [
+        "/usr/local/python3.12.13/lib/python3.12/site-packages/torch_npu/lib/libop_plugin_atb.so"
+      ]
+    },
+    {
+      "stage": "after _C_ascend binding load",
+      "mapped_libraries": [
+        {
+          "path": "/home/a00821909/vllm-ascend/build/vllm_ascend_C.cpython-312-x86_64-linux-gnu.so",
+          "realpath": "/home/a00821909/vllm-ascend/build/vllm_ascend_C.cpython-312-x86_64-linux-gnu.so",
+          "size": 1025752,
+          "inode": 159913453,
+          "first_4m_sha256": "a9c19e4cec605c7c",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_api/lib/libcust_opapi.so",
+          "realpath": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_api/lib/libcust_opapi.so",
+          "size": 92600,
+          "inode": 159910116,
+          "first_4m_sha256": "69a609fff1dc8e0f",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "realpath": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "size": 1386712,
+          "inode": 159910104,
+          "first_4m_sha256": "5ecdc5caad06c2c3",
+          "old_tiling_marker": false,
+          "new_tiling_marker": true
+        },
+        {
+          "path": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "realpath": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "size": 206864,
+          "inode": 159913600,
+          "first_4m_sha256": "134487adb776281f",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/built-in/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/liboptiling.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/built-in/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/liboptiling.so",
+          "size": 29747760,
+          "inode": 359531372,
+          "first_4m_sha256": "dcf231d2ab4980a0",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/built-in/op_proto/lib/linux/x86_64/libopsproto.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/built-in/op_proto/lib/linux/x86_64/libopsproto.so",
+          "size": 30071920,
+          "inode": 359531429,
+          "first_4m_sha256": "4c3f0bde9f8ba4e2",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_api/lib/libcust_opapi.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_api/lib/libcust_opapi.so",
+          "size": 192424,
+          "inode": 366350803,
+          "first_4m_sha256": "e1d11523d2a0cbbf",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "size": 2287832,
+          "inode": 366351651,
+          "first_4m_sha256": "9ce34cfce1361f2b",
+          "old_tiling_marker": true,
+          "new_tiling_marker": true
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "size": 776208,
+          "inode": 366351686,
+          "first_4m_sha256": "5d3ed2adfd91220e",
+          "old_tiling_marker": true,
+          "new_tiling_marker": true
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/customize/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/customize/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "size": 33929456,
+          "inode": 366352268,
+          "first_4m_sha256": "9cb7bce1c6826a59",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/customize/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/customize/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "size": 11052248,
+          "inode": 366352291,
+          "first_4m_sha256": "a344e38c16494b25",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/python3.12.13/lib/python3.12/site-packages/custom_ops/custom_ops_lib.cpython-312-x86_64-linux-gnu.so",
+          "realpath": "/usr/local/python3.12.13/lib/python3.12/site-packages/custom_ops/custom_ops_lib.cpython-312-x86_64-linux-gnu.so",
+          "size": 93036040,
+          "inode": 366352349,
+          "first_4m_sha256": "813637ccd6aebb72",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        }
+      ],
+      "global_symbol_owners": {
+        "aclnnCompressorGetWorkspaceSize": null,
+        "aclnnCompressor": null,
+        "aclnnKvQuantSparseAttnSharedkvMetadataGetWorkspaceSize": null,
+        "aclnnKvQuantSparseAttnSharedkvMetadata": null,
+        "aclnnKvQuantSparseAttnSharedkvGetWorkspaceSize": null,
+        "aclnnKvQuantSparseAttnSharedkv": null
+      },
+      "ops": {
+        "custom::compressor": {
+          "registered": true,
+          "schema": "custom::compressor(Tensor x, Tensor wkv, Tensor wgate, Tensor(a!) state_cache, Tensor ape, Tensor norm_weight, Tensor rope_sin, Tensor rope_cos, int rope_head_dim, int cmp_ratio, *, Tensor? state_block_table=None, Tensor? cu_seqlens=None, Tensor? seqused=None, Tensor? start_pos=None, int coff=1, float norm_eps=9.9999999999999995e-07, int rotary_mode=1, int cache_mode=1) -> Tensor",
+          "dispatch_table": "PrivateUse1: registered at /__w/sgl-kernel-npu/cann-recipes-infer/ops/ascendc/torch_ops_extension/custom_ops/csrc/npu_compressor.cpp:145 [kernel]\nMeta: registered at /__w/sgl-kernel-npu/cann-recipes-infer/ops/ascendc/torch_ops_extension/custom_ops/csrc/npu_compressor.cpp:151 [kernel]\nSparsePrivateUse1: registered at ../torch_npu/csrc/aten/VariableFallbackKernel.cpp:270 [backend fallback]\nBackendSelect: fallthrough registered at /pytorch/aten/src/ATen/core/BackendSelectFallbackKernel.cpp:3 [backend fallback]\nPython: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:198 [backend fallback]\nFuncTorchDynamicLayerBackMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:477 [backend fallback]\nFunctionalize: registered at /pytorch/aten/src/ATen/FunctionalizeFallbackKernel.cpp:384 [backend fallback]\nNamed: registered at /pytorch/aten/src/ATen/core/NamedRegistrations.cpp:5 [backend fallback]\nConjugate: registered at /pytorch/aten/src/ATen/ConjugateFallback.cpp:17 [backend fallback]\nNegative: registered at /pytorch/aten/src/ATen/native/NegateFallback.cpp:18 [backend fallback]\nZeroTensor: registered at /pytorch/aten/src/ATen/ZeroTensorFallback.cpp:115 [backend fallback]\nADInplaceOrView: fallthrough registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:103 [backend fallback]\nAutogradOther: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:62 [backend fallback]\nAutogradCPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:66 [backend fallback]\nAutogradCUDA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:74 [backend fallback]\nAutogradXLA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:86 [backend fallback]\nAutogradMPS: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:94 [backend fallback]\nAutogradXPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:70 [backend fallback]\nAutogradHPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:107 [backend fallback]\nAutogradLazy: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:90 [backend fallback]\nAutogradMTIA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:78 [backend fallback]\nAutogradMAIA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:82 [backend fallback]\nAutogradPrivateUse1: registered at ../torch_npu/csrc/aten/VariableFallbackKernel.cpp:233 [backend fallback]\nAutogradMeta: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:98 [backend fallback]\nTracer: registered at /pytorch/torch/csrc/autograd/TraceTypeManual.cpp:296 [backend fallback]\nAutocastCPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:324 [backend fallback]\nAutocastMTIA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:468 [backend fallback]\nAutocastMAIA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:506 [backend fallback]\nAutocastXPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:544 [backend fallback]\nAutocastMPS: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:209 [backend fallback]\nAutocastCUDA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:165 [backend fallback]\nAutocastPrivateUse1: fallthrough registered at ../torch_npu/csrc/aten/AutoCastOps.cpp:20 [backend fallback]\nFuncTorchBatched: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:727 [backend fallback]\nBatchedNestedTensor: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:754 [backend fallback]\nFuncTorchVmapMode: fallthrough registered at /pytorch/aten/src/ATen/functorch/VmapModeRegistrations.cpp:22 [backend fallback]\nBatched: registered at /pytorch/aten/src/ATen/LegacyBatchingRegistrations.cpp:1072 [backend fallback]\nVmapMode: fallthrough registered at /pytorch/aten/src/ATen/VmapModeRegistrations.cpp:32 [backend fallback]\nFuncTorchGradWrapper: registered at /pytorch/aten/src/ATen/functorch/TensorWrapper.cpp:210 [backend fallback]\nPythonTLSSnapshot: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:206 [backend fallback]\nFuncTorchDynamicLayerFrontMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:473 [backend fallback]\nPreDispatch: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:210 [backend fallback]\nPythonDispatcher: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:202 [backend fallback]\n"
+        },
+        "_C_ascend::npu_kv_quant_sparse_attn_sharedkv_metadata": {
+          "registered": true,
+          "schema": "_C_ascend::npu_kv_quant_sparse_attn_sharedkv_metadata(int num_heads_q, int num_heads_kv, int head_dim, int kv_quant_mode, Tensor? cu_seqlens_q=None, Tensor? cu_seqlens_ori_kv=None, Tensor? cu_seqlens_cmp_kv=None, Tensor? seqused_q=None, Tensor? seqused_kv=None, int batch_size=0, int max_seqlen_q=0, int max_seqlen_kv=0, int ori_topk=0, int cmp_topk=0, int tile_size=0, int rope_head_dim=0, int cmp_ratio=-1, int ori_mask_mode=4, int cmp_mask_mode=3, int ori_win_left=127, int ori_win_right=0, str layout_q=\"BSND\", str layout_kv=\"PA_ND\", bool has_ori_kv=True, bool has_cmp_kv=True, str device=\"npu\") -> Tensor",
+          "dispatch_table": "PrivateUse1: registered at /home/a00821909/vllm-ascend/csrc/torch_binding.cpp:2780 [kernel]\nMeta: registered at /home/a00821909/vllm-ascend/csrc/torch_binding_meta.cpp:2073 [kernel]\nSparsePrivateUse1: registered at ../torch_npu/csrc/aten/VariableFallbackKernel.cpp:270 [backend fallback]\nBackendSelect: fallthrough registered at /pytorch/aten/src/ATen/core/BackendSelectFallbackKernel.cpp:3 [backend fallback]\nPython: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:198 [backend fallback]\nFuncTorchDynamicLayerBackMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:477 [backend fallback]\nFunctionalize: registered at /pytorch/aten/src/ATen/FunctionalizeFallbackKernel.cpp:384 [backend fallback]\nNamed: registered at /pytorch/aten/src/ATen/core/NamedRegistrations.cpp:5 [backend fallback]\nConjugate: registered at /pytorch/aten/src/ATen/ConjugateFallback.cpp:17 [backend fallback]\nNegative: registered at /pytorch/aten/src/ATen/native/NegateFallback.cpp:18 [backend fallback]\nZeroTensor: registered at /pytorch/aten/src/ATen/ZeroTensorFallback.cpp:115 [backend fallback]\nADInplaceOrView: fallthrough registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:103 [backend fallback]\nAutogradOther: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:62 [backend fallback]\nAutogradCPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:66 [backend fallback]\nAutogradCUDA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:74 [backend fallback]\nAutogradXLA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:86 [backend fallback]\nAutogradMPS: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:94 [backend fallback]\nAutogradXPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:70 [backend fallback]\nAutogradHPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:107 [backend fallback]\nAutogradLazy: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:90 [backend fallback]\nAutogradMTIA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:78 [backend fallback]\nAutogradMAIA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:82 [backend fallback]\nAutogradPrivateUse1: registered at ../torch_npu/csrc/aten/VariableFallbackKernel.cpp:233 [backend fallback]\nAutogradMeta: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:98 [backend fallback]\nTracer: registered at /pytorch/torch/csrc/autograd/TraceTypeManual.cpp:296 [backend fallback]\nAutocastCPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:324 [backend fallback]\nAutocastMTIA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:468 [backend fallback]\nAutocastMAIA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:506 [backend fallback]\nAutocastXPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:544 [backend fallback]\nAutocastMPS: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:209 [backend fallback]\nAutocastCUDA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:165 [backend fallback]\nAutocastPrivateUse1: fallthrough registered at ../torch_npu/csrc/aten/AutoCastOps.cpp:20 [backend fallback]\nFuncTorchBatched: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:727 [backend fallback]\nBatchedNestedTensor: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:754 [backend fallback]\nFuncTorchVmapMode: fallthrough registered at /pytorch/aten/src/ATen/functorch/VmapModeRegistrations.cpp:22 [backend fallback]\nBatched: registered at /pytorch/aten/src/ATen/LegacyBatchingRegistrations.cpp:1072 [backend fallback]\nVmapMode: fallthrough registered at /pytorch/aten/src/ATen/VmapModeRegistrations.cpp:32 [backend fallback]\nFuncTorchGradWrapper: registered at /pytorch/aten/src/ATen/functorch/TensorWrapper.cpp:210 [backend fallback]\nPythonTLSSnapshot: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:206 [backend fallback]\nFuncTorchDynamicLayerFrontMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:473 [backend fallback]\nPreDispatch: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:210 [backend fallback]\nPythonDispatcher: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:202 [backend fallback]\n"
+        },
+        "_C_ascend::npu_kv_quant_sparse_attn_sharedkv": {
+          "registered": true,
+          "schema": "_C_ascend::npu_kv_quant_sparse_attn_sharedkv(Tensor q, int kv_quant_mode, Tensor? ori_kv=None, Tensor? cmp_kv=None, Tensor? ori_sparse_indices=None, Tensor? cmp_sparse_indices=None, Tensor? ori_block_table=None, Tensor? cmp_block_table=None, Tensor? cu_seqlens_q=None, Tensor? cu_seqlens_ori_kv=None, Tensor? cu_seqlens_cmp_kv=None, Tensor? seqused_q=None, Tensor? seqused_kv=None, Tensor? sinks=None, Tensor? metadata=None, int tile_size=0, int rope_head_dim=0, float softmax_scale=0., int cmp_ratio=0, int ori_mask_mode=4, int cmp_mask_mode=3, int ori_win_left=127, int ori_win_right=0, str layout_q=\"BSND\", str layout_kv=\"PA_ND\", bool return_softmax_lse=False) -> (Tensor out, Tensor softmax_lse)",
+          "dispatch_table": "PrivateUse1: registered at /home/a00821909/vllm-ascend/csrc/torch_binding.cpp:2780 [kernel]\nMeta: registered at /home/a00821909/vllm-ascend/csrc/torch_binding_meta.cpp:2073 [kernel]\nSparsePrivateUse1: registered at ../torch_npu/csrc/aten/VariableFallbackKernel.cpp:270 [backend fallback]\nBackendSelect: fallthrough registered at /pytorch/aten/src/ATen/core/BackendSelectFallbackKernel.cpp:3 [backend fallback]\nPython: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:198 [backend fallback]\nFuncTorchDynamicLayerBackMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:477 [backend fallback]\nFunctionalize: registered at /pytorch/aten/src/ATen/FunctionalizeFallbackKernel.cpp:384 [backend fallback]\nNamed: registered at /pytorch/aten/src/ATen/core/NamedRegistrations.cpp:5 [backend fallback]\nConjugate: registered at /pytorch/aten/src/ATen/ConjugateFallback.cpp:17 [backend fallback]\nNegative: registered at /pytorch/aten/src/ATen/native/NegateFallback.cpp:18 [backend fallback]\nZeroTensor: registered at /pytorch/aten/src/ATen/ZeroTensorFallback.cpp:115 [backend fallback]\nADInplaceOrView: fallthrough registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:103 [backend fallback]\nAutogradOther: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:62 [backend fallback]\nAutogradCPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:66 [backend fallback]\nAutogradCUDA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:74 [backend fallback]\nAutogradXLA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:86 [backend fallback]\nAutogradMPS: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:94 [backend fallback]\nAutogradXPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:70 [backend fallback]\nAutogradHPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:107 [backend fallback]\nAutogradLazy: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:90 [backend fallback]\nAutogradMTIA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:78 [backend fallback]\nAutogradMAIA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:82 [backend fallback]\nAutogradPrivateUse1: registered at ../torch_npu/csrc/aten/VariableFallbackKernel.cpp:233 [backend fallback]\nAutogradMeta: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:98 [backend fallback]\nTracer: registered at /pytorch/torch/csrc/autograd/TraceTypeManual.cpp:296 [backend fallback]\nAutocastCPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:324 [backend fallback]\nAutocastMTIA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:468 [backend fallback]\nAutocastMAIA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:506 [backend fallback]\nAutocastXPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:544 [backend fallback]\nAutocastMPS: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:209 [backend fallback]\nAutocastCUDA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:165 [backend fallback]\nAutocastPrivateUse1: fallthrough registered at ../torch_npu/csrc/aten/AutoCastOps.cpp:20 [backend fallback]\nFuncTorchBatched: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:727 [backend fallback]\nBatchedNestedTensor: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:754 [backend fallback]\nFuncTorchVmapMode: fallthrough registered at /pytorch/aten/src/ATen/functorch/VmapModeRegistrations.cpp:22 [backend fallback]\nBatched: registered at /pytorch/aten/src/ATen/LegacyBatchingRegistrations.cpp:1072 [backend fallback]\nVmapMode: fallthrough registered at /pytorch/aten/src/ATen/VmapModeRegistrations.cpp:32 [backend fallback]\nFuncTorchGradWrapper: registered at /pytorch/aten/src/ATen/functorch/TensorWrapper.cpp:210 [backend fallback]\nPythonTLSSnapshot: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:206 [backend fallback]\nFuncTorchDynamicLayerFrontMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:473 [backend fallback]\nPreDispatch: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:210 [backend fallback]\nPythonDispatcher: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:202 [backend fallback]\n"
+        }
+      },
+      "torch_ops_loaded_libraries": [
+        "/home/a00821909/vllm-ascend/build/vllm_ascend_C.cpython-312-x86_64-linux-gnu.so",
+        "/usr/local/python3.12.13/lib/python3.12/site-packages/torch_npu/lib/libop_plugin_atb.so"
+      ]
+    },
+    {
+      "stage": "after-compressor: after sparse metadata",
+      "mapped_libraries": [
+        {
+          "path": "/home/a00821909/vllm-ascend/build/vllm_ascend_C.cpython-312-x86_64-linux-gnu.so",
+          "realpath": "/home/a00821909/vllm-ascend/build/vllm_ascend_C.cpython-312-x86_64-linux-gnu.so",
+          "size": 1025752,
+          "inode": 159913453,
+          "first_4m_sha256": "a9c19e4cec605c7c",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_api/lib/libcust_opapi.so",
+          "realpath": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_api/lib/libcust_opapi.so",
+          "size": 92600,
+          "inode": 159910116,
+          "first_4m_sha256": "69a609fff1dc8e0f",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "realpath": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "size": 1386712,
+          "inode": 159910104,
+          "first_4m_sha256": "5ecdc5caad06c2c3",
+          "old_tiling_marker": false,
+          "new_tiling_marker": true
+        },
+        {
+          "path": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "realpath": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "size": 206864,
+          "inode": 159913600,
+          "first_4m_sha256": "134487adb776281f",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/built-in/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/liboptiling.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/built-in/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/liboptiling.so",
+          "size": 29747760,
+          "inode": 359531372,
+          "first_4m_sha256": "dcf231d2ab4980a0",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/built-in/op_proto/lib/linux/x86_64/libopsproto.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/built-in/op_proto/lib/linux/x86_64/libopsproto.so",
+          "size": 30071920,
+          "inode": 359531429,
+          "first_4m_sha256": "4c3f0bde9f8ba4e2",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_api/lib/libcust_opapi.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_api/lib/libcust_opapi.so",
+          "size": 192424,
+          "inode": 366350803,
+          "first_4m_sha256": "e1d11523d2a0cbbf",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "size": 2287832,
+          "inode": 366351651,
+          "first_4m_sha256": "9ce34cfce1361f2b",
+          "old_tiling_marker": true,
+          "new_tiling_marker": true
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "size": 776208,
+          "inode": 366351686,
+          "first_4m_sha256": "5d3ed2adfd91220e",
+          "old_tiling_marker": true,
+          "new_tiling_marker": true
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/customize/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/customize/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "size": 33929456,
+          "inode": 366352268,
+          "first_4m_sha256": "9cb7bce1c6826a59",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/customize/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/customize/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "size": 11052248,
+          "inode": 366352291,
+          "first_4m_sha256": "a344e38c16494b25",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/python3.12.13/lib/python3.12/site-packages/custom_ops/custom_ops_lib.cpython-312-x86_64-linux-gnu.so",
+          "realpath": "/usr/local/python3.12.13/lib/python3.12/site-packages/custom_ops/custom_ops_lib.cpython-312-x86_64-linux-gnu.so",
+          "size": 93036040,
+          "inode": 366352349,
+          "first_4m_sha256": "813637ccd6aebb72",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        }
+      ],
+      "global_symbol_owners": {
+        "aclnnCompressorGetWorkspaceSize": null,
+        "aclnnCompressor": null,
+        "aclnnKvQuantSparseAttnSharedkvMetadataGetWorkspaceSize": null,
+        "aclnnKvQuantSparseAttnSharedkvMetadata": null,
+        "aclnnKvQuantSparseAttnSharedkvGetWorkspaceSize": null,
+        "aclnnKvQuantSparseAttnSharedkv": null
+      },
+      "ops": {
+        "custom::compressor": {
+          "registered": true,
+          "schema": "custom::compressor(Tensor x, Tensor wkv, Tensor wgate, Tensor(a!) state_cache, Tensor ape, Tensor norm_weight, Tensor rope_sin, Tensor rope_cos, int rope_head_dim, int cmp_ratio, *, Tensor? state_block_table=None, Tensor? cu_seqlens=None, Tensor? seqused=None, Tensor? start_pos=None, int coff=1, float norm_eps=9.9999999999999995e-07, int rotary_mode=1, int cache_mode=1) -> Tensor",
+          "dispatch_table": "PrivateUse1: registered at /__w/sgl-kernel-npu/cann-recipes-infer/ops/ascendc/torch_ops_extension/custom_ops/csrc/npu_compressor.cpp:145 [kernel]\nMeta: registered at /__w/sgl-kernel-npu/cann-recipes-infer/ops/ascendc/torch_ops_extension/custom_ops/csrc/npu_compressor.cpp:151 [kernel]\nSparsePrivateUse1: registered at ../torch_npu/csrc/aten/VariableFallbackKernel.cpp:270 [backend fallback]\nBackendSelect: fallthrough registered at /pytorch/aten/src/ATen/core/BackendSelectFallbackKernel.cpp:3 [backend fallback]\nPython: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:198 [backend fallback]\nFuncTorchDynamicLayerBackMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:477 [backend fallback]\nFunctionalize: registered at /pytorch/aten/src/ATen/FunctionalizeFallbackKernel.cpp:384 [backend fallback]\nNamed: registered at /pytorch/aten/src/ATen/core/NamedRegistrations.cpp:5 [backend fallback]\nConjugate: registered at /pytorch/aten/src/ATen/ConjugateFallback.cpp:17 [backend fallback]\nNegative: registered at /pytorch/aten/src/ATen/native/NegateFallback.cpp:18 [backend fallback]\nZeroTensor: registered at /pytorch/aten/src/ATen/ZeroTensorFallback.cpp:115 [backend fallback]\nADInplaceOrView: fallthrough registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:103 [backend fallback]\nAutogradOther: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:62 [backend fallback]\nAutogradCPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:66 [backend fallback]\nAutogradCUDA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:74 [backend fallback]\nAutogradXLA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:86 [backend fallback]\nAutogradMPS: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:94 [backend fallback]\nAutogradXPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:70 [backend fallback]\nAutogradHPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:107 [backend fallback]\nAutogradLazy: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:90 [backend fallback]\nAutogradMTIA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:78 [backend fallback]\nAutogradMAIA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:82 [backend fallback]\nAutogradPrivateUse1: registered at ../torch_npu/csrc/aten/VariableFallbackKernel.cpp:233 [backend fallback]\nAutogradMeta: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:98 [backend fallback]\nTracer: registered at /pytorch/torch/csrc/autograd/TraceTypeManual.cpp:296 [backend fallback]\nAutocastCPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:324 [backend fallback]\nAutocastMTIA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:468 [backend fallback]\nAutocastMAIA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:506 [backend fallback]\nAutocastXPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:544 [backend fallback]\nAutocastMPS: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:209 [backend fallback]\nAutocastCUDA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:165 [backend fallback]\nAutocastPrivateUse1: fallthrough registered at ../torch_npu/csrc/aten/AutoCastOps.cpp:20 [backend fallback]\nFuncTorchBatched: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:727 [backend fallback]\nBatchedNestedTensor: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:754 [backend fallback]\nFuncTorchVmapMode: fallthrough registered at /pytorch/aten/src/ATen/functorch/VmapModeRegistrations.cpp:22 [backend fallback]\nBatched: registered at /pytorch/aten/src/ATen/LegacyBatchingRegistrations.cpp:1072 [backend fallback]\nVmapMode: fallthrough registered at /pytorch/aten/src/ATen/VmapModeRegistrations.cpp:32 [backend fallback]\nFuncTorchGradWrapper: registered at /pytorch/aten/src/ATen/functorch/TensorWrapper.cpp:210 [backend fallback]\nPythonTLSSnapshot: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:206 [backend fallback]\nFuncTorchDynamicLayerFrontMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:473 [backend fallback]\nPreDispatch: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:210 [backend fallback]\nPythonDispatcher: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:202 [backend fallback]\n"
+        },
+        "_C_ascend::npu_kv_quant_sparse_attn_sharedkv_metadata": {
+          "registered": true,
+          "schema": "_C_ascend::npu_kv_quant_sparse_attn_sharedkv_metadata(int num_heads_q, int num_heads_kv, int head_dim, int kv_quant_mode, Tensor? cu_seqlens_q=None, Tensor? cu_seqlens_ori_kv=None, Tensor? cu_seqlens_cmp_kv=None, Tensor? seqused_q=None, Tensor? seqused_kv=None, int batch_size=0, int max_seqlen_q=0, int max_seqlen_kv=0, int ori_topk=0, int cmp_topk=0, int tile_size=0, int rope_head_dim=0, int cmp_ratio=-1, int ori_mask_mode=4, int cmp_mask_mode=3, int ori_win_left=127, int ori_win_right=0, str layout_q=\"BSND\", str layout_kv=\"PA_ND\", bool has_ori_kv=True, bool has_cmp_kv=True, str device=\"npu\") -> Tensor",
+          "dispatch_table": "PrivateUse1: registered at /home/a00821909/vllm-ascend/csrc/torch_binding.cpp:2780 [kernel]\nMeta: registered at /home/a00821909/vllm-ascend/csrc/torch_binding_meta.cpp:2073 [kernel]\nSparsePrivateUse1: registered at ../torch_npu/csrc/aten/VariableFallbackKernel.cpp:270 [backend fallback]\nBackendSelect: fallthrough registered at /pytorch/aten/src/ATen/core/BackendSelectFallbackKernel.cpp:3 [backend fallback]\nPython: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:198 [backend fallback]\nFuncTorchDynamicLayerBackMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:477 [backend fallback]\nFunctionalize: registered at /pytorch/aten/src/ATen/FunctionalizeFallbackKernel.cpp:384 [backend fallback]\nNamed: registered at /pytorch/aten/src/ATen/core/NamedRegistrations.cpp:5 [backend fallback]\nConjugate: registered at /pytorch/aten/src/ATen/ConjugateFallback.cpp:17 [backend fallback]\nNegative: registered at /pytorch/aten/src/ATen/native/NegateFallback.cpp:18 [backend fallback]\nZeroTensor: registered at /pytorch/aten/src/ATen/ZeroTensorFallback.cpp:115 [backend fallback]\nADInplaceOrView: fallthrough registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:103 [backend fallback]\nAutogradOther: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:62 [backend fallback]\nAutogradCPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:66 [backend fallback]\nAutogradCUDA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:74 [backend fallback]\nAutogradXLA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:86 [backend fallback]\nAutogradMPS: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:94 [backend fallback]\nAutogradXPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:70 [backend fallback]\nAutogradHPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:107 [backend fallback]\nAutogradLazy: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:90 [backend fallback]\nAutogradMTIA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:78 [backend fallback]\nAutogradMAIA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:82 [backend fallback]\nAutogradPrivateUse1: registered at ../torch_npu/csrc/aten/VariableFallbackKernel.cpp:233 [backend fallback]\nAutogradMeta: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:98 [backend fallback]\nTracer: registered at /pytorch/torch/csrc/autograd/TraceTypeManual.cpp:296 [backend fallback]\nAutocastCPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:324 [backend fallback]\nAutocastMTIA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:468 [backend fallback]\nAutocastMAIA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:506 [backend fallback]\nAutocastXPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:544 [backend fallback]\nAutocastMPS: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:209 [backend fallback]\nAutocastCUDA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:165 [backend fallback]\nAutocastPrivateUse1: fallthrough registered at ../torch_npu/csrc/aten/AutoCastOps.cpp:20 [backend fallback]\nFuncTorchBatched: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:727 [backend fallback]\nBatchedNestedTensor: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:754 [backend fallback]\nFuncTorchVmapMode: fallthrough registered at /pytorch/aten/src/ATen/functorch/VmapModeRegistrations.cpp:22 [backend fallback]\nBatched: registered at /pytorch/aten/src/ATen/LegacyBatchingRegistrations.cpp:1072 [backend fallback]\nVmapMode: fallthrough registered at /pytorch/aten/src/ATen/VmapModeRegistrations.cpp:32 [backend fallback]\nFuncTorchGradWrapper: registered at /pytorch/aten/src/ATen/functorch/TensorWrapper.cpp:210 [backend fallback]\nPythonTLSSnapshot: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:206 [backend fallback]\nFuncTorchDynamicLayerFrontMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:473 [backend fallback]\nPreDispatch: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:210 [backend fallback]\nPythonDispatcher: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:202 [backend fallback]\n"
+        },
+        "_C_ascend::npu_kv_quant_sparse_attn_sharedkv": {
+          "registered": true,
+          "schema": "_C_ascend::npu_kv_quant_sparse_attn_sharedkv(Tensor q, int kv_quant_mode, Tensor? ori_kv=None, Tensor? cmp_kv=None, Tensor? ori_sparse_indices=None, Tensor? cmp_sparse_indices=None, Tensor? ori_block_table=None, Tensor? cmp_block_table=None, Tensor? cu_seqlens_q=None, Tensor? cu_seqlens_ori_kv=None, Tensor? cu_seqlens_cmp_kv=None, Tensor? seqused_q=None, Tensor? seqused_kv=None, Tensor? sinks=None, Tensor? metadata=None, int tile_size=0, int rope_head_dim=0, float softmax_scale=0., int cmp_ratio=0, int ori_mask_mode=4, int cmp_mask_mode=3, int ori_win_left=127, int ori_win_right=0, str layout_q=\"BSND\", str layout_kv=\"PA_ND\", bool return_softmax_lse=False) -> (Tensor out, Tensor softmax_lse)",
+          "dispatch_table": "PrivateUse1: registered at /home/a00821909/vllm-ascend/csrc/torch_binding.cpp:2780 [kernel]\nMeta: registered at /home/a00821909/vllm-ascend/csrc/torch_binding_meta.cpp:2073 [kernel]\nSparsePrivateUse1: registered at ../torch_npu/csrc/aten/VariableFallbackKernel.cpp:270 [backend fallback]\nBackendSelect: fallthrough registered at /pytorch/aten/src/ATen/core/BackendSelectFallbackKernel.cpp:3 [backend fallback]\nPython: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:198 [backend fallback]\nFuncTorchDynamicLayerBackMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:477 [backend fallback]\nFunctionalize: registered at /pytorch/aten/src/ATen/FunctionalizeFallbackKernel.cpp:384 [backend fallback]\nNamed: registered at /pytorch/aten/src/ATen/core/NamedRegistrations.cpp:5 [backend fallback]\nConjugate: registered at /pytorch/aten/src/ATen/ConjugateFallback.cpp:17 [backend fallback]\nNegative: registered at /pytorch/aten/src/ATen/native/NegateFallback.cpp:18 [backend fallback]\nZeroTensor: registered at /pytorch/aten/src/ATen/ZeroTensorFallback.cpp:115 [backend fallback]\nADInplaceOrView: fallthrough registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:103 [backend fallback]\nAutogradOther: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:62 [backend fallback]\nAutogradCPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:66 [backend fallback]\nAutogradCUDA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:74 [backend fallback]\nAutogradXLA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:86 [backend fallback]\nAutogradMPS: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:94 [backend fallback]\nAutogradXPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:70 [backend fallback]\nAutogradHPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:107 [backend fallback]\nAutogradLazy: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:90 [backend fallback]\nAutogradMTIA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:78 [backend fallback]\nAutogradMAIA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:82 [backend fallback]\nAutogradPrivateUse1: registered at ../torch_npu/csrc/aten/VariableFallbackKernel.cpp:233 [backend fallback]\nAutogradMeta: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:98 [backend fallback]\nTracer: registered at /pytorch/torch/csrc/autograd/TraceTypeManual.cpp:296 [backend fallback]\nAutocastCPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:324 [backend fallback]\nAutocastMTIA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:468 [backend fallback]\nAutocastMAIA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:506 [backend fallback]\nAutocastXPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:544 [backend fallback]\nAutocastMPS: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:209 [backend fallback]\nAutocastCUDA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:165 [backend fallback]\nAutocastPrivateUse1: fallthrough registered at ../torch_npu/csrc/aten/AutoCastOps.cpp:20 [backend fallback]\nFuncTorchBatched: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:727 [backend fallback]\nBatchedNestedTensor: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:754 [backend fallback]\nFuncTorchVmapMode: fallthrough registered at /pytorch/aten/src/ATen/functorch/VmapModeRegistrations.cpp:22 [backend fallback]\nBatched: registered at /pytorch/aten/src/ATen/LegacyBatchingRegistrations.cpp:1072 [backend fallback]\nVmapMode: fallthrough registered at /pytorch/aten/src/ATen/VmapModeRegistrations.cpp:32 [backend fallback]\nFuncTorchGradWrapper: registered at /pytorch/aten/src/ATen/functorch/TensorWrapper.cpp:210 [backend fallback]\nPythonTLSSnapshot: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:206 [backend fallback]\nFuncTorchDynamicLayerFrontMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:473 [backend fallback]\nPreDispatch: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:210 [backend fallback]\nPythonDispatcher: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:202 [backend fallback]\n"
+        }
+      },
+      "torch_ops_loaded_libraries": [
+        "/home/a00821909/vllm-ascend/build/vllm_ascend_C.cpython-312-x86_64-linux-gnu.so",
+        "/usr/local/python3.12.13/lib/python3.12/site-packages/torch_npu/lib/libop_plugin_atb.so"
+      ]
+    },
+    {
+      "stage": "after-compressor: after sparse attention attempt",
+      "mapped_libraries": [
+        {
+          "path": "/home/a00821909/vllm-ascend/build/vllm_ascend_C.cpython-312-x86_64-linux-gnu.so",
+          "realpath": "/home/a00821909/vllm-ascend/build/vllm_ascend_C.cpython-312-x86_64-linux-gnu.so",
+          "size": 1025752,
+          "inode": 159913453,
+          "first_4m_sha256": "a9c19e4cec605c7c",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_api/lib/libcust_opapi.so",
+          "realpath": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_api/lib/libcust_opapi.so",
+          "size": 92600,
+          "inode": 159910116,
+          "first_4m_sha256": "69a609fff1dc8e0f",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "realpath": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "size": 1386712,
+          "inode": 159910104,
+          "first_4m_sha256": "5ecdc5caad06c2c3",
+          "old_tiling_marker": false,
+          "new_tiling_marker": true
+        },
+        {
+          "path": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "realpath": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "size": 206864,
+          "inode": 159913600,
+          "first_4m_sha256": "134487adb776281f",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/built-in/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/liboptiling.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/built-in/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/liboptiling.so",
+          "size": 29747760,
+          "inode": 359531372,
+          "first_4m_sha256": "dcf231d2ab4980a0",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/built-in/op_proto/lib/linux/x86_64/libopsproto.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/built-in/op_proto/lib/linux/x86_64/libopsproto.so",
+          "size": 30071920,
+          "inode": 359531429,
+          "first_4m_sha256": "4c3f0bde9f8ba4e2",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_api/lib/libcust_opapi.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_api/lib/libcust_opapi.so",
+          "size": 192424,
+          "inode": 366350803,
+          "first_4m_sha256": "e1d11523d2a0cbbf",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "size": 2287832,
+          "inode": 366351651,
+          "first_4m_sha256": "9ce34cfce1361f2b",
+          "old_tiling_marker": true,
+          "new_tiling_marker": true
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "size": 776208,
+          "inode": 366351686,
+          "first_4m_sha256": "5d3ed2adfd91220e",
+          "old_tiling_marker": true,
+          "new_tiling_marker": true
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/customize/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/customize/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64/libcust_opmaster_rt2.0.so",
+          "size": 33929456,
+          "inode": 366352268,
+          "first_4m_sha256": "9cb7bce1c6826a59",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/Ascend/cann-9.1.0/opp/vendors/customize/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "realpath": "/usr/local/Ascend/cann-9.1.0/opp/vendors/customize/op_proto/lib/linux/x86_64/libcust_opsproto_rt2.0.so",
+          "size": 11052248,
+          "inode": 366352291,
+          "first_4m_sha256": "a344e38c16494b25",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        },
+        {
+          "path": "/usr/local/python3.12.13/lib/python3.12/site-packages/custom_ops/custom_ops_lib.cpython-312-x86_64-linux-gnu.so",
+          "realpath": "/usr/local/python3.12.13/lib/python3.12/site-packages/custom_ops/custom_ops_lib.cpython-312-x86_64-linux-gnu.so",
+          "size": 93036040,
+          "inode": 366352349,
+          "first_4m_sha256": "813637ccd6aebb72",
+          "old_tiling_marker": false,
+          "new_tiling_marker": false
+        }
+      ],
+      "global_symbol_owners": {
+        "aclnnCompressorGetWorkspaceSize": null,
+        "aclnnCompressor": null,
+        "aclnnKvQuantSparseAttnSharedkvMetadataGetWorkspaceSize": null,
+        "aclnnKvQuantSparseAttnSharedkvMetadata": null,
+        "aclnnKvQuantSparseAttnSharedkvGetWorkspaceSize": null,
+        "aclnnKvQuantSparseAttnSharedkv": null
+      },
+      "ops": {
+        "custom::compressor": {
+          "registered": true,
+          "schema": "custom::compressor(Tensor x, Tensor wkv, Tensor wgate, Tensor(a!) state_cache, Tensor ape, Tensor norm_weight, Tensor rope_sin, Tensor rope_cos, int rope_head_dim, int cmp_ratio, *, Tensor? state_block_table=None, Tensor? cu_seqlens=None, Tensor? seqused=None, Tensor? start_pos=None, int coff=1, float norm_eps=9.9999999999999995e-07, int rotary_mode=1, int cache_mode=1) -> Tensor",
+          "dispatch_table": "PrivateUse1: registered at /__w/sgl-kernel-npu/cann-recipes-infer/ops/ascendc/torch_ops_extension/custom_ops/csrc/npu_compressor.cpp:145 [kernel]\nMeta: registered at /__w/sgl-kernel-npu/cann-recipes-infer/ops/ascendc/torch_ops_extension/custom_ops/csrc/npu_compressor.cpp:151 [kernel]\nSparsePrivateUse1: registered at ../torch_npu/csrc/aten/VariableFallbackKernel.cpp:270 [backend fallback]\nBackendSelect: fallthrough registered at /pytorch/aten/src/ATen/core/BackendSelectFallbackKernel.cpp:3 [backend fallback]\nPython: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:198 [backend fallback]\nFuncTorchDynamicLayerBackMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:477 [backend fallback]\nFunctionalize: registered at /pytorch/aten/src/ATen/FunctionalizeFallbackKernel.cpp:384 [backend fallback]\nNamed: registered at /pytorch/aten/src/ATen/core/NamedRegistrations.cpp:5 [backend fallback]\nConjugate: registered at /pytorch/aten/src/ATen/ConjugateFallback.cpp:17 [backend fallback]\nNegative: registered at /pytorch/aten/src/ATen/native/NegateFallback.cpp:18 [backend fallback]\nZeroTensor: registered at /pytorch/aten/src/ATen/ZeroTensorFallback.cpp:115 [backend fallback]\nADInplaceOrView: fallthrough registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:103 [backend fallback]\nAutogradOther: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:62 [backend fallback]\nAutogradCPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:66 [backend fallback]\nAutogradCUDA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:74 [backend fallback]\nAutogradXLA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:86 [backend fallback]\nAutogradMPS: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:94 [backend fallback]\nAutogradXPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:70 [backend fallback]\nAutogradHPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:107 [backend fallback]\nAutogradLazy: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:90 [backend fallback]\nAutogradMTIA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:78 [backend fallback]\nAutogradMAIA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:82 [backend fallback]\nAutogradPrivateUse1: registered at ../torch_npu/csrc/aten/VariableFallbackKernel.cpp:233 [backend fallback]\nAutogradMeta: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:98 [backend fallback]\nTracer: registered at /pytorch/torch/csrc/autograd/TraceTypeManual.cpp:296 [backend fallback]\nAutocastCPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:324 [backend fallback]\nAutocastMTIA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:468 [backend fallback]\nAutocastMAIA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:506 [backend fallback]\nAutocastXPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:544 [backend fallback]\nAutocastMPS: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:209 [backend fallback]\nAutocastCUDA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:165 [backend fallback]\nAutocastPrivateUse1: fallthrough registered at ../torch_npu/csrc/aten/AutoCastOps.cpp:20 [backend fallback]\nFuncTorchBatched: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:727 [backend fallback]\nBatchedNestedTensor: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:754 [backend fallback]\nFuncTorchVmapMode: fallthrough registered at /pytorch/aten/src/ATen/functorch/VmapModeRegistrations.cpp:22 [backend fallback]\nBatched: registered at /pytorch/aten/src/ATen/LegacyBatchingRegistrations.cpp:1072 [backend fallback]\nVmapMode: fallthrough registered at /pytorch/aten/src/ATen/VmapModeRegistrations.cpp:32 [backend fallback]\nFuncTorchGradWrapper: registered at /pytorch/aten/src/ATen/functorch/TensorWrapper.cpp:210 [backend fallback]\nPythonTLSSnapshot: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:206 [backend fallback]\nFuncTorchDynamicLayerFrontMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:473 [backend fallback]\nPreDispatch: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:210 [backend fallback]\nPythonDispatcher: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:202 [backend fallback]\n"
+        },
+        "_C_ascend::npu_kv_quant_sparse_attn_sharedkv_metadata": {
+          "registered": true,
+          "schema": "_C_ascend::npu_kv_quant_sparse_attn_sharedkv_metadata(int num_heads_q, int num_heads_kv, int head_dim, int kv_quant_mode, Tensor? cu_seqlens_q=None, Tensor? cu_seqlens_ori_kv=None, Tensor? cu_seqlens_cmp_kv=None, Tensor? seqused_q=None, Tensor? seqused_kv=None, int batch_size=0, int max_seqlen_q=0, int max_seqlen_kv=0, int ori_topk=0, int cmp_topk=0, int tile_size=0, int rope_head_dim=0, int cmp_ratio=-1, int ori_mask_mode=4, int cmp_mask_mode=3, int ori_win_left=127, int ori_win_right=0, str layout_q=\"BSND\", str layout_kv=\"PA_ND\", bool has_ori_kv=True, bool has_cmp_kv=True, str device=\"npu\") -> Tensor",
+          "dispatch_table": "PrivateUse1: registered at /home/a00821909/vllm-ascend/csrc/torch_binding.cpp:2780 [kernel]\nMeta: registered at /home/a00821909/vllm-ascend/csrc/torch_binding_meta.cpp:2073 [kernel]\nSparsePrivateUse1: registered at ../torch_npu/csrc/aten/VariableFallbackKernel.cpp:270 [backend fallback]\nBackendSelect: fallthrough registered at /pytorch/aten/src/ATen/core/BackendSelectFallbackKernel.cpp:3 [backend fallback]\nPython: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:198 [backend fallback]\nFuncTorchDynamicLayerBackMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:477 [backend fallback]\nFunctionalize: registered at /pytorch/aten/src/ATen/FunctionalizeFallbackKernel.cpp:384 [backend fallback]\nNamed: registered at /pytorch/aten/src/ATen/core/NamedRegistrations.cpp:5 [backend fallback]\nConjugate: registered at /pytorch/aten/src/ATen/ConjugateFallback.cpp:17 [backend fallback]\nNegative: registered at /pytorch/aten/src/ATen/native/NegateFallback.cpp:18 [backend fallback]\nZeroTensor: registered at /pytorch/aten/src/ATen/ZeroTensorFallback.cpp:115 [backend fallback]\nADInplaceOrView: fallthrough registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:103 [backend fallback]\nAutogradOther: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:62 [backend fallback]\nAutogradCPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:66 [backend fallback]\nAutogradCUDA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:74 [backend fallback]\nAutogradXLA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:86 [backend fallback]\nAutogradMPS: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:94 [backend fallback]\nAutogradXPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:70 [backend fallback]\nAutogradHPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:107 [backend fallback]\nAutogradLazy: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:90 [backend fallback]\nAutogradMTIA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:78 [backend fallback]\nAutogradMAIA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:82 [backend fallback]\nAutogradPrivateUse1: registered at ../torch_npu/csrc/aten/VariableFallbackKernel.cpp:233 [backend fallback]\nAutogradMeta: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:98 [backend fallback]\nTracer: registered at /pytorch/torch/csrc/autograd/TraceTypeManual.cpp:296 [backend fallback]\nAutocastCPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:324 [backend fallback]\nAutocastMTIA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:468 [backend fallback]\nAutocastMAIA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:506 [backend fallback]\nAutocastXPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:544 [backend fallback]\nAutocastMPS: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:209 [backend fallback]\nAutocastCUDA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:165 [backend fallback]\nAutocastPrivateUse1: fallthrough registered at ../torch_npu/csrc/aten/AutoCastOps.cpp:20 [backend fallback]\nFuncTorchBatched: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:727 [backend fallback]\nBatchedNestedTensor: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:754 [backend fallback]\nFuncTorchVmapMode: fallthrough registered at /pytorch/aten/src/ATen/functorch/VmapModeRegistrations.cpp:22 [backend fallback]\nBatched: registered at /pytorch/aten/src/ATen/LegacyBatchingRegistrations.cpp:1072 [backend fallback]\nVmapMode: fallthrough registered at /pytorch/aten/src/ATen/VmapModeRegistrations.cpp:32 [backend fallback]\nFuncTorchGradWrapper: registered at /pytorch/aten/src/ATen/functorch/TensorWrapper.cpp:210 [backend fallback]\nPythonTLSSnapshot: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:206 [backend fallback]\nFuncTorchDynamicLayerFrontMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:473 [backend fallback]\nPreDispatch: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:210 [backend fallback]\nPythonDispatcher: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:202 [backend fallback]\n"
+        },
+        "_C_ascend::npu_kv_quant_sparse_attn_sharedkv": {
+          "registered": true,
+          "schema": "_C_ascend::npu_kv_quant_sparse_attn_sharedkv(Tensor q, int kv_quant_mode, Tensor? ori_kv=None, Tensor? cmp_kv=None, Tensor? ori_sparse_indices=None, Tensor? cmp_sparse_indices=None, Tensor? ori_block_table=None, Tensor? cmp_block_table=None, Tensor? cu_seqlens_q=None, Tensor? cu_seqlens_ori_kv=None, Tensor? cu_seqlens_cmp_kv=None, Tensor? seqused_q=None, Tensor? seqused_kv=None, Tensor? sinks=None, Tensor? metadata=None, int tile_size=0, int rope_head_dim=0, float softmax_scale=0., int cmp_ratio=0, int ori_mask_mode=4, int cmp_mask_mode=3, int ori_win_left=127, int ori_win_right=0, str layout_q=\"BSND\", str layout_kv=\"PA_ND\", bool return_softmax_lse=False) -> (Tensor out, Tensor softmax_lse)",
+          "dispatch_table": "PrivateUse1: registered at /home/a00821909/vllm-ascend/csrc/torch_binding.cpp:2780 [kernel]\nMeta: registered at /home/a00821909/vllm-ascend/csrc/torch_binding_meta.cpp:2073 [kernel]\nSparsePrivateUse1: registered at ../torch_npu/csrc/aten/VariableFallbackKernel.cpp:270 [backend fallback]\nBackendSelect: fallthrough registered at /pytorch/aten/src/ATen/core/BackendSelectFallbackKernel.cpp:3 [backend fallback]\nPython: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:198 [backend fallback]\nFuncTorchDynamicLayerBackMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:477 [backend fallback]\nFunctionalize: registered at /pytorch/aten/src/ATen/FunctionalizeFallbackKernel.cpp:384 [backend fallback]\nNamed: registered at /pytorch/aten/src/ATen/core/NamedRegistrations.cpp:5 [backend fallback]\nConjugate: registered at /pytorch/aten/src/ATen/ConjugateFallback.cpp:17 [backend fallback]\nNegative: registered at /pytorch/aten/src/ATen/native/NegateFallback.cpp:18 [backend fallback]\nZeroTensor: registered at /pytorch/aten/src/ATen/ZeroTensorFallback.cpp:115 [backend fallback]\nADInplaceOrView: fallthrough registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:103 [backend fallback]\nAutogradOther: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:62 [backend fallback]\nAutogradCPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:66 [backend fallback]\nAutogradCUDA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:74 [backend fallback]\nAutogradXLA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:86 [backend fallback]\nAutogradMPS: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:94 [backend fallback]\nAutogradXPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:70 [backend fallback]\nAutogradHPU: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:107 [backend fallback]\nAutogradLazy: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:90 [backend fallback]\nAutogradMTIA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:78 [backend fallback]\nAutogradMAIA: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:82 [backend fallback]\nAutogradPrivateUse1: registered at ../torch_npu/csrc/aten/VariableFallbackKernel.cpp:233 [backend fallback]\nAutogradMeta: registered at /pytorch/aten/src/ATen/core/VariableFallbackKernel.cpp:98 [backend fallback]\nTracer: registered at /pytorch/torch/csrc/autograd/TraceTypeManual.cpp:296 [backend fallback]\nAutocastCPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:324 [backend fallback]\nAutocastMTIA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:468 [backend fallback]\nAutocastMAIA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:506 [backend fallback]\nAutocastXPU: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:544 [backend fallback]\nAutocastMPS: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:209 [backend fallback]\nAutocastCUDA: fallthrough registered at /pytorch/aten/src/ATen/autocast_mode.cpp:165 [backend fallback]\nAutocastPrivateUse1: fallthrough registered at ../torch_npu/csrc/aten/AutoCastOps.cpp:20 [backend fallback]\nFuncTorchBatched: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:727 [backend fallback]\nBatchedNestedTensor: registered at /pytorch/aten/src/ATen/functorch/LegacyBatchingRegistrations.cpp:754 [backend fallback]\nFuncTorchVmapMode: fallthrough registered at /pytorch/aten/src/ATen/functorch/VmapModeRegistrations.cpp:22 [backend fallback]\nBatched: registered at /pytorch/aten/src/ATen/LegacyBatchingRegistrations.cpp:1072 [backend fallback]\nVmapMode: fallthrough registered at /pytorch/aten/src/ATen/VmapModeRegistrations.cpp:32 [backend fallback]\nFuncTorchGradWrapper: registered at /pytorch/aten/src/ATen/functorch/TensorWrapper.cpp:210 [backend fallback]\nPythonTLSSnapshot: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:206 [backend fallback]\nFuncTorchDynamicLayerFrontMode: registered at /pytorch/aten/src/ATen/functorch/DynamicLayer.cpp:473 [backend fallback]\nPreDispatch: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:210 [backend fallback]\nPythonDispatcher: registered at /pytorch/aten/src/ATen/core/PythonFallbackKernel.cpp:202 [backend fallback]\n"
+        }
+      },
+      "torch_ops_loaded_libraries": [
+        "/home/a00821909/vllm-ascend/build/vllm_ascend_C.cpython-312-x86_64-linux-gnu.so",
+        "/usr/local/python3.12.13/lib/python3.12/site-packages/torch_npu/lib/libop_plugin_atb.so"
+      ]
+    }
+  ],
+  "torch": "2.10.0+cpu",
+  "torch_npu_file": "/usr/local/python3.12.13/lib/python3.12/site-packages/torch_npu/__init__.py",
+  "custom_module_spec": "ModuleSpec(name='custom_ops', loader=<_frozen_importlib_external.SourceFileLoader object at 0x7f4d6e4ac800>, origin='/usr/local/python3.12.13/lib/python3.12/site-packages/custom_ops/__init__.py', submodule_search_locations=['/usr/local/python3.12.13/lib/python3.12/site-packages/custom_ops'])",
+  "device": "Ascend950PR_9579",
+  "success": false
+}

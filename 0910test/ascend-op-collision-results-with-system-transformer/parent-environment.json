@@ -1,0 +1,22 @@
+{
+  "python_executable": "/usr/local/python3.12.13/bin/python3",
+  "python_version": "3.12.13 (main, Aug  3 2026, 07:03:35) [GCC 11.4.0]",
+  "working_directory": "/home/a00821909/sglang",
+  "script": "/home/a00821909/sglang/0910test/diagnose_ascend_op_collision.py",
+  "binding": "/home/a00821909/vllm-ascend/build/vllm_ascend_C.cpython-312-x86_64-linux-gnu.so",
+  "sparse_vendor": "/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer",
+  "system_vendors": [
+    "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer",
+    "/usr/local/Ascend/cann-9.1.0/opp/vendors/customize"
+  ],
+  "opp_mode": "only",
+  "inherited_environment": {
+    "ASCEND_CUSTOM_OPP_PATH": "/usr/local/Ascend/cann-9.1.0/opp/vendors/custom_transformer:/usr/local/Ascend/cann-9.1.0/opp/vendors/customize:/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer",
+    "LD_LIBRARY_PATH": "/usr/local/Ascend/nnal/atb/latest/atb/cxx_abi_1/lib:/usr/local/Ascend/nnal/atb/latest/atb/cxx_abi_1/examples:/usr/local/Ascend/nnal/atb/latest/atb/cxx_abi_1/tests/atbopstest:/usr/local/Ascend/cann-9.1.0/lib64:/usr/local/Ascend/cann-9.1.0/lib64/plugin/opskernel:/usr/local/Ascend/cann-9.1.0/lib64/plugin/nnengine:/usr/local/Ascend/cann-9.1.0/opp/built-in/op_impl/ai_core/tbe/op_tiling/lib/linux/x86_64:/usr/local/Ascend/driver/lib64:/usr/local/Ascend/driver/lib64/common:/usr/local/Ascend/driver/lib64/driver:/usr/local/Ascend/driver/lib64:/usr/local/Ascend/driver/lib64/common:/usr/local/Ascend/driver/lib64/driver:/home/a00821909/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_api/lib:/home/a00821909/vllm-ascend/build:/usr/local/Ascend/nnal/atb/latest/atb/cxx_abi_1/lib:/usr/local/Ascend/nnal/atb/latest/atb/cxx_abi_1/examples:/usr/local/Ascend/nnal/atb/latest/atb/cxx_abi_1/tests/atbopstest:/usr/local/Ascend/driver/lib64:/usr/local/Ascend/driver/lib64/common:/usr/local/Ascend/driver/lib64/driver:/usr/local/Ascend/driver/lib64:/usr/local/Ascend/driver/lib64/common:/usr/local/Ascend/driver/lib64/driver:/usr/local/Ascend/nnal/atb/latest/atb/cxx_abi_1/lib:/usr/local/Ascend/nnal/atb/latest/atb/cxx_abi_1/examples:/usr/local/Ascend/nnal/atb/latest/atb/cxx_abi_1/tests/atbopstest:/usr/local/Ascend/ascend-toolkit/latest/tools/aml/lib64:/usr/local/Ascend/ascend-toolkit/latest/tools/aml/lib64/plugin:/usr/local/Ascend/ascend-toolkit/latest/lib64:/usr/local/Ascend/ascend-toolkit/latest/lib64/plugin/opskernel:/usr/local/Ascend/ascend-toolkit/latest/lib64/plugin/nnengine:/usr/local/Ascend/ascend-toolkit/latest/opp/built-in/op_impl/ai_core/tbe/op_tiling:/usr/local/python3.12.13/lib:",
+    "PYTHONPATH": "/usr/local/Ascend/cann-9.1.0/python/site-packages:/usr/local/Ascend/cann-9.1.0/opp/built-in/op_impl/ai_core/tbe:/usr/local/Ascend/ascend-toolkit/latest/python/site-packages:/usr/local/Ascend/ascend-toolkit/latest/opp/built-in/op_impl/ai_core/tbe:",
+    "ASCEND_HOME_PATH": "/usr/local/Ascend/cann-9.1.0",
+    "ASCEND_OPP_PATH": "/usr/local/Ascend/cann-9.1.0/opp",
+    "ASCEND_RT_VISIBLE_DEVICES": "4",
+    "ASCEND_VISIBLE_DEVICES": null
+  }
+}
