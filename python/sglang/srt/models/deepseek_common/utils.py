@@ -197,3 +197,21 @@ def tiny_router_gemm_max_tokens(
     if not can_use_tiny_gemm(num_experts, hidden_size, max_m=16):
         return -1
     return 16
+
+import functools
+
+_depth = 0                       # ← 模块级变量，全局唯一
+
+def trace(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        global _depth
+        indent = "  " * _depth   # 所有 wrapper 读的是同一个 _depth
+        print(f"{indent} Enter [{func.__qualname__}]")
+        _depth += 1
+        try:
+            return func(*args, **kwargs)
+        finally:
+            _depth -= 1
+            print(f"{indent} Left [{func.__qualname__}]")
+    return wrapper

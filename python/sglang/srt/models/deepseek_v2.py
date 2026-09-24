@@ -185,6 +185,7 @@ from sglang.srt.models.deepseek_common.utils import (
     is_wint4afp8_or_wint4a16_config,
     quant_blocks_shared_experts_fusion,
     tiny_router_gemm_max_tokens,
+    trace
 )
 from sglang.srt.multimodal.dsv41.vl_routing import vision_topk
 from sglang.srt.runtime_context import (
@@ -301,7 +302,7 @@ class DeepseekV2MLP(nn.Module):
         self.use_fused_clamp_act_mul = _is_hip
         self._fused_clamp_fp8_checked = False
         self._fused_clamp_use_fp8 = False
-
+    @trace
     def forward(
         self,
         x,
@@ -509,7 +510,7 @@ class MoEGate(nn.Module):
             hidden_size=config.hidden_size,
             weight_dtype=self.weight.dtype,
         )
-
+    @trace
     def forward(
         self,
         hidden_states,
@@ -904,7 +905,7 @@ class DeepseekV2MoE(nn.Module):
             and not getattr(self, "is_hash", False)
             and not get_exec().moe.enable_eplb
         )
-
+    @trace
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -2253,7 +2254,7 @@ class DeepseekV2AttentionMLA(
             state.hidden_states_after_attn = result[0]
         else:
             state.hidden_states_after_attn = result
-
+    @trace
     def forward(
         self,
         positions: torch.Tensor,
@@ -2638,7 +2639,7 @@ class DeepseekV2DecoderLayer(nn.Module):
             and layer_id >= self.config.first_k_dense_replace
             and layer_id % self.config.moe_layer_freq == 0
         )
-
+    @trace
     def forward(
         self,
         positions: torch.Tensor,
@@ -2946,7 +2947,7 @@ class DeepseekV2Model(nn.Module):
         backend = get_attn_backend()
         backend = getattr(backend, "primary", backend)
         return not getattr(backend, "use_mha", False)
-
+    @trace
     def forward(
         self,
         input_ids: torch.Tensor,
@@ -3264,7 +3265,7 @@ class DeepseekV2ForCausalLM(nn.Module, DeepseekV2WeightLoaderMixin):
 
     def get_input_embeddings(self) -> nn.Embedding:
         return self.model.embed_tokens
-
+    @trace
     @torch.no_grad()
     def forward(
         self,
