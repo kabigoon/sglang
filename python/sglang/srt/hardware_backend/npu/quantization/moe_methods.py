@@ -4,6 +4,7 @@ import numpy as np
 import torch
 from torch.nn.parameter import Parameter
 
+from sglang.srt.debug_utils import moe_trace
 from sglang.srt.environ import envs
 from sglang.srt.hardware_backend.npu.utils import npu_format_cast
 from sglang.srt.layers.quantization.base_config import FusedMoEMethodBase
@@ -249,6 +250,13 @@ class _NPUMoEMethodBase(FusedMoEMethodBase):
     @staticmethod
     def _set_dispatcher_output_dtype(layer: torch.nn.Module, dtype) -> None:
         """Set dispatcher output dtype if the layer has a dispatcher."""
+        moe_trace.trace(
+            "set_dispatcher_dtype",
+            layer=getattr(layer, "layer_id", -1),
+            dtype=dtype,
+            dispatcher=type(getattr(layer, "dispatcher", None)).__name__,
+            w13=type(getattr(layer, "w13_kernel", None)).__name__,
+        )
         if hasattr(layer, "dispatcher"):
             layer.dispatcher.set_quant_config({"dispatcher_output_dtype": dtype})
 

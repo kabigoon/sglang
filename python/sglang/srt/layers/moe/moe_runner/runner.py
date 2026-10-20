@@ -5,6 +5,7 @@ import os
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Optional
 
+from sglang.srt.debug_utils import moe_trace
 from sglang.srt.layers.moe.moe_runner.base import (
     DispatchMoeRunnerCore,
     FusedOpPool,
@@ -196,9 +197,21 @@ class MoeRunner:
         self, dispatch_output: DispatchOutput, quant_info: MoeQuantInfo, lora_info=None
     ) -> CombineInput:
         if self.fused_func is not None and not self.lora_enabled:
+            moe_trace.trace(
+                "moe_runner_fused",
+                fn=getattr(self.fused_func, "__name__", "?"),
+                hs=dispatch_output.hidden_states,
+            )
             return self.fused_func(dispatch_output, quant_info, self.config)
 
         assert self.runner_core is not None
+
+        moe_trace.trace(
+            "moe_runner",
+            dispatch=dispatch_output.format.value,
+            runner=self.runner_core.runner_backend.value,
+            core=type(self.runner_core).__name__,
+        )
 
         def _maybe_build_lora_hooks(
             _runner_input: DispatchOutput | TritonRunnerInput,
@@ -252,6 +265,14 @@ class MoeRunner:
             dispatch_output, quant_info, self.config, running_state
         )
 
+        moe_trace.trace(
+            "pre_permute",
+            fn=getattr(self.pre_permute_func, "__name__", "?"),
+            input_cls=type(runner_input).__name__,
+            hs=getattr(runner_input, "hidden_states", None),
+            scale=getattr(runner_input, "hidden_states_scale", None),
+        )
+
         hooks = _maybe_build_lora_hooks(runner_input)
 
         runner_output = self.runner_core.run(
@@ -264,6 +285,13 @@ class MoeRunner:
         )
         combine_input = self.post_permute_func(
             runner_output, quant_info, self.config, running_state
+        )
+
+        moe_trace.trace(
+            "post_permute",
+            fn=getattr(self.post_permute_func, "__name__", "?"),
+            out_cls=type(combine_input).__name__,
+            hs=getattr(combine_input, "hidden_states", None),
         )
 
         return combine_input

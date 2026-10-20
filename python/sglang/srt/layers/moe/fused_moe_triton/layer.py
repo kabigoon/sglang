@@ -13,6 +13,7 @@ from torch.nn.parameter import UninitializedParameter
 from sglang.srt.batch_overlap.single_batch_overlap import DownGemmOverlapArgs
 from sglang.srt.batch_overlap.two_batch_overlap import MaybeTboDeepEPDispatcher
 from sglang.srt.configs.moe_model_registry import model_requires_fp32_silu_mul
+from sglang.srt.debug_utils import moe_trace
 from sglang.srt.distributed import (
     tensor_model_parallel_all_reduce,
 )
@@ -164,7 +165,20 @@ def create_moe_dispatcher(
     quant_method: FusedMoEMethodBase,
 ) -> BaseDispatcher:
     a2a_backend = get_moe_a2a_backend()
+    moe_trace.trace(
+        "dispatcher",
+        a2a=a2a_backend.value,
+        npu=_is_npu,
+        E=moe_runner_config.num_experts,
+        E_local=moe_runner_config.num_local_experts,
+        top_k=moe_runner_config.top_k,
+        H=moe_runner_config.hidden_size,
+        moe_tp=get_parallel().moe_tp_size,
+        moe_ep=get_parallel().moe_ep_size,
+        quant=type(quant_method).__name__,
+    )
     if a2a_backend.is_none() and is_npu():
+        moe_trace.trace("dispatcher_chosen", cls="AscendTPDispatcher")
         return AscendTPDispatcher(moe_runner_config)
     elif (
         a2a_backend.is_none()
@@ -177,6 +191,7 @@ def create_moe_dispatcher(
         # StandardDispatcher is created but never invoked.
         # flashinfer_megamoe does its EP all-to-all inside the kernel, so the
         # dispatcher stays a pure noop passthrough.
+        moe_trace.trace("dispatcher_chosen", cls="StandardDispatcher")
         return StandardDispatcher(moe_runner_config)
     elif (
         a2a_backend.is_deepep()
@@ -185,6 +200,7 @@ def create_moe_dispatcher(
         or a2a_backend.is_nixl()
         or a2a_backend.is_pplx()
     ):
+        moe_trace.trace("dispatcher_chosen", cls="MaybeTboDeepEPDispatcher")
         return MaybeTboDeepEPDispatcher(
             group=_get_deepep_comm_group(a2a_backend),
             router_topk=moe_runner_config.top_k,
@@ -201,6 +217,7 @@ def create_moe_dispatcher(
         output_dtype = get_deepep_v2_dispatcher_output_dtype(
             _deepep_v2_experts_are_fp8(quant_method)
         )
+        moe_trace.trace("dispatcher_chosen", cls="DeepEPv2Dispatcher")
         return DeepEPv2Dispatcher(
             group=get_parallel().tp_group.device_group,
             router_topk=moe_runner_config.top_k,
@@ -216,6 +233,7 @@ def create_moe_dispatcher(
             ),
         )
     elif a2a_backend.is_flashinfer():
+        moe_trace.trace("dispatcher_chosen", cls="FlashinferDispatcher")
         return FlashinferDispatcher(
             group=get_parallel().tp_group.device_group,
             router_topk=moe_runner_config.top_k,
@@ -1557,6 +1575,16 @@ class FusedMoE(torch.nn.Module):
         origin_hidden_states_dim = hidden_states.shape[-1]
         assert self.quant_method is not None
 
+        moe_trace.trace(
+            "forward_impl_in",
+            layer=self.layer_id,
+            x=hidden_states,
+            dispatcher=type(self.dispatcher).__name__,
+            topk=type(topk_output).__name__,
+            ids=getattr(topk_output, "topk_ids", None),
+            weights=getattr(topk_output, "topk_weights", None),
+        )
+
         if self._dwdp_bound:
             dwdp_mgr = get_global_dwdp_manager()
             dwdp_mgr.wait_prefetch(self.layer_id)
@@ -1585,6 +1613,10 @@ class FusedMoE(torch.nn.Module):
         if self.reduce_results and (self.moe_tp_size > 1 or self.moe_ep_size > 1):
             final_hidden_states = tensor_model_parallel_all_reduce(final_hidden_states)
 
+        moe_trace.trace(
+            "forward_impl_out", layer=self.layer_id, out=final_hidden_states
+        )
+        moe_trace.dump(self.layer_id, "forward_impl_out", out=final_hidden_states)
         return final_hidden_states
 
     def _dispatch_with_pre_quant(

@@ -4,6 +4,7 @@ from typing import NamedTuple, Optional
 
 import torch
 
+from sglang.srt.debug_utils import moe_trace
 from sglang.srt.hardware_backend.npu.moe.finalize_routing import (
     AllGatherFinalizeRoutingWrapper,
     NPUFinalizeRouting,
@@ -56,13 +57,33 @@ class AscendTPDispatcher(BaseDispatcher):
         self._dispatch_output: Optional[AscendTPDispatchOutput] = None
 
         self.quant_config: Optional[dict] = None
+        self.layer_id = getattr(
+            getattr(moe_runner_config, "layer", None), "layer_id", -1
+        )
 
         # Initialise routing kernels with default (no quant config yet)
         self.set_ascend_dispatcher_output_dtype()
+        moe_trace.trace(
+            "ascend_tp_init",
+            layer=self.layer_id,
+            E=self.num_experts,
+            K=self.top_k,
+            dtype=self.ascend_dispatcher_output_dtype.value,
+            init=type(self.init).__name__,
+            finalize=type(self.finalize).__name__,
+            group_list_type=self.group_list_type,
+        )
 
     def set_quant_config(self, quant_config: dict) -> None:
         self.quant_config = quant_config
         self.set_ascend_dispatcher_output_dtype()
+        moe_trace.trace(
+            "ascend_tp_quant_config",
+            layer=self.layer_id,
+            cfg=quant_config,
+            dtype=self.ascend_dispatcher_output_dtype.value,
+            quant_mode=getattr(self.init, "quant_mode", None),
+        )
 
         # If the quantisation is GGUF and TP is active, wrap the finalizer
         # with an all‑gather so that the dispatcher stays completely clean.
@@ -102,6 +123,15 @@ class AscendTPDispatcher(BaseDispatcher):
         topk_ids = topk_ids.to(torch.int32)
         top_k = topk_weights.shape[-1]
 
+        moe_trace.trace(
+            "dispatch_in",
+            layer=self.layer_id,
+            x=hidden_states,
+            ids=topk_ids,
+            weights=topk_weights,
+            quant_mode=getattr(self.init, "quant_mode", None),
+        )
+
         (
             permuted_hidden_states,
             expanded_row_idx,
@@ -112,6 +142,26 @@ class AscendTPDispatcher(BaseDispatcher):
             topk_ids,
             self.num_experts,
             top_k,
+        )
+
+        moe_trace.trace(
+            "dispatch_out",
+            layer=self.layer_id,
+            hs=permuted_hidden_states,
+            scale=hidden_states_scale,
+            row_idx=expanded_row_idx,
+            expert_tokens=expert_tokens,
+            group_list_type=self.group_list_type,
+        )
+        moe_trace.dump(
+            self.layer_id,
+            "dispatch_out",
+            hs=permuted_hidden_states,
+            scale=hidden_states_scale,
+            row_idx=expanded_row_idx,
+            expert_tokens=expert_tokens,
+            topk_ids=topk_ids,
+            topk_weights=topk_weights,
         )
 
         self._dispatch_output = AscendTPDispatchOutput(
@@ -138,6 +188,16 @@ class AscendTPDispatcher(BaseDispatcher):
             expanded_row_idx=dispatch_out.expanded_row_idx,
             topk_ids=dispatch_out.topk_ids,
         )
+
+        moe_trace.trace(
+            "combine_io",
+            layer=self.layer_id,
+            in_hs=combine_input.hidden_states,
+            row_idx=dispatch_out.expanded_row_idx,
+            out=final_hidden_states,
+            finalize=type(self.finalize).__name__,
+        )
+        moe_trace.dump(self.layer_id, "combine_out", out=final_hidden_states)
 
         self._dispatch_output = None
         return final_hidden_states

@@ -4,6 +4,7 @@ from contextlib import contextmanager, nullcontext
 
 import torch
 
+from sglang.srt.debug_utils import moe_trace
 from sglang.srt.environ import envs
 from sglang.srt.layers.cp.interleave import attn_cp_interleave_gather
 from sglang.srt.layers.cp.utils import is_cp_active
@@ -216,6 +217,19 @@ class MoeRowTransport(ComputeTransport):
         self.do_shared_local = do_shared_local
         self._a2a_scatter_chunks = _a2a_scatter_chunks
         self.gathered_rows = gathered_rows
+
+        moe_trace.trace(
+            "transport",
+            use_cp=_use_cp,
+            tp_moe_gather=_use_tp_moe_gather,
+            reduce_scatterv=_use_reduce_scatterv,
+            reduce_scatter=_use_reduce_scatter,
+            mlp_reduce_scatter=mlp_reduce_scatter,
+            global_rows=hidden_states.shape[0],
+            local_rows=(
+                local_hidden_states.shape[0] if _use_tp_moe_gather else None
+            ),
+        )
 
     def return_output(self, hidden_states):
         forward_batch = self.batch

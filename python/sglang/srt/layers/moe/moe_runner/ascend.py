@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 import torch
 
+from sglang.srt.debug_utils import moe_trace
 from sglang.srt.environ import envs
 from sglang.srt.hardware_backend.npu.moe.activation import (
     AllGatherActivationWrapper,
@@ -219,6 +220,23 @@ class AscendRunnerCore(MoeRunnerCore):
 
         w13_kernel = self.config.layer.w13_kernel
 
+        layer_id = getattr(getattr(self.config, "layer", None), "layer_id", -1)
+        moe_trace.trace(
+            "runner_in",
+            layer=layer_id,
+            x=x,
+            scale=runner_input.hidden_states_scale,
+            expert_tokens=expert_tokens,
+            group_list_type=group_list_type,
+            act=(
+                type(self.activation).__name__
+                if self.activation is not None
+                else "fused_gmm1"
+            ),
+            w13=type(w13_kernel).__name__,
+            w2=type(self.config.layer.w2_kernel).__name__,
+        )
+
         if _uses_fused_gmm1(w13_kernel, self.config):
             # --- w13 projection + activation, fused into one kernel ---
             # The fused gmm1 returns activations already requantised for gmm2,
@@ -263,6 +281,13 @@ class AscendRunnerCore(MoeRunnerCore):
                     hidden_states
                 )
 
+        moe_trace.trace(
+            "runner_mid",
+            layer=layer_id,
+            act_out=hidden_states,
+            pertoken_scale=pertoken_scale,
+        )
+
         # --- w2 (down) projection ---
         hidden_states = self.config.layer.w2_kernel.apply(
             quant_info,
@@ -273,6 +298,8 @@ class AscendRunnerCore(MoeRunnerCore):
             weight_prefix="w2",
             group_list_type=group_list_type,
         )
+        moe_trace.trace("runner_out", layer=layer_id, out=hidden_states)
+        moe_trace.dump(layer_id, "runner_out", out=hidden_states)
         return AscendRunnerOutput(hidden_states=hidden_states)
 
 
