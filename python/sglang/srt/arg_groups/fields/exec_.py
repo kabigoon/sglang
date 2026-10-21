@@ -803,7 +803,8 @@ class ExecMoe(msgspec.Struct):
             "flashinfer_megamoe",
         ],
         Arg(
-            help="Choose the backend for MoE A2A.",
+            help="Choose the backend for MoE A2A. 'ascend_tp' is deprecated "
+            "and resolves to 'none'.",
             choices=[
                 "none",
                 "deepep",
@@ -815,6 +816,7 @@ class ExecMoe(msgspec.Struct):
                 "megamoe",
                 "deepep_v2",
                 "pplx",
+                # Deprecated alias of "none"; kept so old launch scripts parse.
                 "ascend_tp",
                 "flashinfer_megamoe",
             ],

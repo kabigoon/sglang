@@ -459,7 +459,10 @@ def handle_a2a_moe(server_args: Any):
     # moved this already (waterfill forces `deepep`).
     a2a_now = resolved_view(server_args).moe_a2a_backend
     if (a2a_now == "none" and get_platform().is_npu) or a2a_now == "ascend_tp":
-        # FIXME (OrangeRedeng): for some reasons if pass "ascend_tp" accuracy drops to zero
+        # `ascend_tp` is the deprecated spelling of the NPU no-A2A path, which
+        # is now the community `none` path (Ascend routing lives in the MoE
+        # runner's permute hooks). Normalise it here so the resolved record
+        # never carries the alias into the runtime.
         declare_resolution(
             server_args,
             "_handle_a2a_moe",

@@ -31,6 +31,23 @@ from sglang.srt.utils.common import log_info_on_rank0
 
 logger = logging.getLogger(__name__)
 
+# ``--moe-a2a-backend ascend_tp``: accepted as a deprecated spelling of ``none``.
+# The value is still in the CLI choices so existing launch scripts do not fail
+# at argument parsing; it never reaches the runtime as a backend of its own.
+_DEPRECATED_ASCEND_TP = "ascend_tp"
+_ascend_tp_alias_warned = False
+
+
+def _warn_once_ascend_tp_alias() -> None:
+    global _ascend_tp_alias_warned
+    if _ascend_tp_alias_warned:
+        return
+    _ascend_tp_alias_warned = True
+    logger.warning(
+        "--moe-a2a-backend ascend_tp is deprecated and now means 'none': the "
+        "Ascend routing path is the community no-A2A path. Drop the flag."
+    )
+
 
 class MoeA2ABackend(Enum):
     NONE = "none"
@@ -39,7 +56,6 @@ class MoeA2ABackend(Enum):
     NIXL = "nixl"
     MORI = "mori"
     ASCEND_FUSEEP = "ascend_fuseep"
-    ASCEND_TP = "ascend_tp"
     FLASHINFER = "flashinfer"
     MEGAMOE = "megamoe"
     DEEPEP_V2 = "deepep_v2"
@@ -50,6 +66,14 @@ class MoeA2ABackend(Enum):
     @classmethod
     def _missing_(cls, value):
         if value is None:
+            return cls.NONE
+        if value == _DEPRECATED_ASCEND_TP:
+            # `ascend_tp` used to select a dedicated Ascend dispatcher. That
+            # dispatcher is gone: the NPU no-A2A path is the community `none`
+            # path now (Ascend routing lives in the MoE runner's permute
+            # hooks), so the alias resolves to it and old launch scripts keep
+            # working.
+            _warn_once_ascend_tp_alias()
             return cls.NONE
         for member in cls:
             if value == member.value:
@@ -73,9 +97,6 @@ class MoeA2ABackend(Enum):
 
     def is_ascend_fuseep(self):
         return self == MoeA2ABackend.ASCEND_FUSEEP
-
-    def is_ascend_tp(self):
-        return self == MoeA2ABackend.ASCEND_TP
 
     def is_mori(self):
         return self == MoeA2ABackend.MORI
@@ -392,23 +413,6 @@ def get_deepep_output_dtype(self) -> DispatcherOutputDtype:
 
     # 7. Default → FP8
     return DispatcherOutputDtype.FP8
-
-
-def get_ascend_dispatcher_output_dtype(dispatcher):
-    """
-    Automatically choose the dispatch output dtype for Ascend.
-    """
-
-    # 1. Parse quant config to determine the output dtype of dispatcher
-    if dispatcher.quant_config is not None:
-        dispatcher_output_dtype = dispatcher.quant_config.get(
-            "dispatcher_output_dtype", None
-        )
-        if dispatcher_output_dtype is not None:
-            return DispatcherOutputDtype(dispatcher_output_dtype)
-
-    # 2. Ascend dispatch defaults to BF16
-    return DispatcherOutputDtype.BF16
 
 
 def get_deepep_v2_dispatcher_output_dtype(
