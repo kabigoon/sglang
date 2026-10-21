@@ -1,0 +1,504 @@
+[tp0 dp0 ep0 mtp0][dispatcher#0] a2a='none' npu=True E=64 E_local=64 top_k=6 H=2048 moe_tp=1 moe_ep=1 quant='ModelSlimFusedMoEMethod'
+[tp0 dp0 ep0 mtp0][dispatcher_chosen#0] cls='AscendTPDispatcher'
+[tp0 dp0 ep0 mtp0][ascend_tp_init#0] layer=1 E=64 K=6 dtype='bf16' init='NPUMoEInitRouting_v2' finalize='NPUFinalizeRouting' group_list_type=1
+[tp0 dp0 ep0 mtp0][dispatcher#1] a2a='none' npu=True E=64 E_local=64 top_k=6 H=2048 moe_tp=1 moe_ep=1 quant='ModelSlimFusedMoEMethod'
+[tp0 dp0 ep0 mtp0][dispatcher_chosen#1] cls='AscendTPDispatcher'
+[tp0 dp0 ep0 mtp0][ascend_tp_init#0] layer=2 E=64 K=6 dtype='bf16' init='NPUMoEInitRouting_v2' finalize='NPUFinalizeRouting' group_list_type=1
+[tp0 dp0 ep0 mtp0][ascend_tp_init#0] layer=3 E=64 K=6 dtype='bf16' init='NPUMoEInitRouting_v2' finalize='NPUFinalizeRouting' group_list_type=1
+[tp0 dp0 ep0 mtp0][ascend_tp_init#0] layer=4 E=64 K=6 dtype='bf16' init='NPUMoEInitRouting_v2' finalize='NPUFinalizeRouting' group_list_type=1
+[tp0 dp0 ep0 mtp0][ascend_tp_init#0] layer=5 E=64 K=6 dtype='bf16' init='NPUMoEInitRouting_v2' finalize='NPUFinalizeRouting' group_list_type=1
+[tp0 dp0 ep0 mtp0][ascend_tp_init#0] layer=6 E=64 K=6 dtype='bf16' init='NPUMoEInitRouting_v2' finalize='NPUFinalizeRouting' group_list_type=1
+[tp0 dp0 ep0 mtp0][ascend_tp_init#0] layer=7 E=64 K=6 dtype='bf16' init='NPUMoEInitRouting_v2' finalize='NPUFinalizeRouting' group_list_type=1
+[tp0 dp0 ep0 mtp0][ascend_tp_init#0] layer=8 E=64 K=6 dtype='bf16' init='NPUMoEInitRouting_v2' finalize='NPUFinalizeRouting' group_list_type=1
+[tp0 dp0 ep0 mtp0][ascend_tp_init#0] layer=9 E=64 K=6 dtype='bf16' init='NPUMoEInitRouting_v2' finalize='NPUFinalizeRouting' group_list_type=1
+[tp0 dp0 ep0 mtp0][ascend_tp_init#0] layer=10 E=64 K=6 dtype='bf16' init='NPUMoEInitRouting_v2' finalize='NPUFinalizeRouting' group_list_type=1
+[tp0 dp0 ep0 mtp0][ascend_tp_init#0] layer=11 E=64 K=6 dtype='bf16' init='NPUMoEInitRouting_v2' finalize='NPUFinalizeRouting' group_list_type=1
+[tp0 dp0 ep0 mtp0][ascend_tp_init#0] layer=12 E=64 K=6 dtype='bf16' init='NPUMoEInitRouting_v2' finalize='NPUFinalizeRouting' group_list_type=1
+[tp0 dp0 ep0 mtp0][ascend_tp_init#0] layer=13 E=64 K=6 dtype='bf16' init='NPUMoEInitRouting_v2' finalize='NPUFinalizeRouting' group_list_type=1
+[tp0 dp0 ep0 mtp0][ascend_tp_init#0] layer=14 E=64 K=6 dtype='bf16' init='NPUMoEInitRouting_v2' finalize='NPUFinalizeRouting' group_list_type=1
+[tp0 dp0 ep0 mtp0][ascend_tp_init#0] layer=15 E=64 K=6 dtype='bf16' init='NPUMoEInitRouting_v2' finalize='NPUFinalizeRouting' group_list_type=1
+[tp0 dp0 ep0 mtp0][ascend_tp_init#0] layer=16 E=64 K=6 dtype='bf16' init='NPUMoEInitRouting_v2' finalize='NPUFinalizeRouting' group_list_type=1
+[tp0 dp0 ep0 mtp0][ascend_tp_init#0] layer=17 E=64 K=6 dtype='bf16' init='NPUMoEInitRouting_v2' finalize='NPUFinalizeRouting' group_list_type=1
+[tp0 dp0 ep0 mtp0][ascend_tp_init#0] layer=18 E=64 K=6 dtype='bf16' init='NPUMoEInitRouting_v2' finalize='NPUFinalizeRouting' group_list_type=1
+[tp0 dp0 ep0 mtp0][ascend_tp_init#0] layer=19 E=64 K=6 dtype='bf16' init='NPUMoEInitRouting_v2' finalize='NPUFinalizeRouting' group_list_type=1
+[tp0 dp0 ep0 mtp0][ascend_tp_init#0] layer=20 E=64 K=6 dtype='bf16' init='NPUMoEInitRouting_v2' finalize='NPUFinalizeRouting' group_list_type=1
+[tp0 dp0 ep0 mtp0][ascend_tp_init#0] layer=21 E=64 K=6 dtype='bf16' init='NPUMoEInitRouting_v2' finalize='NPUFinalizeRouting' group_list_type=1
+[tp0 dp0 ep0 mtp0][ascend_tp_init#0] layer=22 E=64 K=6 dtype='bf16' init='NPUMoEInitRouting_v2' finalize='NPUFinalizeRouting' group_list_type=1
+[tp0 dp0 ep0 mtp0][ascend_tp_init#0] layer=23 E=64 K=6 dtype='bf16' init='NPUMoEInitRouting_v2' finalize='NPUFinalizeRouting' group_list_type=1
+[tp0 dp0 ep0 mtp0][ascend_tp_init#0] layer=24 E=64 K=6 dtype='bf16' init='NPUMoEInitRouting_v2' finalize='NPUFinalizeRouting' group_list_type=1
+[tp0 dp0 ep0 mtp0][ascend_tp_init#0] layer=25 E=64 K=6 dtype='bf16' init='NPUMoEInitRouting_v2' finalize='NPUFinalizeRouting' group_list_type=1
+[tp0 dp0 ep0 mtp0][ascend_tp_init#0] layer=26 E=64 K=6 dtype='bf16' init='NPUMoEInitRouting_v2' finalize='NPUFinalizeRouting' group_list_type=1
+[tp0 dp0 ep0 mtp0][set_dispatcher_dtype#0] layer=1 dtype='int8' dispatcher='AscendTPDispatcher' w13='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][ascend_tp_quant_config#0] layer=1 cfg={dispatcher_output_dtype:'int8'} dtype='int8' quant_mode=1
+[tp0 dp0 ep0 mtp0][set_dispatcher_dtype#0] layer=2 dtype='int8' dispatcher='AscendTPDispatcher' w13='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][ascend_tp_quant_config#0] layer=2 cfg={dispatcher_output_dtype:'int8'} dtype='int8' quant_mode=1
+[tp0 dp0 ep0 mtp0][set_dispatcher_dtype#0] layer=3 dtype='int8' dispatcher='AscendTPDispatcher' w13='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][ascend_tp_quant_config#0] layer=3 cfg={dispatcher_output_dtype:'int8'} dtype='int8' quant_mode=1
+[tp0 dp0 ep0 mtp0][set_dispatcher_dtype#0] layer=4 dtype='int8' dispatcher='AscendTPDispatcher' w13='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][ascend_tp_quant_config#0] layer=4 cfg={dispatcher_output_dtype:'int8'} dtype='int8' quant_mode=1
+[tp0 dp0 ep0 mtp0][set_dispatcher_dtype#0] layer=5 dtype='int8' dispatcher='AscendTPDispatcher' w13='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][ascend_tp_quant_config#0] layer=5 cfg={dispatcher_output_dtype:'int8'} dtype='int8' quant_mode=1
+[tp0 dp0 ep0 mtp0][set_dispatcher_dtype#0] layer=6 dtype='int8' dispatcher='AscendTPDispatcher' w13='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][ascend_tp_quant_config#0] layer=6 cfg={dispatcher_output_dtype:'int8'} dtype='int8' quant_mode=1
+[tp0 dp0 ep0 mtp0][set_dispatcher_dtype#0] layer=7 dtype='int8' dispatcher='AscendTPDispatcher' w13='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][ascend_tp_quant_config#0] layer=7 cfg={dispatcher_output_dtype:'int8'} dtype='int8' quant_mode=1
+[tp0 dp0 ep0 mtp0][set_dispatcher_dtype#0] layer=8 dtype='int8' dispatcher='AscendTPDispatcher' w13='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][ascend_tp_quant_config#0] layer=8 cfg={dispatcher_output_dtype:'int8'} dtype='int8' quant_mode=1
+[tp0 dp0 ep0 mtp0][set_dispatcher_dtype#0] layer=9 dtype='int8' dispatcher='AscendTPDispatcher' w13='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][ascend_tp_quant_config#0] layer=9 cfg={dispatcher_output_dtype:'int8'} dtype='int8' quant_mode=1
+[tp0 dp0 ep0 mtp0][set_dispatcher_dtype#0] layer=10 dtype='int8' dispatcher='AscendTPDispatcher' w13='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][ascend_tp_quant_config#0] layer=10 cfg={dispatcher_output_dtype:'int8'} dtype='int8' quant_mode=1
+[tp0 dp0 ep0 mtp0][set_dispatcher_dtype#0] layer=11 dtype='int8' dispatcher='AscendTPDispatcher' w13='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][ascend_tp_quant_config#0] layer=11 cfg={dispatcher_output_dtype:'int8'} dtype='int8' quant_mode=1
+[tp0 dp0 ep0 mtp0][set_dispatcher_dtype#0] layer=12 dtype='int8' dispatcher='AscendTPDispatcher' w13='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][ascend_tp_quant_config#0] layer=12 cfg={dispatcher_output_dtype:'int8'} dtype='int8' quant_mode=1
+[tp0 dp0 ep0 mtp0][set_dispatcher_dtype#0] layer=13 dtype='int8' dispatcher='AscendTPDispatcher' w13='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][ascend_tp_quant_config#0] layer=13 cfg={dispatcher_output_dtype:'int8'} dtype='int8' quant_mode=1
+[tp0 dp0 ep0 mtp0][set_dispatcher_dtype#0] layer=14 dtype='int8' dispatcher='AscendTPDispatcher' w13='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][ascend_tp_quant_config#0] layer=14 cfg={dispatcher_output_dtype:'int8'} dtype='int8' quant_mode=1
+[tp0 dp0 ep0 mtp0][set_dispatcher_dtype#0] layer=15 dtype='int8' dispatcher='AscendTPDispatcher' w13='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][ascend_tp_quant_config#0] layer=15 cfg={dispatcher_output_dtype:'int8'} dtype='int8' quant_mode=1
+[tp0 dp0 ep0 mtp0][set_dispatcher_dtype#0] layer=16 dtype='int8' dispatcher='AscendTPDispatcher' w13='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][ascend_tp_quant_config#0] layer=16 cfg={dispatcher_output_dtype:'int8'} dtype='int8' quant_mode=1
+[tp0 dp0 ep0 mtp0][set_dispatcher_dtype#0] layer=17 dtype='int8' dispatcher='AscendTPDispatcher' w13='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][ascend_tp_quant_config#0] layer=17 cfg={dispatcher_output_dtype:'int8'} dtype='int8' quant_mode=1
+[tp0 dp0 ep0 mtp0][set_dispatcher_dtype#0] layer=18 dtype='int8' dispatcher='AscendTPDispatcher' w13='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][ascend_tp_quant_config#0] layer=18 cfg={dispatcher_output_dtype:'int8'} dtype='int8' quant_mode=1
+[tp0 dp0 ep0 mtp0][set_dispatcher_dtype#0] layer=19 dtype='int8' dispatcher='AscendTPDispatcher' w13='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][ascend_tp_quant_config#0] layer=19 cfg={dispatcher_output_dtype:'int8'} dtype='int8' quant_mode=1
+[tp0 dp0 ep0 mtp0][set_dispatcher_dtype#0] layer=20 dtype='int8' dispatcher='AscendTPDispatcher' w13='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][ascend_tp_quant_config#0] layer=20 cfg={dispatcher_output_dtype:'int8'} dtype='int8' quant_mode=1
+[tp0 dp0 ep0 mtp0][set_dispatcher_dtype#0] layer=21 dtype='int8' dispatcher='AscendTPDispatcher' w13='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][ascend_tp_quant_config#0] layer=21 cfg={dispatcher_output_dtype:'int8'} dtype='int8' quant_mode=1
+[tp0 dp0 ep0 mtp0][set_dispatcher_dtype#0] layer=22 dtype='int8' dispatcher='AscendTPDispatcher' w13='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][ascend_tp_quant_config#0] layer=22 cfg={dispatcher_output_dtype:'int8'} dtype='int8' quant_mode=1
+[tp0 dp0 ep0 mtp0][set_dispatcher_dtype#0] layer=23 dtype='int8' dispatcher='AscendTPDispatcher' w13='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][ascend_tp_quant_config#0] layer=23 cfg={dispatcher_output_dtype:'int8'} dtype='int8' quant_mode=1
+[tp0 dp0 ep0 mtp0][set_dispatcher_dtype#0] layer=24 dtype='int8' dispatcher='AscendTPDispatcher' w13='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][ascend_tp_quant_config#0] layer=24 cfg={dispatcher_output_dtype:'int8'} dtype='int8' quant_mode=1
+[tp0 dp0 ep0 mtp0][set_dispatcher_dtype#0] layer=25 dtype='int8' dispatcher='AscendTPDispatcher' w13='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][ascend_tp_quant_config#0] layer=25 cfg={dispatcher_output_dtype:'int8'} dtype='int8' quant_mode=1
+[tp0 dp0 ep0 mtp0][set_dispatcher_dtype#0] layer=26 dtype='int8' dispatcher='AscendTPDispatcher' w13='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][ascend_tp_quant_config#0] layer=26 cfg={dispatcher_output_dtype:'int8'} dtype='int8' quant_mode=1
+[tp0 dp0 ep0 mtp0][forward_impl_in#0] layer=1 x=(7, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(7, 6):int32:npu weights=(7, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#0] layer=1 x=(7, 2048):bfloat16:npu ids=(7, 6):int32:npu weights=(7, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#0] layer=1 hs=(42, 2048):int8:npu scale=(42,):float32:npu row_idx=(42,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][moe_runner#0] dispatch='ascend_tp' runner='ascend' core='AscendRunnerCore'
+[tp0 dp0 ep0 mtp0][pre_permute#0] fn='pre_permute_ascend_tp_to_ascend' input_cls='AscendRunnerInput' hs=(42, 2048):int8:npu scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_in#0] layer=1 x=(42, 2048):int8:npu scale=(42,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#0] layer=1 act_out=(42, 1408):int8:npu pertoken_scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#0] layer=1 out=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][post_permute#0] fn='post_permute_ascend_to_ascend_tp' out_cls='AscendTPCombineInput' hs=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#0] layer=1 in_hs=(42, 2048):bfloat16:npu row_idx=(42,):int32:npu out=(7, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#0] layer=1 out=(7, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#0] layer=2 x=(7, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(7, 6):int32:npu weights=(7, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#0] layer=2 x=(7, 2048):bfloat16:npu ids=(7, 6):int32:npu weights=(7, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#0] layer=2 hs=(42, 2048):int8:npu scale=(42,):float32:npu row_idx=(42,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][moe_runner#1] dispatch='ascend_tp' runner='ascend' core='AscendRunnerCore'
+[tp0 dp0 ep0 mtp0][pre_permute#1] fn='pre_permute_ascend_tp_to_ascend' input_cls='AscendRunnerInput' hs=(42, 2048):int8:npu scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_in#0] layer=2 x=(42, 2048):int8:npu scale=(42,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#0] layer=2 act_out=(42, 1408):int8:npu pertoken_scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#0] layer=2 out=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][post_permute#1] fn='post_permute_ascend_to_ascend_tp' out_cls='AscendTPCombineInput' hs=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#0] layer=2 in_hs=(42, 2048):bfloat16:npu row_idx=(42,):int32:npu out=(7, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#0] layer=2 out=(7, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#0] layer=3 x=(7, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(7, 6):int32:npu weights=(7, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#0] layer=3 x=(7, 2048):bfloat16:npu ids=(7, 6):int32:npu weights=(7, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#0] layer=3 hs=(42, 2048):int8:npu scale=(42,):float32:npu row_idx=(42,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#0] layer=3 x=(42, 2048):int8:npu scale=(42,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#0] layer=3 act_out=(42, 1408):int8:npu pertoken_scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#0] layer=3 out=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#0] layer=3 in_hs=(42, 2048):bfloat16:npu row_idx=(42,):int32:npu out=(7, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#0] layer=3 out=(7, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#0] layer=4 x=(7, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(7, 6):int32:npu weights=(7, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#0] layer=4 x=(7, 2048):bfloat16:npu ids=(7, 6):int32:npu weights=(7, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#0] layer=4 hs=(42, 2048):int8:npu scale=(42,):float32:npu row_idx=(42,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#0] layer=4 x=(42, 2048):int8:npu scale=(42,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#0] layer=4 act_out=(42, 1408):int8:npu pertoken_scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#0] layer=4 out=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#0] layer=4 in_hs=(42, 2048):bfloat16:npu row_idx=(42,):int32:npu out=(7, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#0] layer=4 out=(7, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#0] layer=5 x=(7, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(7, 6):int32:npu weights=(7, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#0] layer=5 x=(7, 2048):bfloat16:npu ids=(7, 6):int32:npu weights=(7, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#0] layer=5 hs=(42, 2048):int8:npu scale=(42,):float32:npu row_idx=(42,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#0] layer=5 x=(42, 2048):int8:npu scale=(42,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#0] layer=5 act_out=(42, 1408):int8:npu pertoken_scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#0] layer=5 out=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#0] layer=5 in_hs=(42, 2048):bfloat16:npu row_idx=(42,):int32:npu out=(7, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#0] layer=5 out=(7, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#0] layer=6 x=(7, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(7, 6):int32:npu weights=(7, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#0] layer=6 x=(7, 2048):bfloat16:npu ids=(7, 6):int32:npu weights=(7, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#0] layer=6 hs=(42, 2048):int8:npu scale=(42,):float32:npu row_idx=(42,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#0] layer=6 x=(42, 2048):int8:npu scale=(42,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#0] layer=6 act_out=(42, 1408):int8:npu pertoken_scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#0] layer=6 out=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#0] layer=6 in_hs=(42, 2048):bfloat16:npu row_idx=(42,):int32:npu out=(7, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#0] layer=6 out=(7, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#0] layer=7 x=(7, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(7, 6):int32:npu weights=(7, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#0] layer=7 x=(7, 2048):bfloat16:npu ids=(7, 6):int32:npu weights=(7, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#0] layer=7 hs=(42, 2048):int8:npu scale=(42,):float32:npu row_idx=(42,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#0] layer=7 x=(42, 2048):int8:npu scale=(42,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#0] layer=7 act_out=(42, 1408):int8:npu pertoken_scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#0] layer=7 out=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#0] layer=7 in_hs=(42, 2048):bfloat16:npu row_idx=(42,):int32:npu out=(7, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#0] layer=7 out=(7, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#0] layer=8 x=(7, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(7, 6):int32:npu weights=(7, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#0] layer=8 x=(7, 2048):bfloat16:npu ids=(7, 6):int32:npu weights=(7, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#0] layer=8 hs=(42, 2048):int8:npu scale=(42,):float32:npu row_idx=(42,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#0] layer=8 x=(42, 2048):int8:npu scale=(42,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#0] layer=8 act_out=(42, 1408):int8:npu pertoken_scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#0] layer=8 out=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#0] layer=8 in_hs=(42, 2048):bfloat16:npu row_idx=(42,):int32:npu out=(7, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#0] layer=8 out=(7, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#0] layer=9 x=(7, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(7, 6):int32:npu weights=(7, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#0] layer=9 x=(7, 2048):bfloat16:npu ids=(7, 6):int32:npu weights=(7, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#0] layer=9 hs=(42, 2048):int8:npu scale=(42,):float32:npu row_idx=(42,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#0] layer=9 x=(42, 2048):int8:npu scale=(42,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#0] layer=9 act_out=(42, 1408):int8:npu pertoken_scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#0] layer=9 out=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#0] layer=9 in_hs=(42, 2048):bfloat16:npu row_idx=(42,):int32:npu out=(7, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#0] layer=9 out=(7, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#0] layer=10 x=(7, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(7, 6):int32:npu weights=(7, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#0] layer=10 x=(7, 2048):bfloat16:npu ids=(7, 6):int32:npu weights=(7, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#0] layer=10 hs=(42, 2048):int8:npu scale=(42,):float32:npu row_idx=(42,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#0] layer=10 x=(42, 2048):int8:npu scale=(42,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#0] layer=10 act_out=(42, 1408):int8:npu pertoken_scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#0] layer=10 out=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#0] layer=10 in_hs=(42, 2048):bfloat16:npu row_idx=(42,):int32:npu out=(7, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#0] layer=10 out=(7, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#0] layer=11 x=(7, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(7, 6):int32:npu weights=(7, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#0] layer=11 x=(7, 2048):bfloat16:npu ids=(7, 6):int32:npu weights=(7, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#0] layer=11 hs=(42, 2048):int8:npu scale=(42,):float32:npu row_idx=(42,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#0] layer=11 x=(42, 2048):int8:npu scale=(42,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#0] layer=11 act_out=(42, 1408):int8:npu pertoken_scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#0] layer=11 out=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#0] layer=11 in_hs=(42, 2048):bfloat16:npu row_idx=(42,):int32:npu out=(7, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#0] layer=11 out=(7, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#0] layer=12 x=(7, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(7, 6):int32:npu weights=(7, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#0] layer=12 x=(7, 2048):bfloat16:npu ids=(7, 6):int32:npu weights=(7, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#0] layer=12 hs=(42, 2048):int8:npu scale=(42,):float32:npu row_idx=(42,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#0] layer=12 x=(42, 2048):int8:npu scale=(42,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#0] layer=12 act_out=(42, 1408):int8:npu pertoken_scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#0] layer=12 out=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#0] layer=12 in_hs=(42, 2048):bfloat16:npu row_idx=(42,):int32:npu out=(7, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#0] layer=12 out=(7, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#0] layer=13 x=(7, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(7, 6):int32:npu weights=(7, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#0] layer=13 x=(7, 2048):bfloat16:npu ids=(7, 6):int32:npu weights=(7, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#0] layer=13 hs=(42, 2048):int8:npu scale=(42,):float32:npu row_idx=(42,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#0] layer=13 x=(42, 2048):int8:npu scale=(42,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#0] layer=13 act_out=(42, 1408):int8:npu pertoken_scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#0] layer=13 out=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#0] layer=13 in_hs=(42, 2048):bfloat16:npu row_idx=(42,):int32:npu out=(7, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#0] layer=13 out=(7, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#0] layer=14 x=(7, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(7, 6):int32:npu weights=(7, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#0] layer=14 x=(7, 2048):bfloat16:npu ids=(7, 6):int32:npu weights=(7, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#0] layer=14 hs=(42, 2048):int8:npu scale=(42,):float32:npu row_idx=(42,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#0] layer=14 x=(42, 2048):int8:npu scale=(42,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#0] layer=14 act_out=(42, 1408):int8:npu pertoken_scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#0] layer=14 out=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#0] layer=14 in_hs=(42, 2048):bfloat16:npu row_idx=(42,):int32:npu out=(7, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#0] layer=14 out=(7, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#0] layer=15 x=(7, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(7, 6):int32:npu weights=(7, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#0] layer=15 x=(7, 2048):bfloat16:npu ids=(7, 6):int32:npu weights=(7, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#0] layer=15 hs=(42, 2048):int8:npu scale=(42,):float32:npu row_idx=(42,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#0] layer=15 x=(42, 2048):int8:npu scale=(42,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#0] layer=15 act_out=(42, 1408):int8:npu pertoken_scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#0] layer=15 out=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#0] layer=15 in_hs=(42, 2048):bfloat16:npu row_idx=(42,):int32:npu out=(7, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#0] layer=15 out=(7, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#0] layer=16 x=(7, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(7, 6):int32:npu weights=(7, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#0] layer=16 x=(7, 2048):bfloat16:npu ids=(7, 6):int32:npu weights=(7, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#0] layer=16 hs=(42, 2048):int8:npu scale=(42,):float32:npu row_idx=(42,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#0] layer=16 x=(42, 2048):int8:npu scale=(42,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#0] layer=16 act_out=(42, 1408):int8:npu pertoken_scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#0] layer=16 out=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#0] layer=16 in_hs=(42, 2048):bfloat16:npu row_idx=(42,):int32:npu out=(7, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#0] layer=16 out=(7, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#0] layer=17 x=(7, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(7, 6):int32:npu weights=(7, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#0] layer=17 x=(7, 2048):bfloat16:npu ids=(7, 6):int32:npu weights=(7, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#0] layer=17 hs=(42, 2048):int8:npu scale=(42,):float32:npu row_idx=(42,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#0] layer=17 x=(42, 2048):int8:npu scale=(42,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#0] layer=17 act_out=(42, 1408):int8:npu pertoken_scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#0] layer=17 out=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#0] layer=17 in_hs=(42, 2048):bfloat16:npu row_idx=(42,):int32:npu out=(7, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#0] layer=17 out=(7, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#0] layer=18 x=(7, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(7, 6):int32:npu weights=(7, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#0] layer=18 x=(7, 2048):bfloat16:npu ids=(7, 6):int32:npu weights=(7, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#0] layer=18 hs=(42, 2048):int8:npu scale=(42,):float32:npu row_idx=(42,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#0] layer=18 x=(42, 2048):int8:npu scale=(42,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#0] layer=18 act_out=(42, 1408):int8:npu pertoken_scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#0] layer=18 out=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#0] layer=18 in_hs=(42, 2048):bfloat16:npu row_idx=(42,):int32:npu out=(7, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#0] layer=18 out=(7, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#0] layer=19 x=(7, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(7, 6):int32:npu weights=(7, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#0] layer=19 x=(7, 2048):bfloat16:npu ids=(7, 6):int32:npu weights=(7, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#0] layer=19 hs=(42, 2048):int8:npu scale=(42,):float32:npu row_idx=(42,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#0] layer=19 x=(42, 2048):int8:npu scale=(42,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#0] layer=19 act_out=(42, 1408):int8:npu pertoken_scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#0] layer=19 out=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#0] layer=19 in_hs=(42, 2048):bfloat16:npu row_idx=(42,):int32:npu out=(7, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#0] layer=19 out=(7, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#0] layer=20 x=(7, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(7, 6):int32:npu weights=(7, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#0] layer=20 x=(7, 2048):bfloat16:npu ids=(7, 6):int32:npu weights=(7, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#0] layer=20 hs=(42, 2048):int8:npu scale=(42,):float32:npu row_idx=(42,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#0] layer=20 x=(42, 2048):int8:npu scale=(42,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#0] layer=20 act_out=(42, 1408):int8:npu pertoken_scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#0] layer=20 out=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#0] layer=20 in_hs=(42, 2048):bfloat16:npu row_idx=(42,):int32:npu out=(7, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#0] layer=20 out=(7, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#0] layer=21 x=(7, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(7, 6):int32:npu weights=(7, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#0] layer=21 x=(7, 2048):bfloat16:npu ids=(7, 6):int32:npu weights=(7, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#0] layer=21 hs=(42, 2048):int8:npu scale=(42,):float32:npu row_idx=(42,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#0] layer=21 x=(42, 2048):int8:npu scale=(42,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#0] layer=21 act_out=(42, 1408):int8:npu pertoken_scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#0] layer=21 out=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#0] layer=21 in_hs=(42, 2048):bfloat16:npu row_idx=(42,):int32:npu out=(7, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#0] layer=21 out=(7, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#0] layer=22 x=(7, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(7, 6):int32:npu weights=(7, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#0] layer=22 x=(7, 2048):bfloat16:npu ids=(7, 6):int32:npu weights=(7, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#0] layer=22 hs=(42, 2048):int8:npu scale=(42,):float32:npu row_idx=(42,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#0] layer=22 x=(42, 2048):int8:npu scale=(42,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#0] layer=22 act_out=(42, 1408):int8:npu pertoken_scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#0] layer=22 out=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#0] layer=22 in_hs=(42, 2048):bfloat16:npu row_idx=(42,):int32:npu out=(7, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#0] layer=22 out=(7, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#0] layer=23 x=(7, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(7, 6):int32:npu weights=(7, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#0] layer=23 x=(7, 2048):bfloat16:npu ids=(7, 6):int32:npu weights=(7, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#0] layer=23 hs=(42, 2048):int8:npu scale=(42,):float32:npu row_idx=(42,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#0] layer=23 x=(42, 2048):int8:npu scale=(42,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#0] layer=23 act_out=(42, 1408):int8:npu pertoken_scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#0] layer=23 out=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#0] layer=23 in_hs=(42, 2048):bfloat16:npu row_idx=(42,):int32:npu out=(7, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#0] layer=23 out=(7, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#0] layer=24 x=(7, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(7, 6):int32:npu weights=(7, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#0] layer=24 x=(7, 2048):bfloat16:npu ids=(7, 6):int32:npu weights=(7, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#0] layer=24 hs=(42, 2048):int8:npu scale=(42,):float32:npu row_idx=(42,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#0] layer=24 x=(42, 2048):int8:npu scale=(42,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#0] layer=24 act_out=(42, 1408):int8:npu pertoken_scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#0] layer=24 out=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#0] layer=24 in_hs=(42, 2048):bfloat16:npu row_idx=(42,):int32:npu out=(7, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#0] layer=24 out=(7, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#0] layer=25 x=(7, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(7, 6):int32:npu weights=(7, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#0] layer=25 x=(7, 2048):bfloat16:npu ids=(7, 6):int32:npu weights=(7, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#0] layer=25 hs=(42, 2048):int8:npu scale=(42,):float32:npu row_idx=(42,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#0] layer=25 x=(42, 2048):int8:npu scale=(42,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#0] layer=25 act_out=(42, 1408):int8:npu pertoken_scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#0] layer=25 out=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#0] layer=25 in_hs=(42, 2048):bfloat16:npu row_idx=(42,):int32:npu out=(7, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#0] layer=25 out=(7, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#0] layer=26 x=(7, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(7, 6):int32:npu weights=(7, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#0] layer=26 x=(7, 2048):bfloat16:npu ids=(7, 6):int32:npu weights=(7, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#0] layer=26 hs=(42, 2048):int8:npu scale=(42,):float32:npu row_idx=(42,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#0] layer=26 x=(42, 2048):int8:npu scale=(42,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#0] layer=26 act_out=(42, 1408):int8:npu pertoken_scale=(42,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#0] layer=26 out=(42, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#0] layer=26 in_hs=(42, 2048):bfloat16:npu row_idx=(42,):int32:npu out=(7, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#0] layer=26 out=(7, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#1] layer=1 x=(1, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(1, 6):int32:npu weights=(1, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#1] layer=1 x=(1, 2048):bfloat16:npu ids=(1, 6):int32:npu weights=(1, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#1] layer=1 hs=(6, 2048):int8:npu scale=(6,):float32:npu row_idx=(6,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#1] layer=1 x=(6, 2048):int8:npu scale=(6,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#1] layer=1 act_out=(6, 1408):int8:npu pertoken_scale=(6,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#1] layer=1 out=(6, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#1] layer=1 in_hs=(6, 2048):bfloat16:npu row_idx=(6,):int32:npu out=(1, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#1] layer=1 out=(1, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#1] layer=2 x=(1, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(1, 6):int32:npu weights=(1, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#1] layer=2 x=(1, 2048):bfloat16:npu ids=(1, 6):int32:npu weights=(1, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#1] layer=2 hs=(6, 2048):int8:npu scale=(6,):float32:npu row_idx=(6,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#1] layer=2 x=(6, 2048):int8:npu scale=(6,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#1] layer=2 act_out=(6, 1408):int8:npu pertoken_scale=(6,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#1] layer=2 out=(6, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#1] layer=2 in_hs=(6, 2048):bfloat16:npu row_idx=(6,):int32:npu out=(1, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#1] layer=2 out=(1, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#1] layer=3 x=(1, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(1, 6):int32:npu weights=(1, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#1] layer=3 x=(1, 2048):bfloat16:npu ids=(1, 6):int32:npu weights=(1, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#1] layer=3 hs=(6, 2048):int8:npu scale=(6,):float32:npu row_idx=(6,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#1] layer=3 x=(6, 2048):int8:npu scale=(6,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#1] layer=3 act_out=(6, 1408):int8:npu pertoken_scale=(6,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#1] layer=3 out=(6, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#1] layer=3 in_hs=(6, 2048):bfloat16:npu row_idx=(6,):int32:npu out=(1, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#1] layer=3 out=(1, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#1] layer=4 x=(1, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(1, 6):int32:npu weights=(1, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#1] layer=4 x=(1, 2048):bfloat16:npu ids=(1, 6):int32:npu weights=(1, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#1] layer=4 hs=(6, 2048):int8:npu scale=(6,):float32:npu row_idx=(6,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#1] layer=4 x=(6, 2048):int8:npu scale=(6,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#1] layer=4 act_out=(6, 1408):int8:npu pertoken_scale=(6,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#1] layer=4 out=(6, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#1] layer=4 in_hs=(6, 2048):bfloat16:npu row_idx=(6,):int32:npu out=(1, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#1] layer=4 out=(1, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#1] layer=5 x=(1, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(1, 6):int32:npu weights=(1, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#1] layer=5 x=(1, 2048):bfloat16:npu ids=(1, 6):int32:npu weights=(1, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#1] layer=5 hs=(6, 2048):int8:npu scale=(6,):float32:npu row_idx=(6,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#1] layer=5 x=(6, 2048):int8:npu scale=(6,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#1] layer=5 act_out=(6, 1408):int8:npu pertoken_scale=(6,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#1] layer=5 out=(6, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#1] layer=5 in_hs=(6, 2048):bfloat16:npu row_idx=(6,):int32:npu out=(1, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#1] layer=5 out=(1, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#1] layer=6 x=(1, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(1, 6):int32:npu weights=(1, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#1] layer=6 x=(1, 2048):bfloat16:npu ids=(1, 6):int32:npu weights=(1, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#1] layer=6 hs=(6, 2048):int8:npu scale=(6,):float32:npu row_idx=(6,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#1] layer=6 x=(6, 2048):int8:npu scale=(6,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#1] layer=6 act_out=(6, 1408):int8:npu pertoken_scale=(6,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#1] layer=6 out=(6, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#1] layer=6 in_hs=(6, 2048):bfloat16:npu row_idx=(6,):int32:npu out=(1, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#1] layer=6 out=(1, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#1] layer=7 x=(1, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(1, 6):int32:npu weights=(1, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#1] layer=7 x=(1, 2048):bfloat16:npu ids=(1, 6):int32:npu weights=(1, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#1] layer=7 hs=(6, 2048):int8:npu scale=(6,):float32:npu row_idx=(6,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#1] layer=7 x=(6, 2048):int8:npu scale=(6,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#1] layer=7 act_out=(6, 1408):int8:npu pertoken_scale=(6,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#1] layer=7 out=(6, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#1] layer=7 in_hs=(6, 2048):bfloat16:npu row_idx=(6,):int32:npu out=(1, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#1] layer=7 out=(1, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#1] layer=8 x=(1, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(1, 6):int32:npu weights=(1, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#1] layer=8 x=(1, 2048):bfloat16:npu ids=(1, 6):int32:npu weights=(1, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#1] layer=8 hs=(6, 2048):int8:npu scale=(6,):float32:npu row_idx=(6,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#1] layer=8 x=(6, 2048):int8:npu scale=(6,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#1] layer=8 act_out=(6, 1408):int8:npu pertoken_scale=(6,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#1] layer=8 out=(6, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#1] layer=8 in_hs=(6, 2048):bfloat16:npu row_idx=(6,):int32:npu out=(1, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#1] layer=8 out=(1, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#1] layer=9 x=(1, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(1, 6):int32:npu weights=(1, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#1] layer=9 x=(1, 2048):bfloat16:npu ids=(1, 6):int32:npu weights=(1, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#1] layer=9 hs=(6, 2048):int8:npu scale=(6,):float32:npu row_idx=(6,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#1] layer=9 x=(6, 2048):int8:npu scale=(6,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#1] layer=9 act_out=(6, 1408):int8:npu pertoken_scale=(6,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#1] layer=9 out=(6, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#1] layer=9 in_hs=(6, 2048):bfloat16:npu row_idx=(6,):int32:npu out=(1, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#1] layer=9 out=(1, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#1] layer=10 x=(1, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(1, 6):int32:npu weights=(1, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#1] layer=10 x=(1, 2048):bfloat16:npu ids=(1, 6):int32:npu weights=(1, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#1] layer=10 hs=(6, 2048):int8:npu scale=(6,):float32:npu row_idx=(6,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#1] layer=10 x=(6, 2048):int8:npu scale=(6,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#1] layer=10 act_out=(6, 1408):int8:npu pertoken_scale=(6,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#1] layer=10 out=(6, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#1] layer=10 in_hs=(6, 2048):bfloat16:npu row_idx=(6,):int32:npu out=(1, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#1] layer=10 out=(1, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#1] layer=11 x=(1, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(1, 6):int32:npu weights=(1, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#1] layer=11 x=(1, 2048):bfloat16:npu ids=(1, 6):int32:npu weights=(1, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#1] layer=11 hs=(6, 2048):int8:npu scale=(6,):float32:npu row_idx=(6,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#1] layer=11 x=(6, 2048):int8:npu scale=(6,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#1] layer=11 act_out=(6, 1408):int8:npu pertoken_scale=(6,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#1] layer=11 out=(6, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#1] layer=11 in_hs=(6, 2048):bfloat16:npu row_idx=(6,):int32:npu out=(1, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#1] layer=11 out=(1, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#1] layer=12 x=(1, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(1, 6):int32:npu weights=(1, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#1] layer=12 x=(1, 2048):bfloat16:npu ids=(1, 6):int32:npu weights=(1, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#1] layer=12 hs=(6, 2048):int8:npu scale=(6,):float32:npu row_idx=(6,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#1] layer=12 x=(6, 2048):int8:npu scale=(6,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#1] layer=12 act_out=(6, 1408):int8:npu pertoken_scale=(6,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#1] layer=12 out=(6, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#1] layer=12 in_hs=(6, 2048):bfloat16:npu row_idx=(6,):int32:npu out=(1, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#1] layer=12 out=(1, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#1] layer=13 x=(1, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(1, 6):int32:npu weights=(1, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#1] layer=13 x=(1, 2048):bfloat16:npu ids=(1, 6):int32:npu weights=(1, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#1] layer=13 hs=(6, 2048):int8:npu scale=(6,):float32:npu row_idx=(6,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#1] layer=13 x=(6, 2048):int8:npu scale=(6,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#1] layer=13 act_out=(6, 1408):int8:npu pertoken_scale=(6,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#1] layer=13 out=(6, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#1] layer=13 in_hs=(6, 2048):bfloat16:npu row_idx=(6,):int32:npu out=(1, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#1] layer=13 out=(1, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#1] layer=14 x=(1, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(1, 6):int32:npu weights=(1, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#1] layer=14 x=(1, 2048):bfloat16:npu ids=(1, 6):int32:npu weights=(1, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#1] layer=14 hs=(6, 2048):int8:npu scale=(6,):float32:npu row_idx=(6,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#1] layer=14 x=(6, 2048):int8:npu scale=(6,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#1] layer=14 act_out=(6, 1408):int8:npu pertoken_scale=(6,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#1] layer=14 out=(6, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#1] layer=14 in_hs=(6, 2048):bfloat16:npu row_idx=(6,):int32:npu out=(1, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#1] layer=14 out=(1, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#1] layer=15 x=(1, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(1, 6):int32:npu weights=(1, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#1] layer=15 x=(1, 2048):bfloat16:npu ids=(1, 6):int32:npu weights=(1, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#1] layer=15 hs=(6, 2048):int8:npu scale=(6,):float32:npu row_idx=(6,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#1] layer=15 x=(6, 2048):int8:npu scale=(6,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#1] layer=15 act_out=(6, 1408):int8:npu pertoken_scale=(6,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#1] layer=15 out=(6, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#1] layer=15 in_hs=(6, 2048):bfloat16:npu row_idx=(6,):int32:npu out=(1, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#1] layer=15 out=(1, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#1] layer=16 x=(1, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(1, 6):int32:npu weights=(1, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#1] layer=16 x=(1, 2048):bfloat16:npu ids=(1, 6):int32:npu weights=(1, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#1] layer=16 hs=(6, 2048):int8:npu scale=(6,):float32:npu row_idx=(6,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#1] layer=16 x=(6, 2048):int8:npu scale=(6,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#1] layer=16 act_out=(6, 1408):int8:npu pertoken_scale=(6,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#1] layer=16 out=(6, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#1] layer=16 in_hs=(6, 2048):bfloat16:npu row_idx=(6,):int32:npu out=(1, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#1] layer=16 out=(1, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#1] layer=17 x=(1, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(1, 6):int32:npu weights=(1, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#1] layer=17 x=(1, 2048):bfloat16:npu ids=(1, 6):int32:npu weights=(1, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#1] layer=17 hs=(6, 2048):int8:npu scale=(6,):float32:npu row_idx=(6,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#1] layer=17 x=(6, 2048):int8:npu scale=(6,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#1] layer=17 act_out=(6, 1408):int8:npu pertoken_scale=(6,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#1] layer=17 out=(6, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#1] layer=17 in_hs=(6, 2048):bfloat16:npu row_idx=(6,):int32:npu out=(1, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#1] layer=17 out=(1, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#1] layer=18 x=(1, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(1, 6):int32:npu weights=(1, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#1] layer=18 x=(1, 2048):bfloat16:npu ids=(1, 6):int32:npu weights=(1, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#1] layer=18 hs=(6, 2048):int8:npu scale=(6,):float32:npu row_idx=(6,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#1] layer=18 x=(6, 2048):int8:npu scale=(6,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#1] layer=18 act_out=(6, 1408):int8:npu pertoken_scale=(6,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#1] layer=18 out=(6, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#1] layer=18 in_hs=(6, 2048):bfloat16:npu row_idx=(6,):int32:npu out=(1, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#1] layer=18 out=(1, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#1] layer=19 x=(1, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(1, 6):int32:npu weights=(1, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#1] layer=19 x=(1, 2048):bfloat16:npu ids=(1, 6):int32:npu weights=(1, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#1] layer=19 hs=(6, 2048):int8:npu scale=(6,):float32:npu row_idx=(6,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#1] layer=19 x=(6, 2048):int8:npu scale=(6,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#1] layer=19 act_out=(6, 1408):int8:npu pertoken_scale=(6,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#1] layer=19 out=(6, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#1] layer=19 in_hs=(6, 2048):bfloat16:npu row_idx=(6,):int32:npu out=(1, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#1] layer=19 out=(1, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#1] layer=20 x=(1, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(1, 6):int32:npu weights=(1, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#1] layer=20 x=(1, 2048):bfloat16:npu ids=(1, 6):int32:npu weights=(1, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#1] layer=20 hs=(6, 2048):int8:npu scale=(6,):float32:npu row_idx=(6,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#1] layer=20 x=(6, 2048):int8:npu scale=(6,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#1] layer=20 act_out=(6, 1408):int8:npu pertoken_scale=(6,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#1] layer=20 out=(6, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#1] layer=20 in_hs=(6, 2048):bfloat16:npu row_idx=(6,):int32:npu out=(1, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#1] layer=20 out=(1, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#1] layer=21 x=(1, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(1, 6):int32:npu weights=(1, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#1] layer=21 x=(1, 2048):bfloat16:npu ids=(1, 6):int32:npu weights=(1, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#1] layer=21 hs=(6, 2048):int8:npu scale=(6,):float32:npu row_idx=(6,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#1] layer=21 x=(6, 2048):int8:npu scale=(6,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#1] layer=21 act_out=(6, 1408):int8:npu pertoken_scale=(6,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#1] layer=21 out=(6, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#1] layer=21 in_hs=(6, 2048):bfloat16:npu row_idx=(6,):int32:npu out=(1, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#1] layer=21 out=(1, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#1] layer=22 x=(1, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(1, 6):int32:npu weights=(1, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#1] layer=22 x=(1, 2048):bfloat16:npu ids=(1, 6):int32:npu weights=(1, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#1] layer=22 hs=(6, 2048):int8:npu scale=(6,):float32:npu row_idx=(6,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#1] layer=22 x=(6, 2048):int8:npu scale=(6,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#1] layer=22 act_out=(6, 1408):int8:npu pertoken_scale=(6,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#1] layer=22 out=(6, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#1] layer=22 in_hs=(6, 2048):bfloat16:npu row_idx=(6,):int32:npu out=(1, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#1] layer=22 out=(1, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#1] layer=23 x=(1, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(1, 6):int32:npu weights=(1, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#1] layer=23 x=(1, 2048):bfloat16:npu ids=(1, 6):int32:npu weights=(1, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#1] layer=23 hs=(6, 2048):int8:npu scale=(6,):float32:npu row_idx=(6,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#1] layer=23 x=(6, 2048):int8:npu scale=(6,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#1] layer=23 act_out=(6, 1408):int8:npu pertoken_scale=(6,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#1] layer=23 out=(6, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#1] layer=23 in_hs=(6, 2048):bfloat16:npu row_idx=(6,):int32:npu out=(1, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#1] layer=23 out=(1, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#1] layer=24 x=(1, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(1, 6):int32:npu weights=(1, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#1] layer=24 x=(1, 2048):bfloat16:npu ids=(1, 6):int32:npu weights=(1, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#1] layer=24 hs=(6, 2048):int8:npu scale=(6,):float32:npu row_idx=(6,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#1] layer=24 x=(6, 2048):int8:npu scale=(6,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#1] layer=24 act_out=(6, 1408):int8:npu pertoken_scale=(6,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#1] layer=24 out=(6, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#1] layer=24 in_hs=(6, 2048):bfloat16:npu row_idx=(6,):int32:npu out=(1, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#1] layer=24 out=(1, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#1] layer=25 x=(1, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(1, 6):int32:npu weights=(1, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#1] layer=25 x=(1, 2048):bfloat16:npu ids=(1, 6):int32:npu weights=(1, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#1] layer=25 hs=(6, 2048):int8:npu scale=(6,):float32:npu row_idx=(6,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#1] layer=25 x=(6, 2048):int8:npu scale=(6,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#1] layer=25 act_out=(6, 1408):int8:npu pertoken_scale=(6,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#1] layer=25 out=(6, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#1] layer=25 in_hs=(6, 2048):bfloat16:npu row_idx=(6,):int32:npu out=(1, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#1] layer=25 out=(1, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][forward_impl_in#1] layer=26 x=(1, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(1, 6):int32:npu weights=(1, 6):float32:npu
+[tp0 dp0 ep0 mtp0][dispatch_in#1] layer=26 x=(1, 2048):bfloat16:npu ids=(1, 6):int32:npu weights=(1, 6):bfloat16:npu quant_mode=1
+[tp0 dp0 ep0 mtp0][dispatch_out#1] layer=26 hs=(6, 2048):int8:npu scale=(6,):float32:npu row_idx=(6,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp0 dp0 ep0 mtp0][runner_in#1] layer=26 x=(6, 2048):int8:npu scale=(6,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp0 dp0 ep0 mtp0][runner_mid#1] layer=26 act_out=(6, 1408):int8:npu pertoken_scale=(6,):float32:npu
+[tp0 dp0 ep0 mtp0][runner_out#1] layer=26 out=(6, 2048):bfloat16:npu
+[tp0 dp0 ep0 mtp0][combine_io#1] layer=26 in_hs=(6, 2048):bfloat16:npu row_idx=(6,):int32:npu out=(1, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp0 dp0 ep0 mtp0][forward_impl_out#1] layer=26 out=(1, 2048):bfloat16:npu
