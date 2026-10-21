@@ -1,0 +1,29 @@
+[tp1 dp1 ep0 mtp1][dispatcher#0] a2a='none' npu=True E=64 E_local=64 top_k=6 H=2048 moe_tp=2 moe_ep=1 quant='ModelSlimFusedMoEMethod'
+[tp1 dp1 ep0 mtp1][dispatcher_chosen#0] cls='AscendTPDispatcher'
+[tp1 dp1 ep0 mtp1][ascend_tp_init#0] layer=1 E=64 K=6 dtype='bf16' init='NPUMoEInitRouting_v2' finalize='NPUFinalizeRouting' group_list_type=1
+[tp1 dp1 ep0 mtp1][dispatcher#1] a2a='none' npu=True E=64 E_local=64 top_k=6 H=2048 moe_tp=2 moe_ep=1 quant='ModelSlimFusedMoEMethod'
+[tp1 dp1 ep0 mtp1][dispatcher_chosen#1] cls='AscendTPDispatcher'
+[tp1 dp1 ep0 mtp1][set_dispatcher_dtype#0] layer=1 dtype='int8' dispatcher='AscendTPDispatcher' w13='NPUW8A8Int8MoEMethod'
+[tp1 dp1 ep0 mtp1][ascend_tp_quant_config#0] layer=1 cfg={dispatcher_output_dtype:'int8'} dtype='int8' quant_mode=1
+[tp1 dp1 ep0 mtp1][forward_impl_in#0] layer=1 x=(14, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(14, 6):int32:npu weights=(14, 6):float32:npu
+[tp1 dp1 ep0 mtp1][dispatch_in#0] layer=1 x=(14, 2048):bfloat16:npu ids=(14, 6):int32:npu weights=(14, 6):bfloat16:npu quant_mode=1
+[tp1 dp1 ep0 mtp1][dispatch_out#0] layer=1 hs=(84, 2048):int8:npu scale=(84,):float32:npu row_idx=(84,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp1 dp1 ep0 mtp1][moe_runner#0] dispatch='ascend_tp' runner='ascend' core='AscendRunnerCore'
+[tp1 dp1 ep0 mtp1][pre_permute#0] fn='pre_permute_ascend_tp_to_ascend' input_cls='AscendRunnerInput' hs=(84, 2048):int8:npu scale=(84,):float32:npu
+[tp1 dp1 ep0 mtp1][runner_in#0] layer=1 x=(84, 2048):int8:npu scale=(84,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp1 dp1 ep0 mtp1][runner_mid#0] layer=1 act_out=(84, 704):int8:npu pertoken_scale=(84,):float32:npu
+[tp1 dp1 ep0 mtp1][runner_out#0] layer=1 out=(84, 2048):bfloat16:npu
+[tp1 dp1 ep0 mtp1][post_permute#0] fn='post_permute_ascend_to_ascend_tp' out_cls='AscendTPCombineInput' hs=(84, 2048):bfloat16:npu
+[tp1 dp1 ep0 mtp1][combine_io#0] layer=1 in_hs=(84, 2048):bfloat16:npu row_idx=(84,):int32:npu out=(14, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp1 dp1 ep0 mtp1][forward_impl_out#0] layer=1 out=(14, 2048):bfloat16:npu
+[tp1 dp1 ep0 mtp1][moe_runner#1] dispatch='ascend_tp' runner='ascend' core='AscendRunnerCore'
+[tp1 dp1 ep0 mtp1][pre_permute#1] fn='pre_permute_ascend_tp_to_ascend' input_cls='AscendRunnerInput' hs=(84, 2048):int8:npu scale=(84,):float32:npu
+[tp1 dp1 ep0 mtp1][post_permute#1] fn='post_permute_ascend_to_ascend_tp' out_cls='AscendTPCombineInput' hs=(84, 2048):bfloat16:npu
+[tp1 dp1 ep0 mtp1][forward_impl_in#1] layer=1 x=(2, 2048):bfloat16:npu dispatcher='AscendTPDispatcher' topk='StandardTopKOutput' ids=(2, 6):int32:npu weights=(2, 6):float32:npu
+[tp1 dp1 ep0 mtp1][dispatch_in#1] layer=1 x=(2, 2048):bfloat16:npu ids=(2, 6):int32:npu weights=(2, 6):bfloat16:npu quant_mode=1
+[tp1 dp1 ep0 mtp1][dispatch_out#1] layer=1 hs=(12, 2048):int8:npu scale=(12,):float32:npu row_idx=(12,):int32:npu expert_tokens=(64,):int64:npu group_list_type=1
+[tp1 dp1 ep0 mtp1][runner_in#1] layer=1 x=(12, 2048):int8:npu scale=(12,):float32:npu expert_tokens=(64,):int64:npu group_list_type=1 act='NPUSwigluQuant' w13='NPUW8A8Int8MoEMethod' w2='NPUW8A8Int8MoEMethod'
+[tp1 dp1 ep0 mtp1][runner_mid#1] layer=1 act_out=(12, 704):int8:npu pertoken_scale=(12,):float32:npu
+[tp1 dp1 ep0 mtp1][runner_out#1] layer=1 out=(12, 2048):bfloat16:npu
+[tp1 dp1 ep0 mtp1][combine_io#1] layer=1 in_hs=(12, 2048):bfloat16:npu row_idx=(12,):int32:npu out=(2, 2048):bfloat16:npu finalize='NPUFinalizeRouting'
+[tp1 dp1 ep0 mtp1][forward_impl_out#1] layer=1 out=(2, 2048):bfloat16:npu
