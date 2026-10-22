@@ -28,7 +28,6 @@ from sglang.srt.hardware_backend.npu.quantization.moe_methods import (
     NPUW4A8MXFP4MoEMethod,
     NPUW8A8Int8MoEMethod,
 )
-from sglang.srt.layers.moe.topk import TopKOutputChecker
 
 
 def _uses_fused_gmm1(kernel, config: MoeRunnerConfig) -> bool:
@@ -362,6 +361,11 @@ def pre_permute_standard_to_ascend(
     need; both are stashed on ``running_state`` for the post-permute, which
     replaces the dispatcher's ``combine()``.
     """
+    # Imported here, not at module scope: ``topk`` pulls in eplb/observability/
+    # disaggregation, which imports ``configs.model_config`` while it is still
+    # initializing (model_config -> quantization -> ... -> this module).
+    from sglang.srt.layers.moe.topk import TopKOutputChecker
+
     topk_output = dispatch_output.topk_output
     if not TopKOutputChecker.format_is_standard(topk_output):
         raise NotImplementedError(
