@@ -62,6 +62,7 @@ from sglang.srt.configs.model_config import (
     is_deepseek_dsa,
     is_glm_moe_dsa,
 )
+from sglang.srt.debug_utils import moe_trace
 from sglang.srt.distributed import divide
 from sglang.srt.environ import envs
 from sglang.srt.eplb.expert_distribution import get_global_expert_distribution_recorder
@@ -2560,6 +2561,16 @@ def _use_mnnvl_cutedsl_fusion() -> bool:
     return _is_cuda and uses_cutedsl_ar_fusion()
 
 
+def _dp_gather_width_for_trace():
+    """[moe_trace] How many ranks the MoE input gather spans (None if unknown)."""
+    try:
+        from sglang.srt.layers.dp_attention import dp_gather_width
+
+        return dp_gather_width()
+    except Exception:  # never let debug instrumentation break a forward
+        return None
+
+
 class DeepseekV2DecoderLayer(nn.Module):
     def __init__(
         self,
@@ -2861,14 +2872,36 @@ class DeepseekV2DecoderLayer(nn.Module):
         hidden_states = self.attn_boundary.finish(
             state.pop("hidden_states_after_attn"), state.forward_batch
         )
+        # [moe_trace] rows BEFORE the DP gather: this rank's own tokens.
+        moe_trace.trace(
+            "mlp_in_local",
+            layer=self.layer_id,
+            hs=hidden_states,
+            tp=get_parallel().tp_size,
+            attn_dp=get_parallel().attn_dp_size,
+            attn_tp=get_parallel().attn_tp_size,
+            gather_width=_dp_gather_width_for_trace(),
+            pad=getattr(state.forward_batch.dp_padding_mode, "name", None),
+        )
         state.hidden_states_mlp_input = self.ffn_boundary.prepare(
             hidden_states, state.forward_batch
         )
+        # [moe_trace] rows AFTER the DP gather: the global batch the MoE sees.
+        moe_trace.trace(
+            "mlp_in_global",
+            layer=self.layer_id,
+            hs=state.hidden_states_mlp_input,
+        )
 
     def op_comm_postprocess_layer(self, state):
+        mlp_output = state.pop("hidden_states_mlp_output")
+        # [moe_trace] rows AFTER the MoE's TP all-reduce, BEFORE cutting back.
+        moe_trace.trace("mlp_out_global", layer=self.layer_id, hs=mlp_output)
         hidden_states = self.ffn_boundary.complete_now(
-            state.pop("hidden_states_mlp_output"), state.forward_batch
+            mlp_output, state.forward_batch
         )
+        # [moe_trace] rows AFTER cutting back to this rank's own tokens.
+        moe_trace.trace("mlp_out_local", layer=self.layer_id, hs=hidden_states)
 
         output = dict(
             positions=state.positions,
