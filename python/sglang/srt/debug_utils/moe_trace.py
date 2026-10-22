@@ -76,7 +76,11 @@ def fmt(v: Any) -> str:
         return "{" + ", ".join(f"{k}:{fmt(x)}" for k, x in v.items()) + "}"
     if isinstance(v, torch.dtype):
         return str(v).replace("torch.", "")
-    return repr(v)
+    if isinstance(v, (int, float, bool, str, bytes)):
+        return repr(v)
+    # Anything else (deferred "owed" handles, ForwardBatch, partials, ...) keeps
+    # one token only: the class name is the information, the repr is megabytes.
+    return f"<{type(v).__name__}>"
 
 
 def trace(tag: str, **kw: Any) -> None:
