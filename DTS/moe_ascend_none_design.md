@@ -2,10 +2,10 @@
 
 | 项 | 内容 |
 |---|---|
-| 状态 | 已实现，已通过数值验收，PR 待评审 |
+| 状态 | 已实现，已通过数值验收，**已合入目标分支**（`chenxu214/ci_sglang:feat/dev_ep`） |
 | 分支 | `feat/moe-none-merge`（基于 `chenxu214/ci_sglang:feat/dev_ep` @ `d3c76503`） |
 | 提交 | `3e17228`（单提交，15 文件，+292 / −230） |
-| PR | `chenxu214/ci_sglang#8` |
+| PR | `chenxu214/ci_sglang#8`（已合入） |
 | 影响面 | Ascend NPU + `--moe-a2a-backend none`（默认值）；其它 backend 行为不变 |
 | 参考 | 学习/调试笔记见 `DTS/moe_ascend_tp_learning_handoff.md` |
 
