@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Optional
 
 import torch
 
+from sglang.srt.debug_utils import dsv4_trace
 from sglang.srt.environ import envs
 from sglang.srt.hardware_backend.npu.moe.activation import (
     AllGatherActivationWrapper,
@@ -219,6 +220,18 @@ class AscendRunnerCore(MoeRunnerCore):
         expert_tokens = runner_input.expert_tokens
         group_list_type = runner_input.group_list_type
 
+        if dsv4_trace.ON:
+            dsv4_trace.trace(
+                "runner_in",
+                layer=getattr(self.config.layer, "layer_id", -1),
+                x=x,
+                scale=runner_input.hidden_states_scale,
+                expert_tokens=expert_tokens,
+                expert_tokens_vals=dsv4_trace.values(expert_tokens, head=12),
+                glt=str(group_list_type),
+                fused_gmm1=_uses_fused_gmm1(self.config.layer.w13_kernel, self.config),
+            )
+
         w13_kernel = self.config.layer.w13_kernel
 
         if _uses_fused_gmm1(w13_kernel, self.config):
@@ -265,6 +278,14 @@ class AscendRunnerCore(MoeRunnerCore):
                     hidden_states
                 )
 
+        if dsv4_trace.ON:
+            dsv4_trace.trace(
+                "runner_mid",
+                layer=getattr(self.config.layer, "layer_id", -1),
+                act=hidden_states,
+                act_scale=pertoken_scale,
+            )
+
         # --- w2 (down) projection ---
         hidden_states = self.config.layer.w2_kernel.apply(
             quant_info,
@@ -275,6 +296,13 @@ class AscendRunnerCore(MoeRunnerCore):
             weight_prefix="w2",
             group_list_type=group_list_type,
         )
+
+        if dsv4_trace.ON:
+            dsv4_trace.trace(
+                "runner_out",
+                layer=getattr(self.config.layer, "layer_id", -1),
+                y=hidden_states,
+            )
         return AscendRunnerOutput(hidden_states=hidden_states)
 
 

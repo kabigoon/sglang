@@ -15,6 +15,7 @@ from sglang.kernels.ops.speculative.dspark.dspark_attn_metadata import (
     BuildDsparkSwaPageIndices,
     ComputeDsparkWindowGather,
 )
+from sglang.srt.debug_utils import dsv4_trace
 from sglang.srt.environ import envs
 from sglang.srt.hardware_backend.npu.attention.ascend_backend import AscendAttnBackend
 from sglang.srt.hardware_backend.npu.dsv4.dsv4_rope import Dsv4NpuRoPE, rope_cos_sin
@@ -511,6 +512,16 @@ class CompressorAscendBackendMixin:
                     f"loc={loc.numel()}, kv={cmp_kv.shape[0]}"
                 )
 
+        if dsv4_trace.ON:
+            dsv4_trace.trace(
+                "compress_out",
+                layer=compressor.layer_id,
+                kv=cmp_kv,
+                ratio=ratio,
+                in_indexer=compressor.is_in_indexer,
+                mode=str(forward_batch.forward_mode),
+            )
+
         if self.graph_mode or cmp_kv.shape[0] > 0:
             if compressor.rotate:
                 cmp_kv = _apply_hadamard(cmp_kv, compressor.hadamard_matrix)
@@ -899,6 +910,16 @@ class C4IndexerAscendBackendMixin:
                 c4_indexer, x, q_lora, forward_batch, skip_compressor
             )
         topk_idxs = self._forward_indexer(c4_indexer, x, q, weights, forward_batch)
+        if dsv4_trace.ON:
+            dsv4_trace.trace(
+                "indexer_topk",
+                layer=c4_indexer.layer_id,
+                topk=topk_idxs,
+                head=dsv4_trace.values(topk_idxs, head=10),
+            )
+            dsv4_trace.dump(
+                "indexer_topk", layer=c4_indexer.layer_id, topk_idxs=topk_idxs
+            )
         self.forward_metadata.c4_topk_indices = topk_idxs
         compress_layer_id = self.token_to_kv_pool.layer_mapping[
             c4_indexer.layer_id
@@ -2076,6 +2097,16 @@ class DeepseekV4AscendAttnBackend(
         if compress_ratio not in (0, 4, 128):
             raise ValueError(
                 f"V4 attention expects compress_ratio in (0, 4, 128); got {compress_ratio}"
+            )
+        if dsv4_trace.ON and not forward_batch.forward_mode.is_idle():
+            dsv4_trace.trace(
+                "attn_backend",
+                layer=layer.layer_id,
+                q=q,
+                cr=compress_ratio,
+                kind="swa" if compress_ratio == 0 else f"compressed{compress_ratio}",
+                store=save_kv_cache,
+                mode=str(forward_batch.forward_mode),
             )
         # idle ranks only feed the MoE collectives; skip attn + store_cache and return zeros
         if forward_batch.forward_mode.is_idle():

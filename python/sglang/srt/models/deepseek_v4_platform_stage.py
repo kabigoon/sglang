@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Optional, Tuple, Union
 
 import torch
 
+from sglang.srt.debug_utils import dsv4_trace
 from sglang.srt.layers.moe import get_moe_a2a_backend
 from sglang.srt.layers.quantization.mxfp4_flashinfer_trtllm_moe import (
     can_fuse_all_reduce,
@@ -245,6 +246,22 @@ class NonCudaDecoderMixin:
     ]:
         use_fused = self.use_fused_mhc_post_pre
 
+        if dsv4_trace.ON:
+            _sa = self.self_attn
+            dsv4_trace.trace(
+                "layer_in",
+                layer=self.layer_id,
+                R=hidden_states,
+                mode=str(forward_batch.forward_mode),
+                cr=getattr(_sa, "compress_ratio", None),
+                cmp=getattr(_sa, "compressor", None) is not None,
+                idx=getattr(_sa, "indexer", None) is not None,
+                hash=getattr(self.mlp, "is_hash", None),
+                eng=self.engram is not None,
+                prev=prev_residual is not None,
+                fused=use_fused,
+            )
+
         fused = None
         if prev_residual is not None and use_fused:
             # Dispatch cascade: aiter HIP (gfx95) -> Triton (gfx95 small-batch
@@ -309,6 +326,16 @@ class NonCudaDecoderMixin:
             self, hidden_states, residual, post, comb, forward_batch
         )
 
+        if dsv4_trace.ON:
+            dsv4_trace.trace(
+                "ffn_in",
+                layer=self.layer_id,
+                x=hidden_states,
+                residual=residual,
+                post=post,
+                comb=comb,
+            )
+
         hidden_states = self._run_moe_ffn_dp_sync(
             hidden_states,
             forward_batch,
@@ -316,8 +343,13 @@ class NonCudaDecoderMixin:
             input_ids_global=input_ids_global,
         )
 
+        if dsv4_trace.ON:
+            dsv4_trace.trace("ffn_out", layer=self.layer_id, y=hidden_states)
+
         if not use_fused:
             hidden_states = self.hc_post(hidden_states, residual, post, comb)
+            if dsv4_trace.ON:
+                dsv4_trace.trace("layer_out", layer=self.layer_id, R=hidden_states)
             return hidden_states, None, None, None
 
         # Return the deferred FFN hc_post state; the next layer consumes it with

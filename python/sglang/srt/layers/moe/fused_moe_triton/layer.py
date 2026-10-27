@@ -13,6 +13,7 @@ from torch.nn.parameter import UninitializedParameter
 from sglang.srt.batch_overlap.single_batch_overlap import DownGemmOverlapArgs
 from sglang.srt.batch_overlap.two_batch_overlap import MaybeTboDeepEPDispatcher
 from sglang.srt.configs.moe_model_registry import model_requires_fp32_silu_mul
+from sglang.srt.debug_utils import dsv4_trace
 from sglang.srt.distributed import (
     tensor_model_parallel_all_reduce,
 )
@@ -1719,13 +1720,54 @@ class FusedMoE(torch.nn.Module):
             dwdp_mgr = get_global_dwdp_manager()
             dwdp_mgr.wait_prefetch(self.layer_id)
 
+        if dsv4_trace.ON:
+            dsv4_trace.trace(
+                "moe_dispatch_in",
+                layer=self.layer_id,
+                x=hidden_states,
+                E=getattr(self, "num_experts", None),
+                a2a=str(get_moe_a2a_backend()),
+                topk=dsv4_trace.describe(topk_output, max_fields=5),
+                ids=dsv4_trace.bincount(
+                    getattr(topk_output, "topk_ids", None),
+                    getattr(self, "num_experts", None),
+                ),
+            )
+
         dispatch_output = self._dispatch_with_pre_quant(
             hidden_states, topk_output, pre_quant_input
         )
 
+        if dsv4_trace.ON:
+            dsv4_trace.trace(
+                "moe_dispatch_out",
+                layer=self.layer_id,
+                out=dsv4_trace.describe(dispatch_output),
+                ids=dsv4_trace.bincount(
+                    getattr(dispatch_output, "topk_ids", None),
+                    getattr(self, "num_experts", None),
+                ),
+            )
+            dsv4_trace.dump(
+                "moe_dispatch_out",
+                layer=self.layer_id,
+                meta={"a2a": str(get_moe_a2a_backend())},
+                obj=dispatch_output,
+            )
+
         combine_input = self.run_moe_core(
             dispatch_output=dispatch_output,
         )
+
+        if dsv4_trace.ON:
+            dsv4_trace.trace(
+                "moe_runner_out",
+                layer=self.layer_id,
+                out=dsv4_trace.describe(combine_input),
+            )
+            dsv4_trace.dump(
+                "moe_runner_out", layer=self.layer_id, obj=combine_input
+            )
 
         if self._dwdp_bound:
             dwdp_mgr.record_compute_and_prefetch_next(self.layer_id)
@@ -1742,6 +1784,14 @@ class FusedMoE(torch.nn.Module):
 
         if self.reduce_results and (self.moe_tp_size > 1 or self.moe_ep_size > 1):
             final_hidden_states = tensor_model_parallel_all_reduce(final_hidden_states)
+
+        if dsv4_trace.ON:
+            dsv4_trace.trace(
+                "moe_combine_out",
+                layer=self.layer_id,
+                y=final_hidden_states,
+                reduced=bool(self.reduce_results),
+            )
 
         return final_hidden_states
 

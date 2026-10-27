@@ -49,6 +49,7 @@ from sglang.kernels.ops.quantization.fp8_kernel import (
 )
 from sglang.srt.compilation.compilation_config import register_split_op
 from sglang.srt.configs.deepseek_v4 import DeepSeekV4Config
+from sglang.srt.debug_utils import dsv4_trace
 from sglang.srt.distributed.device_communicators.pynccl_allocator import (
     use_symmetric_memory,
 )
@@ -2615,6 +2616,17 @@ class MQALayer(MqaAttentionBase):
         if not get_attn_tp_context().input_scattered and x.shape[0] == 0:
             return x
 
+        if dsv4_trace.ON:
+            dsv4_trace.trace(
+                "attn_in",
+                layer=self.layer_id,
+                x=x,
+                cr=self.compress_ratio,
+                n_heads=self.n_local_heads,
+                head_dim=self.head_dim,
+                mode=str(forward_batch.forward_mode),
+            )
+
         attn_backend = get_attn_backend()
         if TYPE_CHECKING:
             assert isinstance(
@@ -3084,6 +3096,13 @@ class MQALayer(MqaAttentionBase):
             return mhc.AttnOutput(o)
         if self.attn_tp_size > 1 and self.attn_tp_size < get_parallel().tp_size:
             o = attn_tp_all_reduce(o)
+        if dsv4_trace.ON:
+            dsv4_trace.trace(
+                "attn_out",
+                layer=self.layer_id,
+                y=o,
+                deferred=defer_all_reduce,
+            )
         return o
 
     # ---- TBO op decomposition (prefill two-batch-overlap) ----
@@ -3509,7 +3528,18 @@ class DeepseekV4DecoderLayerBase(nn.Module):
         post: torch.Tensor,
         comb: torch.Tensor,
     ) -> torch.Tensor:
-        return mhc.post(self.hc_cfg, x, residual, post, comb)
+        y = mhc.post(self.hc_cfg, x, residual, post, comb)
+        if dsv4_trace.ON:
+            dsv4_trace.trace(
+                "hc_post",
+                layer=self.layer_id,
+                y_in=x,
+                R_in=residual,
+                post=post,
+                comb=comb,
+                R_out=y,
+            )
+        return y
 
     @functools.cached_property
     def _can_fuse_ffn_mhc(self) -> bool:
@@ -4444,6 +4474,21 @@ class DeepseekV4Model(nn.Module):
                     hidden_states.shape[0], self.hc_mult, self.hidden_size
                 )
 
+        if dsv4_trace.ON:
+            dsv4_trace.trace(
+                "model_in",
+                R=hidden_states,
+                T=hidden_states.shape[0],
+                hc_mult=self.hc_mult,
+                mode=str(forward_batch.forward_mode),
+                tp=get_parallel().tp_size,
+                attn_tp=get_parallel().attn_tp_size,
+                attn_dp=get_parallel().attn_dp_size,
+                moe_tp=get_parallel().moe_tp_size,
+                moe_ep=get_parallel().moe_ep_size,
+                a2a=str(get_moe_a2a_backend()),
+            )
+
         if get_parallel().attn_dp_size > 1 and get_moe_a2a_backend().is_none():
             input_ids_global = torch.empty(
                 (get_global_dp_buffer_len(), 1),
@@ -4612,6 +4657,14 @@ class DeepseekV4Model(nn.Module):
 
         if capture_dspark:
             return (hidden_states, pre_hc_head), dspark_aux_hidden_states.finalize()
+
+        if dsv4_trace.ON:
+            dsv4_trace.trace(
+                "model_out",
+                y=hidden_states,
+                pre_hc_head=pre_hc_head,
+                mode=str(forward_batch.forward_mode),
+            )
 
         return hidden_states, pre_hc_head
 
