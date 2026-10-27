@@ -1728,10 +1728,6 @@ class FusedMoE(torch.nn.Module):
                 E=getattr(self, "num_experts", None),
                 a2a=str(get_moe_a2a_backend()),
                 topk=dsv4_trace.describe(topk_output, max_fields=5),
-                ids=dsv4_trace.bincount(
-                    getattr(topk_output, "topk_ids", None),
-                    getattr(self, "num_experts", None),
-                ),
             )
 
         dispatch_output = self._dispatch_with_pre_quant(
@@ -1743,16 +1739,6 @@ class FusedMoE(torch.nn.Module):
                 "moe_dispatch_out",
                 layer=self.layer_id,
                 out=dsv4_trace.describe(dispatch_output),
-                ids=dsv4_trace.bincount(
-                    getattr(dispatch_output, "topk_ids", None),
-                    getattr(self, "num_experts", None),
-                ),
-            )
-            dsv4_trace.dump(
-                "moe_dispatch_out",
-                layer=self.layer_id,
-                meta={"a2a": str(get_moe_a2a_backend())},
-                obj=dispatch_output,
             )
 
         combine_input = self.run_moe_core(
@@ -1764,9 +1750,6 @@ class FusedMoE(torch.nn.Module):
                 "moe_runner_out",
                 layer=self.layer_id,
                 out=dsv4_trace.describe(combine_input),
-            )
-            dsv4_trace.dump(
-                "moe_runner_out", layer=self.layer_id, obj=combine_input
             )
 
         if self._dwdp_bound:

@@ -227,7 +227,6 @@ class AscendRunnerCore(MoeRunnerCore):
                 x=x,
                 scale=runner_input.hidden_states_scale,
                 expert_tokens=expert_tokens,
-                expert_tokens_vals=dsv4_trace.values(expert_tokens, head=12),
                 glt=str(group_list_type),
                 fused_gmm1=_uses_fused_gmm1(self.config.layer.w13_kernel, self.config),
             )

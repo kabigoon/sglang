@@ -915,10 +915,6 @@ class C4IndexerAscendBackendMixin:
                 "indexer_topk",
                 layer=c4_indexer.layer_id,
                 topk=topk_idxs,
-                head=dsv4_trace.values(topk_idxs, head=10),
-            )
-            dsv4_trace.dump(
-                "indexer_topk", layer=c4_indexer.layer_id, topk_idxs=topk_idxs
             )
         self.forward_metadata.c4_topk_indices = topk_idxs
         compress_layer_id = self.token_to_kv_pool.layer_mapping[
