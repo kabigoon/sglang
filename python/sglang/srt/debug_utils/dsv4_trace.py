@@ -141,7 +141,9 @@ def describe(obj, max_fields: int = 8) -> str:
 def _admit(tag: str, layer: int) -> bool:
     if _RANKS is not None and _get_rank() not in _RANKS:
         return False
-    if _LAYERS is not None and layer not in _LAYERS:
+    # layer < 0 marks a model-level event (model_in / model_out): it is never
+    # filtered by --layers, otherwise a layer-scoped run loses the batch shape.
+    if _LAYERS is not None and layer >= 0 and layer not in _LAYERS:
         return False
     key = (tag, layer)
     hits = _hits.get(key, 0) + 1
