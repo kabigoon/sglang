@@ -62,6 +62,7 @@ from sglang.srt.configs.model_config import (
     is_deepseek_dsa,
     is_glm_moe_dsa,
 )
+from sglang.srt.debug_utils import dsv4_trace
 from sglang.srt.distributed import divide
 from sglang.srt.environ import envs
 from sglang.srt.eplb.expert_distribution import get_global_expert_distribution_recorder
@@ -1728,6 +1729,16 @@ class DeepseekV2MoE(nn.Module):
             and not is_in_breakable_cuda_graph()
         ):
             torch.cuda.current_stream().wait_event(shared_event)
+
+        if dsv4_trace.ON:
+            dsv4_trace.trace(
+                "moe_out",
+                layer=self.layer_id,
+                routed=final_hidden_states,
+                shared=shared_output,
+                routing_scale=self.routed_scaling_factor,
+                scale_in_topk=bool(self.routed_scaling_factor_fused_in_topk),
+            )
 
         return _scale_routed_and_add_shared(
             final_hidden_states,

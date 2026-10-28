@@ -1739,6 +1739,9 @@ class FusedMoE(torch.nn.Module):
                 "moe_dispatch_out",
                 layer=self.layer_id,
                 out=dsv4_trace.describe(dispatch_output),
+                masked_m_v=dsv4_trace.vals(
+                    getattr(dispatch_output, "masked_m", None), 16
+                ),
             )
 
         combine_input = self.run_moe_core(

@@ -3538,6 +3538,8 @@ class DeepseekV4DecoderLayerBase(nn.Module):
                 post=post,
                 comb=comb,
                 R_out=y,
+                post_v=dsv4_trace.vals(post, 4),
+                comb_v=dsv4_trace.vals(comb, 8),
             )
         return y
 

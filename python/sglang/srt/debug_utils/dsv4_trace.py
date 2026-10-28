@@ -48,6 +48,15 @@ ON = os.environ.get("SGLANG_DSV4_TRACE", "").strip().lower() in (
     "on",
 )
 DIR = os.environ.get("SGLANG_DSV4_TRACE_DIR", "/tmp/dsv4_trace")
+# Opt-in value peeks. Only ever applied to TINY tensors (<= _MAX_VALUE_ELEMS)
+# and always copied to CPU first: no size is derived from tensor contents.
+ON_VALUES = os.environ.get("SGLANG_DSV4_TRACE_VALUES", "").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)
+_MAX_VALUE_ELEMS = 256
 
 
 def _parse_ints(name: str):
@@ -107,6 +116,29 @@ def _fmt(v) -> str:
     return f"<{type(v).__name__}>"
 
 
+def vals(t, n: int = 8) -> str:
+    """Peek at a TINY tensor's values (opt-in via SGLANG_DSV4_TRACE_VALUES).
+
+    Deliberately limited to ``_MAX_VALUE_ELEMS`` elements and always copied to
+    CPU before touching the data, so no allocation size depends on contents.
+    Returns "" when disabled or unsupported, which ``trace`` drops silently.
+    """
+    if not ON_VALUES or not isinstance(t, torch.Tensor):
+        return ""
+    try:
+        if t.numel() == 0:
+            return "empty"
+        if t.numel() > _MAX_VALUE_ELEMS:
+            return f"big[{t.numel()}]"
+        flat = t.detach().to("cpu").reshape(-1)
+        head = flat[:n].tolist()
+        body = ",".join(str(x) for x in head)
+        more = "" if flat.numel() <= n else f",...({flat.numel()})"
+        return f"[{body}{more}]"
+    except Exception:
+        return ""
+
+
 def _fields(obj) -> dict:
     """Best-effort field view of NamedTuple / dataclass / plain object."""
     if obj is None:
@@ -162,6 +194,8 @@ def trace(tag: str, layer: int = -1, **fields) -> None:
         _step += 1
         parts = [f"[dsv4] r{_get_rank():02d} t{_step:05d} {tag:16s} L{layer:02d}"]
         for k, v in fields.items():
+            if v == "":
+                continue  # value peeks that are disabled / unsupported
             parts.append(f"{k}={_fmt(v)}")
         os.makedirs(DIR, exist_ok=True)
         with open(os.path.join(DIR, f"r{_get_rank():02d}.log"), "a") as fh:
