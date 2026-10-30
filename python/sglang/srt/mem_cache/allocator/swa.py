@@ -3,6 +3,7 @@ import logging
 import torch
 
 from sglang.kernels.ops.memory.allocator import get_and_clear_swa_pages
+from sglang.srt.debug_utils import dsv4_trace
 from sglang.srt.mem_cache.allocator.base import BaseTokenToKVPoolAllocator
 from sglang.srt.mem_cache.allocator.paged import PagedTokenToKVPoolAllocator
 from sglang.srt.mem_cache.allocator.token import TokenToKVPoolAllocator
@@ -151,6 +152,25 @@ class SWATokenToKVPoolAllocator(BaseTokenToKVPoolAllocator):
 
         self.clear()
         self._kvcache.register_mapping(self.full_to_swa_index_mapping)
+
+        if dsv4_trace.ON:
+            mapping = self.full_to_swa_index_mapping
+            dsv4_trace.pool(
+                "swa_allocator",
+                cls=type(self).__name__,
+                size_full=size,
+                size_swa=size_swa,
+                ratio=round(size_swa / max(size, 1), 4),
+                page_size=page_size,
+                req_ring=bool(self._swa_req_ring),
+                ring_cost=self._swa_ring_cost,
+                map_len=int(mapping.numel()),
+                # identity mapping == "SWA slot is just the full slot"; anything
+                # else means the SWA pool is a separate, compacted array.
+                map_head=dsv4_trace.vals(mapping[:8], 8, force=True),
+                swa_pool=type(getattr(kvcache, "swa_kv_pool", None)).__name__,
+                full_pool=type(getattr(kvcache, "full_kv_pool", None)).__name__,
+            )
 
     @property
     def swa_req_ring(self) -> bool:

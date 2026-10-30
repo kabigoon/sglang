@@ -33,6 +33,7 @@ from sglang.kernels.ops.kvcache.dsv4_c128_cleanup import (
 )
 from sglang.kernels.ops.kvcache.dsv4_main_kv_store import NopeFp8RopeBf16Pack
 from sglang.srt.constants import GPU_MEMORY_TYPE_KV_CACHE
+from sglang.srt.debug_utils import dsv4_trace
 from sglang.srt.environ import envs
 from sglang.srt.layers.attention.hip_flash_mla import resolve_hip_flashmla_backend
 from sglang.srt.mem_cache.base_swa_memory_pool import BaseSWAKVPool
@@ -1022,6 +1023,30 @@ class DeepSeekV4TokenToKVPool(BaseSWAKVPool):
             f"{c4_state_pool_size=} {c128_state_pool_size=} "
             f"unified={self._unified_kv} unified_fp8={self._unified_kv_fp8}"
         )
+        if dsv4_trace.ON:
+            _cr_hist = {}
+            for _r in compression_ratios:
+                _cr_hist[_r] = _cr_hist.get(_r, 0) + 1
+            dsv4_trace.pool(
+                "v4_token_pool",
+                cls=type(self).__name__,
+                max_num_reqs=max_num_reqs,
+                num_req_slots=self.num_req_slots,
+                swa_size=swa_size,
+                c4_size=c4_size,
+                c4_logical=c4_logical_size,
+                c128_size=c128_size,
+                c4_state=c4_state_pool_size,
+                c128_state=c128_state_pool_size,
+                page_size=page_size,
+                swa_page_size=swa_page_size,
+                window=sliding_window,
+                layers=layer_num,
+                cr_hist=sorted(_cr_hist.items()),
+                unified=self._unified_kv,
+                req_ring=getattr(self, "swa_req_ring_size", None),
+                what="how many tokens each pool holds (full/swa/compressed)",
+            )
         if is_unified_kv_fp8() and not self._unified_kv_fp8:
             logger.info(
                 "SGLANG_DSV4_UNIFIED_KV_FP8 is on; this pool stays bf16 "

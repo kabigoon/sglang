@@ -88,6 +88,14 @@ def _get_rank() -> int:
     try:
         if torch.distributed.is_available() and torch.distributed.is_initialized():
             rank = torch.distributed.get_rank()
+        else:
+            # Startup-time events (memory pool sizing) may run before the
+            # process group exists; the launcher usually exports one of these.
+            for key in ("RANK", "LOCAL_RANK", "DISTRIBUTED_RANK"):
+                value = os.environ.get(key)
+                if value is not None and value.strip().isdigit():
+                    rank = int(value)
+                    break
     except Exception:
         pass
     _rank = int(rank)
@@ -116,14 +124,16 @@ def _fmt(v) -> str:
     return f"<{type(v).__name__}>"
 
 
-def vals(t, n: int = 8) -> str:
+def vals(t, n: int = 8, force: bool = False) -> str:
     """Peek at a TINY tensor's values (opt-in via SGLANG_DSV4_TRACE_VALUES).
 
     Deliberately limited to ``_MAX_VALUE_ELEMS`` elements and always copied to
     CPU before touching the data, so no allocation size depends on contents.
     Returns "" when disabled or unsupported, which ``trace`` drops silently.
+    ``force`` is for one-off startup facts (e.g. an index mapping's head) that
+    are tiny by construction and worth having without the value switch.
     """
-    if not ON_VALUES or not isinstance(t, torch.Tensor):
+    if not (ON_VALUES or force) or not isinstance(t, torch.Tensor):
         return ""
     try:
         if t.numel() == 0:
@@ -204,3 +214,28 @@ def trace(tag: str, layer: int = -1, **fields) -> None:
         if not _warned:
             _warned = True
             print(f"[dsv4_trace] disabled after error: {exc!r}", flush=True)
+
+
+def pool(tag: str, **fields) -> None:
+    """Startup-time event (memory pool sizing), kept out of the per-rank logs.
+
+    Pool construction happens once, before any forward, sometimes before the
+    process group exists. All ranks therefore share ``<DIR>/pool.log``; every
+    line carries the pid so interleaved ranks stay separable.
+    """
+    global _warned
+    if not ON:
+        return
+    try:
+        parts = [f"[dsv4-pool] pid{os.getpid()} r{_get_rank():02d} {tag:20s}"]
+        for k, v in fields.items():
+            if v == "":
+                continue
+            parts.append(f"{k}={_fmt(v)}")
+        os.makedirs(DIR, exist_ok=True)
+        with open(os.path.join(DIR, "pool.log"), "a") as fh:
+            fh.write(" ".join(parts) + "\n")
+    except Exception as exc:  # never break startup for a debug line
+        if not _warned:
+            _warned = True
+            print(f"[dsv4_trace] pool() disabled after error: {exc!r}", flush=True)

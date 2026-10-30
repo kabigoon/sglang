@@ -23,6 +23,7 @@ import torch_npu
 
 from sglang.kernels.ops.attention.dsv4.kv_layout import KVLayout
 from sglang.srt.constants import GPU_MEMORY_TYPE_KV_CACHE
+from sglang.srt.debug_utils import dsv4_trace
 from sglang.srt.hardware_backend.npu.utils import is_npu_arch35
 from sglang.srt.mem_cache.deepseek_v4_compress_state import CompressStatePool
 from sglang.srt.mem_cache.deepseek_v4_memory_pool import (
@@ -278,6 +279,18 @@ class DSV4NPUTokenToKVPool(DeepSeekV4TokenToKVPool):
             )
         self.c128_page_size = c128_page_size
         super().__init__(*args, **kwargs)
+        if dsv4_trace.ON:
+            dsv4_trace.pool(
+                "npu_v4_pool",
+                c128_page_size=c128_page_size,
+                num_req_slots=getattr(self, "num_req_slots", None),
+                req_ring=getattr(self, "swa_req_ring_size", None),
+                request_window=getattr(self, "request_window", None) is not None,
+                paged_swa_alloc=getattr(self, "needs_paged_swa_allocator", None),
+                swa_pool_present=getattr(self, "swa_kv_pool", None) is not None,
+                unified_present=getattr(self, "unified_kv_pool", None) is not None,
+                what="which SWA addressing mode this NPU run actually uses",
+            )
 
     def _make_kv_pool(
         self,
