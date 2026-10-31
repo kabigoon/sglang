@@ -52,15 +52,26 @@
 
 与 `--mem-fraction-static 0.68`（≈41 GB）+ W8A8 权重 ≈19 GB/卡 是自洽的。
 
-**副产品（待验）**：`cr_hist=[[0,5],[4,21],[128,20]]` 共 **46** 项，但模型只有 **43** 层，
-且运行时只有 L00/L01 两层 `cr=0`。差的 3 个 0 应该属于 **MTP/nextn 层**：checkpoint 的
-`compress_ratios` 把 MTP 层也列了进去，而 SGLang 的 nextn 层用硬编码覆盖
-`COMPRESS_RATIO_NEXTN_LAYER = 0`（`models/deepseek_v4_nextn.py`），并不读这个列表。
+**副产品（已实测一半，仍待收尾）**：`cr_hist=[[0,5],[4,21],[128,20]]` 共 **46** 项，但模型只有
+**43** 层，且运行时只有 L00/L01 两层 `cr=0`。
+
+实测：`len(compress_ratios)=46`、`num_hidden_layers=43`、`num_nextn_predict_layers=1`
+（2026-10-31）。所以"3 个多出来的 0 属于 3 层 MTP"这个猜测**不成立**——nextn 只有 1 层。
+
+目前的解释（待收尾）：那份列表**比实际层数长**，而 `compress_ratios` 的下标只用到 `0..42`
+（`MqaAttentionBase` 用 `config.compress_ratios[layer_id]`，模型里没有长度断言），
+所以尾部的多余项**不会被读**。注意 `graph_variants.py` 会用
+`set(compress_ratios) & {1,2}` 判断 V4.1 低压缩比路径——多余项若含 1/2 会改变分支，
+本 checkpoint 多出来的都是 0，暂时无害。
+
+还差一步：把列表本身打出来，确认多出来的 0 在**尾部还是中间**，以及是否对应
+DSPARK draft 的 stage（`num_stages = len(dspark_config.target_layer_ids)`，
+`models/deepseek_v4_dspark.py`）：
 
 ```bash
 python3 -c "import json;c=json.load(open('/home/weights/DeepSeek-V4-Flash-0731-w8a8/config.json'));\
-print(len(c['compress_ratios']), c.get('num_hidden_layers'), c.get('num_nextn_predict_layers'))"
-# 期望：46 43 3
+print('n =', len(c['compress_ratios'])); print('ratios =', c['compress_ratios']);\
+print('dspark =', c.get('dspark_config'))"
 ```
 
 ---
@@ -103,7 +114,7 @@ print(len(c['compress_ratios']), c.get('num_hidden_layers'), c.get('num_nextn_pr
 | 3 | `sum(expert_tokens) == rows` 是否恒成立（目前 4/4 样本） | 强证据，未证 |
 | 4 | decode 的 `9216 == 16 × 96 × 6` 与 `SGLANG_DEEPEP_NUM_MAX_DISPATCH_TOKENS_PER_RANK` 是否严格成正比 | 算术吻合，待实测（改成 48 应得 4608） |
 | 5 | DSPARK 的结构与调用点 | 未讲 |
-| 6 | `len(compress_ratios)==46` 且 `num_nextn_predict_layers==3`（Q1 副产品） | 待验，一条命令 |
+| 6 | `compress_ratios` 有 46 项 vs 43 层（多 3 项）：多出来的 0 在尾部还是中间？是否对应 DSPARK 的 stage？ | 长度已实测（46/43/1，nextn 猜测已被推翻），列表内容待打印 |
 
 ## 已确认（避免重复讨论）
 
