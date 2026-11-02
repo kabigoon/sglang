@@ -19,22 +19,16 @@ This document is validated and written based on **SGLang v0.5.23**. The current 
 supported in this version. To use the latest features (e.g., PD disaggregation, DSpark speculative decoding), it is
 recommended to use v0.5.23 or a later version.
 
-<Note>
-The 950PR/DT Series examples rely on DeepSeek-V4 DSpark speculative decoding and prefill context parallelism support on
-the 950PR/DT Series. Run them on a daily build newer than v0.5.23, for example `cann9.1.0-950-B105`.
-</Note>
-
 ## Supported features
 
 | Feature                       | Example usage                                                                                 |
 |-------------------------------|-----------------------------------------------------------------------------------------------|
-| Attention Backend             | A3 Series: `--attention-backend dsv4`<br/>950PR/DT Series: `--attention-backend ascend`       |
-| Tensor Parallelism            | A3 Series: `--tp-size 16` (8 cards)<br/>950PR/DT Series: `--tp-size 8`                        |
-| Data Parallelism              | A3 Series: `--dp-size 16`<br/>950PR/DT Series: `--dp-size 8`                                  |
-| Expert Parallelism            | A3 Series: `--ep-size 16`<br/>950PR/DT Series: `--ep-size 8`<br/>`--moe-a2a-backend deepep \`<br/>`--deepep-mode auto`                    |
+| Attention Backend             | `--attention-backend dsv4`                                                                    |
+| Tensor Parallelism            | `--tp-size 16`                                                                                |
+| Data Parallelism              | `--dp-size 16`                                                                                |
+| Expert Parallelism            | `--ep-size 16 \`<br/>`--moe-a2a-backend deepep \`<br/>`--deepep-mode auto`                    |
 | PD Disaggregation             | `--disaggregation-mode prefill \`<br/>`--disaggregation-transfer-backend ascend`              |
-| Quantization                  | A3 Series: `--quantization modelslim` (W8A8 INT8)<br/>950PR/DT Series: `--quantization fp8`   |
-| KV Cache Dtype                | `--kv-cache-dtype auto` (resolves to bfloat16 on NPU)                                         |
+| Quantization                  | `--quantization modelslim`                                                                    |
 | NPU Graph                     | enabled by default; disable with `--disable-cuda-graph`;<br/>control range via `--cuda-graph-bs-decode` or `--cuda-graph-max-bs-decode`; e.g., `--cuda-graph-bs-decode 1 2 4 8 16 24 36 40 48 56` |
 | Speculative Decoding          | `--speculative-algorithm DSPARK \`<br/>`--speculative-num-draft-tokens 7 \`<br/>`--speculative-dspark-block-size 6` |
 | Prefill Context Parallel      | `--enable-prefill-cp \`<br/>`--cp-strategy interleave`                                        |
@@ -72,15 +66,12 @@ Before following this tutorial, complete the environment setup in the documents 
   Dockerfile, and recommended system settings (CPU power scheme, NUMA, swap). Use it when you need to install or customize
   the environment instead of using the official image.
 
-For the 950PR/DT Series, also install the `950` release of the SGLang NPU kernels and set `ASCEND_USE_FIA=1`, as
-described in the installation guide.
-
 ### Model weights
 
 Before downloading model weights, check the model size to reserve enough disk space.
 For multi-node deployment, download the weights to a shared directory accessible to all nodes.
 
-- [deepseek-ai/DeepSeek-V4-Flash](https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash) — official checkpoint (block FP8),
+- [deepseek-ai/DeepSeek-V4-Flash](https://modelscope.cn/models/deepseek-ai/DeepSeek-V4-Flash-0731) — official checkpoint (block FP8),
   used by the 950PR/DT Series examples.
 - [DeepSeek-V4-Flash-w8a8-mtp](https://www.modelscope.cn/models/Eco-Tech/DeepSeek-V4-Flash-w8a8-mtp) — W8A8 INT8 quantized
   version (300GB), used by the A3 Series examples.
@@ -180,8 +171,6 @@ swr.cn-southwest-2.myhuaweicloud.com/base_image/dockerhub/lmsysorg/sglang:cann9.
 - If the model weights have already been downloaded to a shared directory, use `-v` to mount the model path into the
   container, for example: `-v /path/to/models:/models`.
 - Replace `${NAME}` with your own container name or remove `--name` to use default name.
-- The 950PR/DT Series exposes 8 devices (`/dev/davinci0` through `/dev/davinci7`) and requires `ASCEND_USE_FIA=1`,
-  which the container above sets for every process.
 </Tip>
 
 ## Online service deployment
@@ -195,45 +184,31 @@ inside the container.
 <Tabs>
   <Tab title="A3 Series">
 
-Use the W8A8 checkpoint on one full A3 Series node: 8 cards, 16 dies, `--tp-size 16`. DSpark speculative decoding runs
-against the bundled draft head of the same checkpoint.
+DeepSeek-V4-Flash can be launched with half of an Ascend A3 Series
+node (4 cards, 8 dies). The configuration below was validated with `--tp-size 8`.
 
 ```bash Command
 # ============================================================
-# Before running, update the following variables:
+# Before running, update the following variable:
 #   MODEL_PATH: path to the model weights directory
 # ============================================================
 
 MODEL_PATH=/path/to/model-weights
-
-echo performance | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
-sysctl -w vm.swappiness=0
-sysctl -w kernel.numa_balancing=0
-sysctl -w kernel.sched_migration_cost_ns=50000
-
-unset https_proxy http_proxy HTTPS_PROXY HTTP_PROXY ASCEND_LAUNCH_BLOCKING
 
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
 source /usr/local/Ascend/nnal/atb/set_env.sh
 source /usr/local/Ascend/ascend-toolkit/latest/opp/vendors/customize/bin/set_env.bash
 source /usr/local/Ascend/ascend-toolkit/latest/opp/vendors/custom_transformer/bin/set_env.bash
 
-export DEEPEP_HCCL_BUFFSIZE=2500
 export DEEP_NORMAL_MODE_USE_INT8_QUANT=1
 export FORCE_DRAFT_MODEL_NON_QUANT=1
-export GLOO_SOCKET_IFNAME=lo
+export HCCL_BUFFSIZE=8
 export HCCL_OP_EXPANSION_MODE=AIV
-export HCCL_SOCKET_IFNAME=lo
 export INF_NAN_MODE_FORCE_DISABLE=1
 export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
-export SGLANG_DEEPEP_NUM_MAX_DISPATCH_TOKENS_PER_RANK=96
-export SGLANG_DSPARK_FAST_KERNEL=0
 export SGLANG_DSV4_FP4_EXPERTS=False
 export SGLANG_ENABLE_OVERLAP_PLAN_STREAM=1
-export SGLANG_ENABLE_SPEC_V2=1
 export SGLANG_ENABLE_TP_MEMORY_INBALANCE_CHECK=0
-export SGLANG_ENABLE_WAR_BARRIER=1
-export SGLANG_FORCE_COARSE_WAR_BARRIER=1
 export SGLANG_OPT_BF16_FP32_GEMM_ALGO=torch
 export SGLANG_OPT_DEEPGEMM_HC_PRENORM=False
 export SGLANG_OPT_FP8_WO_A_GEMM=0
@@ -242,51 +217,37 @@ export SGLANG_OPT_USE_FUSED_HASH_TOPK=False
 export SGLANG_OPT_USE_OVERLAP_STORE_CACHE=False
 export SGLANG_OPT_USE_TILELANG_MHC_POST=False
 export SGLANG_OPT_USE_TILELANG_MHC_PRE=False
-export SGLANG_RAGGED_VERIFY_MODE=static
 export SGLANG_SET_CPU_AFFINITY=1
-export SGLANG_ZBAL_BOOTSTRAP_URL=tcp://127.0.0.1:14699
-export SGLANG_ZBAL_LOCAL_MEM_SIZE=61000
+export SGLANG_ZBAL_BOOTSTRAP_URL="tcp://127.0.0.1:14699"
+export SGLANG_ZBAL_LOCAL_MEM_SIZE=62084
 export STREAMS_PER_DEVICE=32
 export ZBAL_ENABLE_GRAPH=1
 export ZBAL_NPU_ALLOC_CONF=use_vmm_for_static_memory:True
 
 python3 -m sglang.launch_server \
-    --model-path "$MODEL_PATH" \
-    --host 127.0.0.1 --port 6688 \
+    --model-path "${MODEL_PATH}" \
     --page-size 128 \
-    --tp-size 16 \
+    --tp-size 8 \
     --trust-remote-code \
     --device npu \
     --attention-backend dsv4 \
     --watchdog-timeout 9000 \
-    --mem-fraction-static 0.68 \
-    --prefill-max-requests 192 \
+    --host 127.0.0.1 --port 6688 \
+    --mem-fraction-static 0.8 \
+    --prefill-max-requests 160 \
     --max-prefill-tokens 80000 \
     --chunked-prefill-size 131072 \
-    --max-running-requests 192 \
-    --dp-size 16 \
-    --enable-dp-attention \
-    --moe-a2a-backend deepep \
-    --deepep-mode auto \
-    --quantization modelslim \
-    --enable-dp-lm-head \
-    --kv-cache-dtype auto \
-    --load-balance-method round_robin \
-    --cuda-graph-bs-decode 1 2 4 6 8 10 \
-    --speculative-algorithm DSPARK \
-    --speculative-draft-model-path "$MODEL_PATH" \
-    --speculative-draft-model-quantization modelslim \
-    --speculative-draft-attention-backend ascend \
-    --speculative-num-draft-tokens 7 \
-    --speculative-dspark-block-size 6 \
-    --disable-radix-cache
+    --max-running-requests 160 \
+    --dp-size 8 --enable-dp-attention \
+    --moe-a2a-backend deepep --deepep-mode auto \
+    --quantization modelslim --enable-dp-lm-head \
+    --kv-cache-dtype bfloat16
 ```
 
   </Tab>
   <Tab title="950PR/DT Series">
 
-Use the official block FP8 checkpoint on one 950PR/DT Series node: 8 devices, `--tp-size 8`. DSpark speculative
-decoding uses the same parameter block as the A3 Series.
+Use the official block FP8 checkpoint on one 950PR/DT Series node: 8 devices, `--tp-size 8`.
 
 ```bash Command
 # ============================================================
