@@ -1,7 +1,7 @@
 ---
 title: "DeepSeek-V4-Flash"
 metatags:
-  description: "Deploy DeepSeek-V4-Flash model with SGLang on Ascend NPUs, including multi-node PD disaggregation mode."
+  description: "Deploy DeepSeek-V4-Flash with SGLang on A3 Series and 950PR/DT Series Ascend NPUs, including single-node PD mixed deployment."
 ---
 
 ## Introduction
@@ -10,25 +10,34 @@ DeepSeek-V4-Flash is a Mixture-of-Experts (MoE) large language model developed b
 parameters with 13B active parameters. It employs hybrid sparse attention (CSA + HCA) and DeepSeekMoE architecture with
 a bundled multi-token prediction (MTP) draft head for speculative decoding, supporting a 1M-token context length.
 
-This document demonstrates the deployment of DeepSeek-V4-Flash on Ascend NPUs using SGLang, including multi-node PD
-disaggregation mode, feature configuration, and performance optimization.
+This document demonstrates the deployment of DeepSeek-V4-Flash on Ascend NPUs using SGLang on the **A3 Series** and the
+**950PR/DT Series** (A5 SoC). It covers single-node PD mixed deployment, feature configuration, and performance
+optimization. The multi-node PD disaggregation commands for both platforms are documented in the
+[Best Practice](#best-practices) page.
 
-This document is validated and written based on **SGLang v0.5.16**. The current model (DeepSeek-V4-Flash) is fully
-supported in this version. To use the latest features (e.g., PD disaggregation, speculative decoding), it is
-recommended to use v0.5.16 or a later version.
+This document is validated and written based on **SGLang v0.5.23**. The current model (DeepSeek-V4-Flash) is fully
+supported in this version. To use the latest features (e.g., PD disaggregation, DSpark speculative decoding), it is
+recommended to use v0.5.23 or a later version.
+
+<Note>
+The 950PR/DT Series examples rely on DeepSeek-V4 DSpark speculative decoding and prefill context parallelism support on
+the 950PR/DT Series. Run them on a daily build newer than v0.5.23, for example `cann9.1.0-950-B105`.
+</Note>
 
 ## Supported features
 
 | Feature                       | Example usage                                                                                 |
 |-------------------------------|-----------------------------------------------------------------------------------------------|
-| Attention Backend             | `--attention-backend dsv4`                                                                    |
-| Tensor Parallelism            | `--tp-size 16`                                                                                |
-| Data Parallelism              | `--dp-size 16`                                                                                |
-| Expert Parallelism            | `--ep-size 16 \`<br/>`--moe-a2a-backend deepep \`<br/>`--deepep-mode auto`                    |
+| Attention Backend             | A3 Series: `--attention-backend dsv4`<br/>950PR/DT Series: `--attention-backend ascend`       |
+| Tensor Parallelism            | A3 Series: `--tp-size 16` (8 cards)<br/>950PR/DT Series: `--tp-size 8`                        |
+| Data Parallelism              | A3 Series: `--dp-size 16`<br/>950PR/DT Series: `--dp-size 8`                                  |
+| Expert Parallelism            | A3 Series: `--ep-size 16`<br/>950PR/DT Series: `--ep-size 8`<br/>`--moe-a2a-backend deepep \`<br/>`--deepep-mode auto`                    |
 | PD Disaggregation             | `--disaggregation-mode prefill \`<br/>`--disaggregation-transfer-backend ascend`              |
-| Quantization                  | `--quantization modelslim`                                                                    |
+| Quantization                  | A3 Series: `--quantization modelslim` (W8A8 INT8)<br/>950PR/DT Series: `--quantization fp8`   |
+| KV Cache Dtype                | `--kv-cache-dtype auto` (resolves to bfloat16 on NPU)                                         |
 | NPU Graph                     | enabled by default; disable with `--disable-cuda-graph`;<br/>control range via `--cuda-graph-bs-decode` or `--cuda-graph-max-bs-decode`; e.g., `--cuda-graph-bs-decode 1 2 4 8 16 24 36 40 48 56` |
-| Speculative Decoding          | `--speculative-algorithm EAGLE \`<br/>`--speculative-num-steps 2 \`<br/>`--speculative-eagle-topk 1 \`<br/>`--speculative-num-draft-tokens 3` |
+| Speculative Decoding          | `--speculative-algorithm DSPARK \`<br/>`--speculative-num-draft-tokens 7 \`<br/>`--speculative-dspark-block-size 6` |
+| Prefill Context Parallel      | `--enable-prefill-cp \`<br/>`--cp-strategy interleave`                                        |
 | Overlap Schedule              | `export SGLANG_ENABLE_OVERLAP_PLAN_STREAM=1`                                                  |
 | DP LM Head                    | `--enable-dp-lm-head`                                                                         |
 | DP Attention                  | `--dp-size 16 \`<br/>`--enable-dp-attention`                                                                           |
@@ -38,6 +47,12 @@ The values in the **Example usage** column are for illustration only. Adjust the
 mode, and workload. For parameter details, see
 [Feature descriptions](/docs/hardware-platforms/ascend-npus/optimization/parameter_tuning#feature-descriptions); for
 recommended configurations for each deployment scenario, see [Best practices](#best-practices).
+</Note>
+
+<Note>
+`--dp-size <n> --enable-dp-attention` and `--disable-cuda-graph` are still accepted, but the current spellings are
+`--attn-dp-size <n>` and `--cuda-graph-backend-prefill=disabled`. The examples on this page keep the spellings used by
+the validated launch scripts.
 </Note>
 
 For feature compatibility and conflict information between features,
@@ -57,16 +72,23 @@ Before following this tutorial, complete the environment setup in the documents 
   Dockerfile, and recommended system settings (CPU power scheme, NUMA, swap). Use it when you need to install or customize
   the environment instead of using the official image.
 
+For the 950PR/DT Series, also install the `950` release of the SGLang NPU kernels and set `ASCEND_USE_FIA=1`, as
+described in the installation guide.
+
 ### Model weights
 
 Before downloading model weights, check the model size to reserve enough disk space.
 For multi-node deployment, download the weights to a shared directory accessible to all nodes.
 
-- [DeepSeek-V4-Flash-w8a8-mtp](https://www.modelscope.cn/models/Eco-Tech/DeepSeek-V4-Flash-w8a8-mtp) (W8A8 quantized version, 300GB)
+- [deepseek-ai/DeepSeek-V4-Flash](https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash) — official checkpoint (block FP8),
+  used by the 950PR/DT Series examples.
+- [DeepSeek-V4-Flash-w8a8-mtp](https://www.modelscope.cn/models/Eco-Tech/DeepSeek-V4-Flash-w8a8-mtp) — W8A8 INT8 quantized
+  version (300GB), used by the A3 Series examples.
 
 <Info>
-The W8A8 variant (300GB) can be deployed on 8 × 64GB of device memory (`--tp-size 8`), which corresponds to
-8 dies on an A3 Series node (4 cards).
+The W8A8 variant (300GB) can be deployed on 8 × 64GB of device memory (`--tp-size 8`), which corresponds to 8 dies on an
+A3 Series node (4 cards). The examples below use a full A3 Series node (16 dies, `--tp-size 16`) and a single 950PR/DT
+Series node (8 devices, `--tp-size 8`).
 </Info>
 
 This is the minimum recommended configuration. For optimized configurations,
@@ -85,10 +107,12 @@ The dependencies required for the NPU runtime environment have been integrated i
 online platform. You can directly pull it.
 
 Both **stable releases** and **daily builds** are available. CANN 9.1.0 has no stable release yet, so the following
-command uses the validated build tag `cann9.1.0-a3-B105`.
+commands use the validated build tag of each platform.
 For details, see [Docker image versions](/docs/hardware-platforms/ascend-npus/faq#8-docker-image-versions-stable-release-vs-daily-build).
 
-{/* TODO: Interim explanation (CANN 9.1.0 has no stable release yet). Remove it and switch the tag below to the stable release once it is published. */}
+<Tabs>
+  <Tab title="A3 Series">
+
 ```bash Command
 docker pull swr.cn-southwest-2.myhuaweicloud.com/base_image/dockerhub/lmsysorg/sglang:cann9.1.0-a3-B105
 
@@ -121,42 +145,95 @@ docker run -itd --shm-size=16g --name ${NAME} \
 swr.cn-southwest-2.myhuaweicloud.com/base_image/dockerhub/lmsysorg/sglang:cann9.1.0-a3-B105
 ```
 
+  </Tab>
+  <Tab title="950PR/DT Series">
+
+```bash Command
+docker pull swr.cn-southwest-2.myhuaweicloud.com/base_image/dockerhub/lmsysorg/sglang:cann9.1.0-950-B105
+
+docker run -itd --shm-size=16g --name ${NAME} \
+--privileged=true --net=host \
+--env ASCEND_USE_FIA=1 \
+-v /var/queue_schedule:/var/queue_schedule \
+-v /etc/ascend_install.info:/etc/ascend_install.info \
+-v /usr/local/sbin:/usr/local/sbin \
+-v /usr/local/Ascend/driver:/usr/local/Ascend/driver \
+-v /usr/local/Ascend/firmware:/usr/local/Ascend/firmware \
+--device=/dev/davinci0:/dev/davinci0  \
+--device=/dev/davinci1:/dev/davinci1  \
+--device=/dev/davinci2:/dev/davinci2  \
+--device=/dev/davinci3:/dev/davinci3  \
+--device=/dev/davinci4:/dev/davinci4  \
+--device=/dev/davinci5:/dev/davinci5  \
+--device=/dev/davinci6:/dev/davinci6  \
+--device=/dev/davinci7:/dev/davinci7  \
+--device=/dev/davinci_manager:/dev/davinci_manager \
+--device=/dev/hisi_hdc:/dev/hisi_hdc \
+--entrypoint=bash \
+swr.cn-southwest-2.myhuaweicloud.com/base_image/dockerhub/lmsysorg/sglang:cann9.1.0-950-B105
+```
+
+  </Tab>
+</Tabs>
+
 <Tip>
 - If the model weights have already been downloaded to a shared directory, use `-v` to mount the model path into the
   container, for example: `-v /path/to/models:/models`.
 - Replace `${NAME}` with your own container name or remove `--name` to use default name.
+- The 950PR/DT Series exposes 8 devices (`/dev/davinci0` through `/dev/davinci7`) and requires `ASCEND_USE_FIA=1`,
+  which the container above sets for every process.
 </Tip>
 
 ## Online service deployment
 
 ### Single-node PD mixed deployment
 
-Single-node deployment completes both prefill and decode within the same node (PD mixed mode), suitable for scenarios
-with limited hardware resources. In such scenarios, DeepSeek-V4-Flash can be launched with half of an A3 Series
-node (4 cards, 8 dies). The configuration below was validated with `--tp-size 8`.
+Single-node deployment completes both prefill and decode within the same node (PD mixed mode), which keeps the
+deployment simple and avoids dedicating a second node to prefill. Select the tab for your platform and run the script
+inside the container.
+
+<Tabs>
+  <Tab title="A3 Series">
+
+Use the W8A8 checkpoint on one full A3 Series node: 8 cards, 16 dies, `--tp-size 16`. DSpark speculative decoding runs
+against the bundled draft head of the same checkpoint.
 
 ```bash Command
 # ============================================================
-# Before running, update the following variable:
+# Before running, update the following variables:
 #   MODEL_PATH: path to the model weights directory
 # ============================================================
 
 MODEL_PATH=/path/to/model-weights
+
+echo performance | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+sysctl -w vm.swappiness=0
+sysctl -w kernel.numa_balancing=0
+sysctl -w kernel.sched_migration_cost_ns=50000
+
+unset https_proxy http_proxy HTTPS_PROXY HTTP_PROXY ASCEND_LAUNCH_BLOCKING
 
 source /usr/local/Ascend/ascend-toolkit/set_env.sh
 source /usr/local/Ascend/nnal/atb/set_env.sh
 source /usr/local/Ascend/ascend-toolkit/latest/opp/vendors/customize/bin/set_env.bash
 source /usr/local/Ascend/ascend-toolkit/latest/opp/vendors/custom_transformer/bin/set_env.bash
 
+export DEEPEP_HCCL_BUFFSIZE=2500
 export DEEP_NORMAL_MODE_USE_INT8_QUANT=1
 export FORCE_DRAFT_MODEL_NON_QUANT=1
-export HCCL_BUFFSIZE=8
+export GLOO_SOCKET_IFNAME=lo
 export HCCL_OP_EXPANSION_MODE=AIV
+export HCCL_SOCKET_IFNAME=lo
 export INF_NAN_MODE_FORCE_DISABLE=1
 export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
+export SGLANG_DEEPEP_NUM_MAX_DISPATCH_TOKENS_PER_RANK=96
+export SGLANG_DSPARK_FAST_KERNEL=0
 export SGLANG_DSV4_FP4_EXPERTS=False
 export SGLANG_ENABLE_OVERLAP_PLAN_STREAM=1
+export SGLANG_ENABLE_SPEC_V2=1
 export SGLANG_ENABLE_TP_MEMORY_INBALANCE_CHECK=0
+export SGLANG_ENABLE_WAR_BARRIER=1
+export SGLANG_FORCE_COARSE_WAR_BARRIER=1
 export SGLANG_OPT_BF16_FP32_GEMM_ALGO=torch
 export SGLANG_OPT_DEEPGEMM_HC_PRENORM=False
 export SGLANG_OPT_FP8_WO_A_GEMM=0
@@ -165,42 +242,144 @@ export SGLANG_OPT_USE_FUSED_HASH_TOPK=False
 export SGLANG_OPT_USE_OVERLAP_STORE_CACHE=False
 export SGLANG_OPT_USE_TILELANG_MHC_POST=False
 export SGLANG_OPT_USE_TILELANG_MHC_PRE=False
+export SGLANG_RAGGED_VERIFY_MODE=static
 export SGLANG_SET_CPU_AFFINITY=1
-export SGLANG_ZBAL_BOOTSTRAP_URL="tcp://127.0.0.1:14699"
-export SGLANG_ZBAL_LOCAL_MEM_SIZE=62084
+export SGLANG_ZBAL_BOOTSTRAP_URL=tcp://127.0.0.1:14699
+export SGLANG_ZBAL_LOCAL_MEM_SIZE=61000
 export STREAMS_PER_DEVICE=32
 export ZBAL_ENABLE_GRAPH=1
 export ZBAL_NPU_ALLOC_CONF=use_vmm_for_static_memory:True
 
 python3 -m sglang.launch_server \
-    --model-path "${MODEL_PATH}" \
+    --model-path "$MODEL_PATH" \
+    --host 127.0.0.1 --port 6688 \
     --page-size 128 \
-    --tp-size 8 \
+    --tp-size 16 \
     --trust-remote-code \
     --device npu \
     --attention-backend dsv4 \
     --watchdog-timeout 9000 \
-    --host 127.0.0.1 --port 6688 \
-    --mem-fraction-static 0.8 \
-    --prefill-max-requests 160 \
+    --mem-fraction-static 0.68 \
+    --prefill-max-requests 192 \
     --max-prefill-tokens 80000 \
     --chunked-prefill-size 131072 \
-    --max-running-requests 160 \
-    --dp-size 8 --enable-dp-attention \
-    --moe-a2a-backend deepep --deepep-mode auto \
-    --quantization modelslim --enable-dp-lm-head \
-    --kv-cache-dtype bfloat16
+    --max-running-requests 192 \
+    --dp-size 16 \
+    --enable-dp-attention \
+    --moe-a2a-backend deepep \
+    --deepep-mode auto \
+    --quantization modelslim \
+    --enable-dp-lm-head \
+    --kv-cache-dtype auto \
+    --load-balance-method round_robin \
+    --cuda-graph-bs-decode 1 2 4 6 8 10 \
+    --speculative-algorithm DSPARK \
+    --speculative-draft-model-path "$MODEL_PATH" \
+    --speculative-draft-model-quantization modelslim \
+    --speculative-draft-attention-backend ascend \
+    --speculative-num-draft-tokens 7 \
+    --speculative-dspark-block-size 6 \
+    --disable-radix-cache
 ```
 
-For the complete benchmark data and additional single-node configurations, see
+  </Tab>
+  <Tab title="950PR/DT Series">
+
+Use the official block FP8 checkpoint on one 950PR/DT Series node: 8 devices, `--tp-size 8`. DSpark speculative
+decoding uses the same parameter block as the A3 Series.
+
+```bash Command
+# ============================================================
+# Before running, update the following variables:
+#   MODEL_PATH: path to the model weights directory
+#   HCCL_SOCKET_IFNAME / GLOO_SOCKET_IFNAME: network interface that owns the node IP
+# ============================================================
+
+MODEL_PATH=/path/to/model-weights
+
+echo performance | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+sysctl -w vm.swappiness=0
+sysctl -w kernel.numa_balancing=0
+
+unset https_proxy http_proxy HTTPS_PROXY HTTP_PROXY ASCEND_LAUNCH_BLOCKING
+
+source /usr/local/Ascend/ascend-toolkit/latest/opp/vendors/customize/bin/set_env.bash
+source /usr/local/Ascend/ascend-toolkit/latest/opp/vendors/custom_transformer/bin/set_env.bash
+source /usr/local/Ascend/ascend-toolkit/latest/set_env.sh
+source /usr/local/Ascend/nnal/atb/set_env.sh
+
+export ASCEND_USE_FIA=1
+export DEEPEP_HCCL_BUFFSIZE=2500
+export HCCL_CONNECT_TIMEOUT=300
+export HCCL_EXEC_TIMEOUT=68
+export HCCL_HOST_SOCKET_PORT_RANGE=auto
+export HCCL_OP_EXPANSION_MODE=AIV
+export HCCL_SOCKET_IFNAME=<network-interface>
+export GLOO_SOCKET_IFNAME=<network-interface>
+export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
+export SGLANG_DEEPEP_NUM_MAX_DISPATCH_TOKENS_PER_RANK=128
+export SGLANG_DSPARK_FAST_KERNEL=0
+export SGLANG_DSV4_FP4_EXPERTS=True
+export SGLANG_ENABLE_OVERLAP_PLAN_STREAM=1
+export SGLANG_ENABLE_SPEC_V2=1
+export SGLANG_OPT_BF16_FP32_GEMM_ALGO=torch
+export SGLANG_OPT_DEEPGEMM_HC_PRENORM=False
+export SGLANG_OPT_FP8_WO_A_GEMM=False
+export SGLANG_OPT_FUSE_WQA_WKV=0
+export SGLANG_OPT_USE_FUSED_HASH_TOPK=False
+export SGLANG_OPT_USE_OVERLAP_STORE_CACHE=False
+export SGLANG_OPT_USE_TILELANG_MHC_POST=False
+export SGLANG_OPT_USE_TILELANG_MHC_PRE=False
+export SGLANG_RAGGED_VERIFY_MODE=static
+export SGLANG_SET_CPU_AFFINITY=1
+export STREAMS_PER_DEVICE=32
+export TRANSFORMERS_VERBOSITY=error
+
+python3 -m sglang.launch_server \
+    --model-path "$MODEL_PATH" \
+    --host 127.0.0.1 --port 6688 \
+    --tp-size 8 \
+    --dp-size 8 \
+    --enable-dp-attention \
+    --moe-dense-tp-size 1 \
+    --trust-remote-code \
+    --device npu \
+    --attention-backend ascend \
+    --watchdog-timeout 9000 \
+    --mem-fraction-static 0.79 \
+    --max-prefill-tokens 70000 \
+    --chunked-prefill-size 65536 \
+    --max-running-requests 64 \
+    --context-len 133120 \
+    --quantization fp8 \
+    --kv-cache-dtype auto \
+    --moe-a2a-backend deepep \
+    --deepep-mode auto \
+    --enable-dp-lm-head \
+    --load-balance-method round_robin \
+    --cuda-graph-bs-decode 1 2 4 8 10 12 \
+    --speculative-algorithm DSPARK \
+    --speculative-draft-model-path "$MODEL_PATH" \
+    --speculative-draft-model-quantization fp8 \
+    --speculative-draft-attention-backend ascend \
+    --speculative-num-draft-tokens 7 \
+    --speculative-dspark-block-size 6
+```
+
+  </Tab>
+</Tabs>
+
+For the benchmark data of this configuration, see
 [DeepSeek-V4-Flash Best Practice — PD Mixed On A3 Series](/docs/hardware-platforms/ascend-npus/model-deployment/best-practices/deepseek_v4_flash#single-node-pd-mixed).
 
 ### Multi-node PD disaggregation deployment
 
 PD disaggregation splits the prefill and decode stages onto separate nodes, reducing interference and improving
-throughput for high-concurrency scenarios. This scenario is already covered in the best practice. For the complete, optimized
-deployment commands and benchmark data, see
-[DeepSeek-V4-Flash Best Practice — PD Disaggregation On A3 Series](/docs/hardware-platforms/ascend-npus/model-deployment/best-practices/deepseek_v4_flash#pd-disaggregation).
+throughput for high-concurrency scenarios. The deployment commands and benchmark data for both platforms are documented
+in the Best Practice page:
+
+- [DeepSeek-V4-Flash Best Practice — PD Disaggregation On A3 Series](/docs/hardware-platforms/ascend-npus/model-deployment/best-practices/deepseek_v4_flash#pd-disaggregation)
+- [DeepSeek-V4-Flash Best Practice — PD Disaggregation On 950PR/DT Series](/docs/hardware-platforms/ascend-npus/model-deployment/best-practices/deepseek_v4_flash#pd-disaggregation-950)
 
 ## Functional verification
 
@@ -223,8 +402,10 @@ curl http://${HOST}:${PORT}/v1/chat/completions \
 
 Expected result: an HTTP 200 response with the generated text containing "Paris".
 
-Once the server prints `The server is fired up and ready to roll!` in the logs, it is ready to accept requests. For more
-testing examples (Health Check, Generate, Chat Completions, and port usage guidance),
+Once the server prints `The server is fired up and ready to roll!` in the logs, it is ready to accept requests. The
+single-node examples on this page serve on port `6688`; for PD disaggregation, send client requests to the router on
+port `6688` as well, while the prefill and decode workers listen on ports `8000` and `8001`. For more testing examples
+(Health Check, Generate, Chat Completions, and port usage guidance),
 see [Testing the Service](/docs/hardware-platforms/ascend-npus/getting-started/installation#testing-the-service).
 
 ## Accuracy evaluation
@@ -239,7 +420,7 @@ For performance data and benchmark commands, see [Performance Testing on Ascend 
 
 ### Best practice configuration reference
 
-For complete optimal configurations with deployment scripts and benchmark commands, see the
+For PD disaggregation commands and benchmark data on both platforms, see the
 [DeepSeek-V4-Flash Best Practice](/docs/hardware-platforms/ascend-npus/model-deployment/best-practices/deepseek_v4_flash) page.
 
 ## Performance tuning
