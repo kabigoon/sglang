@@ -50,6 +50,7 @@ from sglang.kernels.ops.quantization.fp8_kernel import (
 )
 from sglang.srt.compilation.compilation_config import register_split_op
 from sglang.srt.configs.deepseek_v4 import DeepSeekV4Config
+from sglang.srt.debug_utils import dsv41_trace
 from sglang.srt.distributed.device_communicators.pynccl_allocator import (
     use_symmetric_memory,
 )
@@ -4603,6 +4604,24 @@ class DeepseekV4Model(nn.Module):
                     hidden_states.shape[0], self.hc_mult, self.hidden_size
                 )
 
+        if dsv41_trace.ON:
+            dsv41_trace.trace(
+                "model_in",
+                R=hidden_states,
+                T=hidden_states.shape[0],
+                hc_mult=self.hc_mult,
+                mode=str(forward_batch.forward_mode),
+                tp=get_parallel().tp_size,
+                attn_tp=get_parallel().attn_tp_size,
+                attn_dp=get_parallel().attn_dp_size,
+                moe_tp=get_parallel().moe_tp_size,
+                moe_ep=get_parallel().moe_ep_size,
+                a2a=str(get_moe_a2a_backend()),
+                sl=self.start_layer,
+                el=self.end_layer,
+                dspark=self.dspark_layers_to_capture is not None,
+            )
+
         if get_parallel().attn_dp_size > 1 and get_moe_a2a_backend().is_none():
             input_ids_global = torch.empty(
                 (get_global_dp_buffer_len(), 1),
@@ -4741,6 +4760,8 @@ class DeepseekV4Model(nn.Module):
                 )
 
         if not self.pp_group.is_last_rank:
+            if dsv41_trace.ON:
+                dsv41_trace.trace("model_out", y=hidden_states, stage="pp")
             # Flatten 3D mHC tensor for PP IPC.
             return PPProxyTensors({"hidden_states": hidden_states.flatten(1)})
 
@@ -4779,10 +4800,18 @@ class DeepseekV4Model(nn.Module):
                 zero=cuda_cp_tail,
             )
         if capture_dspark:
+            if dsv41_trace.ON:
+                dsv41_trace.trace(
+                    "model_out", y=hidden_states, pre=pre_hc_head, stage="dspark"
+                )
             return (hidden_states, pre_hc_head), _finalize_dspark_aux(
                 dspark_aux_hidden_states, tail, num_tokens, cuda_cp_tail
             )
 
+        if dsv41_trace.ON:
+            dsv41_trace.trace(
+                "model_out", y=hidden_states, pre=pre_hc_head, stage="final"
+            )
         return hidden_states, pre_hc_head
 
 
