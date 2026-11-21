@@ -4,7 +4,7 @@
 # 用法：
 #   bash _tmp_preflight/eval_gsm8k.sh                  # 默认打本机 5684 端口，200 条
 #   LIMIT=50 bash _tmp_preflight/eval_gsm8k.sh         # 先抽 50 条试水
-#   API_URL=http://127.0.0.1:5684/v1 DATASET_DIR=/path/to/gsm8k bash _tmp_preflight/eval_gsm8k.sh
+#   DATASET_DIR=/path/to/gsm8k bash _tmp_preflight/eval_gsm8k.sh   # 默认 /home/a00821909/gsm8k
 #
 # 依赖：evalscope 已安装；服务已 ready；本地 gsm8k 数据集目录存在。
 set -u
@@ -19,7 +19,13 @@ TEMPERATURE=${TEMPERATURE:-0.0}       # 精度评测用贪心，别用 0.9
 EVAL_BATCH_SIZE=${EVAL_BATCH_SIZE:-4}
 TIMEOUT=${TIMEOUT:-1800}
 ENABLE_THINKING=${ENABLE_THINKING:-true}
-DATASET_DIR=${DATASET_DIR:-$PWD/gsm8k}
+DATASET_DIR_EXPLICIT=${DATASET_DIR:-}
+DATASET_DIR=${DATASET_DIR:-/home/a00821909/gsm8k}
+# 默认目录不存在、但当前目录有 gsm8k/ 时自动回退（省得白跑一次）
+if [ -z "$DATASET_DIR_EXPLICIT" ] && [ ! -d "$DATASET_DIR" ] && [ -d "$PWD/gsm8k" ]; then
+  echo "  (默认 $DATASET_DIR 不存在，自动回退到 $PWD/gsm8k)"
+  DATASET_DIR=$PWD/gsm8k
+fi
 
 RUN_TIME="$(date +%Y%m%d_%H%M%S)"
 LOG="EVAL_${RUN_TIME}.log"
