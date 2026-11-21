@@ -45,6 +45,9 @@ MAX_RUNNING=${MAX_RUNNING:-16}
 #   池子 4.19M token 对 C≤16 都过剩；prefill 大 chunk 反而需要几 GB 激活内存。
 #   128K + chunk 4096 建议 0.85；仍 OOM 再降到 0.80。
 MEM_FRACTION=${MEM_FRACTION:-0.96}
+# 1 = 开 prefill 图（--cuda-graph-backend-prefill=full）。默认为 0：NPU 上默认被自动禁用。
+# 目的：chunk 之间的 CPU launch 开销是 TTFT 的大头，prefill 图可能把它吃掉。
+PREFILL_GRAPH=${PREFILL_GRAPH:-0}
 
 case "$VARIANT" in
   w4a8) DEFAULT_W=/home/weights/DeepSeek-V4.1-Flash-1017-w4a8 ;;
@@ -71,6 +74,7 @@ if [ "$DISABLE_SPEC" != "1" ] && awk "BEGIN{exit !($MEM_FRACTION < 0.83)}"; then
   echo "  [warn] 开 DSpark 时 draft 权重也计入预算：MEM_FRACTION 必须 > 0.817（建议 0.85）"
   echo "         否则会报 'Loaded weights leave no GPU memory for the KV cache'"
 fi
+echo "  prefill graph  : $PREFILL_GRAPH (1=开)"
 echo "  chunked prefill: $CHUNKED_PREFILL (全局) -> $((CHUNKED_PREFILL / DP_SIZE)) 每 DP rank"
 echo "  max running    : $MAX_RUNNING (全局) -> $((MAX_RUNNING / DP_SIZE)) 每 DP rank"
 echo "=================================================="
@@ -172,10 +176,16 @@ else
   JSON_OVERRIDE="{\"architectures\": [\"$ARCH_OVERRIDE\"]}"
 fi
 
+PGRAPH_ARGS=()
+[ "$PREFILL_GRAPH" = "1" ] && PGRAPH_ARGS=(--cuda-graph-backend-prefill=full)
+
 QUANT_ARGS=()
 [ "$QUANT" != "none" ] && QUANT_ARGS=(--quantization "$QUANT")
 
-DRAFT_QUANT_ARGS=()
+DRAFT_PGRAPH_ARGS=()
+[ "$PREFILL_GRAPH" = "1" ] && PGRAPH_ARGS=(--cuda-graph-backend-prefill=full)
+
+QUANT_ARGS=()
 [ "$DRAFT_QUANT" != "none" ] && DRAFT_QUANT_ARGS=(--speculative-draft-model-quantization "$DRAFT_QUANT")
 
 SPEC_ARGS=()
@@ -214,5 +224,6 @@ python3 -m sglang.launch_server --model-path ${MODEL_PATH} \
     --reasoning-parser deepseek-v4 \
     --language-model-only \
     --json-model-override-args "${JSON_OVERRIDE}" \
+    ${PGRAPH_ARGS[@]+"${PGRAPH_ARGS[@]}"} \
     ${RADIX_ARGS[@]+"${RADIX_ARGS[@]}"} \
     ${SPEC_ARGS[@]+"${SPEC_ARGS[@]}"}
