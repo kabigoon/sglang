@@ -26,6 +26,9 @@ OUT_LEN=${OUT_LEN:-1024}          # 输出长度 1k
 CACHE_PCT=${CACHE_PCT:-50}        # 目标前缀命中率(%)
 MAX_SEQ=${MAX_SEQ:-131072}        # 服务端 max seq（launch 里 SGLANG_DSV4_GRAPH_MAX_SEQ）
 AUTO_FIT=${AUTO_FIT:-1}           # 1=输入+输出超过 MAX_SEQ 时自动收缩输入
+# 名义 token 数 ≠ 实际 token 数：gsp 用 generate_prompt 拼文本后再 tokenize，会涨 ~2.2%
+# （实测：名义 130048 → 实际 132973）。这里按系数反推，避免超上下文。
+TOKEN_OVERSHOOT=${TOKEN_OVERSHOOT:-1.03}
 
 NUM_PROMPTS=${NUM_PROMPTS:-32}    # 总请求数
 CONCURRENCY=${CONCURRENCY:-8}     # 并发
@@ -40,10 +43,22 @@ STRICT=${STRICT:-0}               # 1=SLO 不达标则退出码 3
 OUT_DIR=${OUT_DIR:-/home/dsv4_test/bench_out}
 
 # ---------------- 推导长度 ----------------
-if [ "$AUTO_FIT" = "1" ] && [ $((IN_LEN + OUT_LEN)) -gt "$MAX_SEQ" ]; then
-  NEW_IN=$((MAX_SEQ - OUT_LEN))
-  echo "[warn] IN_LEN($IN_LEN)+OUT_LEN($OUT_LEN) > MAX_SEQ($MAX_SEQ)，自动改为 IN_LEN=$NEW_IN"
-  IN_LEN=$NEW_IN
+# 模型自身声明的最大位置数（比 SGLANG_DSV4_GRAPH_MAX_SEQ 更权威）
+CFG_MAX=""
+if [ -f "$MODEL/config.json" ]; then
+  CFG_MAX=$(python3 -c "import json;c=json.load(open('$MODEL/config.json'));print(c.get('max_position_embeddings') or c.get('max_seq_len') or '')" 2>/dev/null)
+fi
+[ -n "$CFG_MAX" ] && echo "模型 config max_position_embeddings = $CFG_MAX"
+LIMIT_SEQ=$MAX_SEQ
+if [ -n "$CFG_MAX" ] && [ "$CFG_MAX" -lt "$LIMIT_SEQ" ] 2>/dev/null; then LIMIT_SEQ=$CFG_MAX; fi
+
+if [ "$AUTO_FIT" = "1" ]; then
+  # 名义输入上限 = (总上限 - 输出) / overshoot
+  MAX_IN=$(python3 -c "print(int(($LIMIT_SEQ - $OUT_LEN) / $TOKEN_OVERSHOOT))")
+  if [ "$IN_LEN" -gt "$MAX_IN" ]; then
+    echo "[warn] 名义 IN_LEN=$IN_LEN 按 overshoot=$TOKEN_OVERSHOOT 折算后为 $(python3 -c "print(int($IN_LEN*$TOKEN_OVERSHOOT))") > 上限 $LIMIT_SEQ，自动改为 $MAX_IN"
+    IN_LEN=$MAX_IN
+  fi
 fi
 SHARED=$((IN_LEN * CACHE_PCT / 100))
 QUESTION=$((IN_LEN - SHARED))
@@ -56,6 +71,7 @@ cat <<EOF
   endpoint      : http://$HOST:$PORT
   model         : $MODEL
   input         : $IN_LEN  = shared $SHARED ($CACHE_PCT%) + question $QUESTION
+  （实际 token 数约 ${IN_LEN}×${TOKEN_OVERSHOOT} ≈ $(python3 -c "print(int($IN_LEN*$TOKEN_OVERSHOOT))")，须 ≤ 上限）
   output        : $OUT_LEN
   prompts / 并发: $NUM_PROMPTS / $CONCURRENCY   (warmup=$WARMUP)
   SLO           : TTFT < ${SLO_TTFT_MS}ms, TPOT < ${SLO_TPOT_MS}ms  (按 $SLO_STAT 判定)
@@ -112,7 +128,11 @@ def g(name, default=None):
     return r.get(name, default)
 
 print("请求数            : %d" % len(g("output_lens") or []))
-print("输入长度 (mean/max): %.0f / %d" % (sum(g("input_lens") or [0]) / max(len(g("input_lens") or [1]), 1), max(g("input_lens") or [0])))
+srv_in = g("input_lens") or [0]
+srv_in_mean = sum(srv_in) / max(len(srv_in), 1)
+print("服务端上报输入长度 (mean/max): %.0f / %d   (期望约 %d)" % (srv_in_mean, max(srv_in), in_len))
+if srv_in_mean < in_len * 0.5:
+    print("  ⚠ 服务端看到的 prompt 远小于预期 → 请求很可能被拒/被截断，本轮数据不可用")
 print("输出长度 分布      : %s" % (sorted(set(g("output_lens") or []))[:8],))
 
 # 缓存
