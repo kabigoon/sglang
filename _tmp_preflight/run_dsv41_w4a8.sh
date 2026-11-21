@@ -35,6 +35,11 @@ ARCH_OVERRIDE=${ARCH_OVERRIDE:-DeepseekV4ForCausalLM}
 DRAFT_QUANT=${DRAFT_QUANT:-$QUANT}   # 130048 输入 + 1024 输出 = 131072，留余量
 PORT=${PORT:-5684}
 DP_SIZE=${DP_SIZE:-8}
+# 注意：开 DP attention 时 sglang 会把下面两个全局值除以 attn_dp_size！
+#   实际每 DP rank 的 chunked_prefill = CHUNKED_PREFILL / DP_SIZE
+# 想要每 rank 4096，就要写 32768（DP=8）。
+CHUNKED_PREFILL=${CHUNKED_PREFILL:-4096}
+MAX_RUNNING=${MAX_RUNNING:-16}
 
 case "$VARIANT" in
   w4a8) DEFAULT_W=/home/weights/DeepSeek-V4.1-Flash-1017-w4a8 ;;
@@ -54,6 +59,8 @@ echo "  DSpark 投机    : $([ "$DISABLE_SPEC" = "1" ] && echo 关闭 || echo �
 echo "  前缀缓存(radix): $([ "$RADIX_OFF" = "1" ] && echo 关闭 || echo 开启)"
 echo "  GRAPH_MAX_SEQ  : $GRAPH_MAX_SEQ"
 echo "  dp-size / tp   : $DP_SIZE / 16"
+echo "  chunked prefill: $CHUNKED_PREFILL (全局) -> $((CHUNKED_PREFILL / DP_SIZE)) 每 DP rank"
+echo "  max running    : $MAX_RUNNING (全局) -> $((MAX_RUNNING / DP_SIZE)) 每 DP rank"
 echo "=================================================="
 echo
 
@@ -185,8 +192,8 @@ python3 -m sglang.launch_server --model-path ${MODEL_PATH} \
     --watchdog-timeout 9000 \
     --host 0.0.0.0 --port ${PORT} \
     --mem-fraction-static 0.96 \
-    --max-running-requests 16 \
-    --chunked-prefill-size 4096 \
+    --max-running-requests ${MAX_RUNNING} \
+    --chunked-prefill-size ${CHUNKED_PREFILL} \
     --max-prefill-tokens 131072 \
     --kv-cache-dtype auto \
     --enable-dp-lm-head \
