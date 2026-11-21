@@ -71,7 +71,13 @@ git 通道是单向的，所以你只要**复制末尾 `===== 回传块 =====` �
 ```bash
 bash _tmp_preflight/fix_install_custom_ops.sh          # 会自己探测 torch/cann/arch
 bash _tmp_preflight/check_image.sh                     # 复验，期望 OPS_CUSTOM=13/13
+
+# 代理慢 / 换代理 / 环境里的代理不对时，显式指定（支持断点续传，可反复重跑）：
+PROXY=1.2.3.4:6688 bash _tmp_preflight/fix_install_custom_ops.sh
 ```
+
+下载行为：`curl -C -` 断点续传；低于 1 KB/s 持续 90 s 判定卡死并自动重试（`--retry 5`）；
+下完先比 **size** 再比 **sha256**，任一不符即中止（不会装进半截包或被代理替换的错误页）。
 
 - 无外网时：先把 `custom-ops-2026.11.0.post3-torch2.13.0-cann9.2.0-a3-aarch64.zip` 和
   同名 `ops-transformer-*.zip` 拷进机器，然后
@@ -90,6 +96,8 @@ source /usr/local/Ascend/ascend-toolkit/latest/opp/vendors/custom_transformer/bi
 
 两个包分别是 **70 MB**（custom-ops）和 **11 MB**（ops-transformer）。
 
+0. **代理慢就换**：`PROXY=<ip>:<port> bash _tmp_preflight/fix_install_custom_ops.sh`
+   （会同时设置 `http_proxy/https_proxy`，覆盖环境里的旧值；脚本会打印实际用的代理）。
 1. **先重跑 `fix_install_custom_ops.sh`**：新版会打印 `proxy=` / `工具:` /
    `github.com -> HTTP xxx` / `资产URL -> HTTP xxx redirects=n`，以及 curl、wget 各自的退出码。
 2. **看有没有现成的**：`bash _tmp_preflight/find_artifacts.sh`

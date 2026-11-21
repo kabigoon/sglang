@@ -12,6 +12,15 @@
 set -u
 
 PY=${PYTHON:-python3}
+
+# 可选：显式指定下载代理（覆盖环境里的 http_proxy/https_proxy）
+# 用法： PROXY=1.2.3.4:6688 bash _tmp_preflight/fix_install_custom_ops.sh
+PROXY=${PROXY:-}
+if [ -n "$PROXY" ]; then
+  case "$PROXY" in *://*) ;; *) PROXY="http://$PROXY" ;; esac
+  export http_proxy="$PROXY" https_proxy="$PROXY" HTTP_PROXY="$PROXY" HTTPS_PROXY="$PROXY"
+  echo "使用指定代理: $PROXY"
+fi
 TAG=${TAG:-2026.11.0.post3}
 DEVICE=${DEVICE:-a3}
 WORK=${WORK:-/tmp/custom_ops_install}
@@ -39,16 +48,18 @@ BASE="https://github.com/sgl-project/sgl-kernel-npu/releases/download/${TAG}"
 
 # 已知 good sha256（来自 GitHub release assets API 的 digest 字段，非本人计算）
 # 只对 torch2.13.0 + cann9.2.0 + a3 + aarch64 这一组有效
-SHA_CA=""; SHA_TR=""
+SHA_CA=""; SHA_TR=""; SIZE_CA=""; SIZE_TR=""
 if [ "$TORCH_VER" = "2.13.0" ] && [ "$CANN" = "9.2.0" ] && \
    [ "$DEVICE" = "a3" ] && [ "$ARCH" = "aarch64" ]; then
   case "$TAG" in
     2026.11.0.post1)
       SHA_CA=e10ca2daeb3a9fb48d97c329594a0f8c6299b79b917ad0ba3382e2782cb89196
-      SHA_TR=0f0e1a8cc6803b847e7759f50fa9789832ca6398baf44a835972dfe96ccd2dbb ;;
+      SHA_TR=0f0e1a8cc6803b847e7759f50fa9789832ca6398baf44a835972dfe96ccd2dbb
+      SIZE_CA=73645995; SIZE_TR=12044483 ;;
     2026.11.0.post3)
       SHA_CA=827d70c9b31f4baf1c3ad08bb5f1d7ef0719ce04abd2edf1d5f0f1eb685fe048
-      SHA_TR=b65172505dd9933501de421fbca5e9fa1b61bb6598c9cfb4eb3476fac15af85b ;;
+      SHA_TR=b65172505dd9933501de421fbca5e9fa1b61bb6598c9cfb4eb3476fac15af85b
+      SIZE_CA=73646297; SIZE_TR=12046381 ;;
   esac
 fi
 F_CA="custom-ops-${TAG}-torch${TORCH_VER}-cann${CANN}-${DEVICE}-${ARCH}.zip"
@@ -82,6 +93,15 @@ if [ "$SKIP_INSTALL" = "0" ]; then
     echo "  工具: curl=$(command -v curl || echo none) wget=$(command -v wget || echo none)"
 
     # 公司代理常做 SSL 拦截（自签 CA）。阶梯：默认CA -> 系统CA -> -k(带 sha256 兜底)
+    check_size() {  # $1=file $2=want
+      local f="$1" want="$2" got
+      if [ -z "$want" ]; then return 0; fi
+      got=$(stat -c %s "$f" 2>/dev/null || stat -f %z "$f" 2>/dev/null || echo 0)
+      echo "  size=$got (期望 $want)"
+      if [ "$got" = "$want" ]; then return 0; fi
+      echo "  FAIL 大小不符"; return 1
+    }
+
     check_sha() {  # $1=file $2=want
       local f="$1" want="$2" got
       if [ -z "$want" ]; then echo "  (无预期 sha256，跳过校验)"; return 0; fi
@@ -91,29 +111,40 @@ if [ "$SKIP_INSTALL" = "0" ]; then
       echo "  FAIL 校验失败（期望 $want）"; return 1
     }
 
-    fetch() {  # $1=url $2=out
-      local url="$1" out="$2" rc=0
-      rm -f "$out"
+    fetch() {  # $1=url $2=out [$3=expected_size]
+      local url="$1" out="$2" want="${3:-}" rc=0
+      # 已有文件若比期望大，说明上次下的是错误页，丢弃
+      if [ -f "$out" ] && [ -n "$want" ]; then
+        local cur
+        cur=$(stat -c %s "$out" 2>/dev/null || stat -f %z "$out" 2>/dev/null || echo 0)
+        if [ "$cur" -gt "$want" ]; then echo "  已有 $out 比期望大，丢弃"; rm -f "$out"; fi
+        if [ "$cur" -gt 0 ] && [ "$cur" -le "$want" ]; then echo "  检测到已有 $out（$cur B），尝试续传"; fi
+      fi
       if command -v curl >/dev/null 2>&1; then
-        echo "  [1/4] curl 默认 CA"
-        curl -fL --retry 3 --retry-delay 2 -o "$out" "$url" && { echo "        OK"; return 0; }
+        echo "  [1/4] curl 默认 CA（支持续传；<1KB/s 持续 90s 视为卡死并重试）"
+        curl -fL --retry 5 --retry-delay 3 -C - --connect-timeout 20 \
+             --speed-limit 1024 --speed-time 90 -o "$out" "$url" \
+          && { echo "        OK"; return 0; }
         rc=$?; echo "        失败 退出码=$rc"
         if [ -f /etc/ssl/certs/ca-certificates.crt ]; then
           echo "  [2/4] curl --cacert 系统 CA"
-          curl -fL --retry 3 --retry-delay 2 --cacert /etc/ssl/certs/ca-certificates.crt \
-            -o "$out" "$url" && { echo "        OK"; return 0; }
+          curl -fL --retry 5 --retry-delay 3 -C - --connect-timeout 20 \
+               --speed-limit 1024 --speed-time 90 \
+               --cacert /etc/ssl/certs/ca-certificates.crt -o "$out" "$url" \
+            && { echo "        OK"; return 0; }
           echo "        失败 退出码=$?"
         fi
         if [ "$rc" = "60" ] || [ "$rc" = "35" ]; then
           echo "  [3/4] curl -k（跳过证书校验，随后用 sha256 验证）"
-          curl -fL --retry 3 --retry-delay 2 -k -o "$out" "$url" \
+          curl -fL --retry 5 --retry-delay 3 -C - --connect-timeout 20 \
+               --speed-limit 1024 --speed-time 90 -k -o "$out" "$url" \
             && { echo "        OK（注意：本次跳过了证书校验）"; INSECURE=1; return 0; }
           echo "        失败 退出码=$?"
         fi
       fi
       if command -v wget >/dev/null 2>&1; then
         echo "  [4/4] wget --no-check-certificate"
-        wget -c --no-check-certificate -O "$out" "$url" \
+        wget -c --no-check-certificate --timeout=30 --tries=5 -O "$out" "$url" \
           && { echo "        OK（注意：本次跳过了证书校验）"; INSECURE=1; return 0; }
         echo "        失败 退出码=$?"
       fi
@@ -122,13 +153,15 @@ if [ "$SKIP_INSTALL" = "0" ]; then
 
     INSECURE=0
     echo "下载 $F_CA"
-    fetch "$BASE/$F_CA" custom-ops.zip || { echo "FAIL: 下载 custom-ops 失败"; exit 1; }
+    fetch "$BASE/$F_CA" custom-ops.zip "${SIZE_CA:-}" || { echo "FAIL: 下载 custom-ops 失败"; exit 1; }
     ls -l custom-ops.zip
-    check_sha custom-ops.zip "${SHA_CA:-}" || exit 1
+    check_size custom-ops.zip "${SIZE_CA:-}" || exit 1
+    check_sha  custom-ops.zip "${SHA_CA:-}"  || exit 1
     echo "下载 $F_TR"
-    fetch "$BASE/$F_TR" ops-transformer.zip || { echo "FAIL: 下载 ops-transformer 失败"; exit 1; }
+    fetch "$BASE/$F_TR" ops-transformer.zip "${SIZE_TR:-}" || { echo "FAIL: 下载 ops-transformer 失败"; exit 1; }
     ls -l ops-transformer.zip
-    check_sha ops-transformer.zip "${SHA_TR:-}" || exit 1
+    check_size ops-transformer.zip "${SIZE_TR:-}" || exit 1
+    check_sha  ops-transformer.zip "${SHA_TR:-}" || exit 1
     [ "$INSECURE" = "1" ] && echo "  提示：本次因代理 SSL 拦截走了不安全通道，但 sha256 已校验通过。"
   fi
 
