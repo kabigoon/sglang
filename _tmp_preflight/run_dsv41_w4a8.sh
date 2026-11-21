@@ -34,6 +34,7 @@ OVERRIDE_STYLE=${OVERRIDE_STYLE:-legacy}
 ARCH_OVERRIDE=${ARCH_OVERRIDE:-DeepseekV4ForCausalLM}
 DRAFT_QUANT=${DRAFT_QUANT:-$QUANT}   # 130048 输入 + 1024 输出 = 131072，留余量
 PORT=${PORT:-5684}
+TP_SIZE=${TP_SIZE:-16}
 DP_SIZE=${DP_SIZE:-8}
 # 注意：开 DP attention 时 sglang 会把下面两个全局值除以 attn_dp_size！
 #   实际每 DP rank 的 chunked_prefill = CHUNKED_PREFILL / DP_SIZE
@@ -58,7 +59,9 @@ echo "  draft quant    : ${DRAFT_QUANT}"
 echo "  DSpark 投机    : $([ "$DISABLE_SPEC" = "1" ] && echo 关闭 || echo 开启)"
 echo "  前缀缓存(radix): $([ "$RADIX_OFF" = "1" ] && echo 关闭 || echo 开启)"
 echo "  GRAPH_MAX_SEQ  : $GRAPH_MAX_SEQ"
-echo "  dp-size / tp   : $DP_SIZE / 16"
+ATTN_TP=$((TP_SIZE / DP_SIZE))
+echo "  tp-size / dp   : $TP_SIZE / $DP_SIZE  ⇒ 每 DP 组内 attn_tp = $ATTN_TP"
+[ "$ATTN_TP" -eq 1 ] && echo "  [提醒] attn_tp=1：单请求的 attention 只由 1 个 die 算，单请求延迟通常更差（吞吐更好）"
 echo "  chunked prefill: $CHUNKED_PREFILL (全局) -> $((CHUNKED_PREFILL / DP_SIZE)) 每 DP rank"
 echo "  max running    : $MAX_RUNNING (全局) -> $((MAX_RUNNING / DP_SIZE)) 每 DP rank"
 echo "=================================================="
@@ -185,7 +188,7 @@ echo "[4/4] 启动 server（下面就是 python 原生命令，参数逐一列�
 python3 -m sglang.launch_server --model-path ${MODEL_PATH} \
     ${QUANT_ARGS[@]+"${QUANT_ARGS[@]}"} \
     --page-size 128 \
-    --tp-size 16 \
+    --tp-size ${TP_SIZE} \
     --trust-remote-code \
     --attention-backend dsv4 \
     --device npu \
