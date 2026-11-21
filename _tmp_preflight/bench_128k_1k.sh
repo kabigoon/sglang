@@ -29,6 +29,9 @@ AUTO_FIT=${AUTO_FIT:-1}           # 1=输入+输出超过 MAX_SEQ 时自动收�
 # 名义 token 数 ≠ 实际 token 数：gsp 用 generate_prompt 拼文本后再 tokenize，会涨 ~2.2%
 # （实测：名义 130048 → 实际 132973）。这里按系数反推，避免超上下文。
 TOKEN_OVERSHOOT=${TOKEN_OVERSHOOT:-1.03}
+# 服务端单请求输入上限。0=不检查。
+# 从启动日志 "max_total_num_tokens=..." 读，或从报错 "maximum allowed length (N tokens)" 读。
+SERVER_MAX_IN=${SERVER_MAX_IN:-0}
 
 NUM_PROMPTS=${NUM_PROMPTS:-32}    # 总请求数
 CONCURRENCY=${CONCURRENCY:-8}     # 并发
@@ -71,13 +74,32 @@ cat <<EOF
   endpoint      : http://$HOST:$PORT
   model         : $MODEL
   input         : $IN_LEN  = shared $SHARED ($CACHE_PCT%) + question $QUESTION
-  （实际 token 数约 ${IN_LEN}×${TOKEN_OVERSHOOT} ≈ $(python3 -c "print(int($IN_LEN*$TOKEN_OVERSHOOT))")，须 ≤ 上限）
+  （实际 token 数约 ${IN_LEN}×${TOKEN_OVERSHOOT} ≈ ${ACTUAL_IN}，须 ≤ 服务端上限 ${SERVER_MAX_IN:-未知}）
   output        : $OUT_LEN
   prompts / 并发: $NUM_PROMPTS / $CONCURRENCY   (warmup=$WARMUP)
   SLO           : TTFT < ${SLO_TTFT_MS}ms, TPOT < ${SLO_TPOT_MS}ms  (按 $SLO_STAT 判定)
   结果          : ${STEM}.jsonl
   日志          : ${STEM}.log
 EOF
+
+# 实际 token 数预估 + 服务端上限校验（超了就别浪费一轮）
+ACTUAL_IN=$(python3 -c "print(int($IN_LEN * $TOKEN_OVERSHOOT))")
+if [ "$SERVER_MAX_IN" -gt 0 ] 2>/dev/null; then
+  if [ $((ACTUAL_IN + OUT_LEN)) -gt "$SERVER_MAX_IN" ]; then
+    cat <<MSG
+
+[ABORT] 实际输入约 $ACTUAL_IN + 输出 $OUT_LEN 超过服务端单请求上限 $SERVER_MAX_IN
+        服务端会直接拒绝，压测数据无效（现象：只返回 1 个 token、命中率 0%）。
+        修法（任选，按性价比）：
+          1) 降 --dp-size（8 → 2 或 1），让每个 rank 分到更多 KV
+          2) 提 --mem-fraction-static（0.96 → 0.97/0.98，注意 OOM）
+          3) 减少 DSpark draft 的 KV 占用
+        不要开 --allow-auto-truncate：它会把 130K 截成 46K，测的就不是 128K 了。
+
+MSG
+    exit 2
+  fi
+fi
 
 # ---------------- 前置 ----------------
 echo
