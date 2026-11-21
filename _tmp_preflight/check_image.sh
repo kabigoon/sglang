@@ -134,6 +134,10 @@ elif rope_ok:
 else:
     res["VERDICT"] = "UNKNOWN"
 
+# 理想镜像 = 老代算子齐(13/13) 且 新代 Python API 也在（PR 里 backend 会 import 它）
+_need = ["OPERATORS_ROPE", "OPERATORS_ATTENTION", "OPERATORS_INDEXER", "OPERATORS_MEM_CACHE"]
+res["IDEAL"] = "YES" if (custom_ok and full and all(res.get(k) == "OK" for k in _need)) else "NO"
+
 with open(verdict_path, "w") as fh:
     for k, v in res.items():
         fh.write("%s=%s\n" % (k, v))
@@ -142,7 +146,7 @@ PY
 echo
 echo "===== 回传块（复制下面这几行）====="
 if [ -f "$VERDICT" ]; then
-  grep -E '^(CUSTOM_OPS_PKG|CUSTOM_OPS_IMPORT|TORCH|TORCH_NPU|OPS_CUSTOM|OPS_CUSTOM_MISSING|OPS_NPU|OPERATORS_ROPE|OPERATORS_ATTENTION|VERDICT)=' "$VERDICT"
+  grep -E '^(CUSTOM_OPS_PKG|CUSTOM_OPS_IMPORT|TORCH|TORCH_NPU|OPS_CUSTOM|OPS_CUSTOM_MISSING|OPS_NPU|OPERATORS_ROPE|OPERATORS_ATTENTION|OPERATORS_INDEXER|OPERATORS_MEM_CACHE|VERDICT|IDEAL)=' "$VERDICT"
   echo "SGL_KERNEL_NPU=$("$PY" -m pip show sgl-kernel-npu 2>/dev/null | awk '/^Version:/ {print $2}')"
   echo "LOG=$LOG"
 else
