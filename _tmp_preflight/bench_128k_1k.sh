@@ -36,6 +36,10 @@ SERVER_MAX_IN=${SERVER_MAX_IN:-0}
 NUM_PROMPTS=${NUM_PROMPTS:-32}    # 总请求数
 CONCURRENCY=${CONCURRENCY:-8}     # 并发
 WARMUP=${WARMUP:-4}               # 预热请求数（让共享前缀入 cache）
+# ⚠ 开了 --enable-dp-attention 时，前缀缓存是按 DP rank 分区的！
+#   warmup 只覆盖 WARMUP 个 rank，实测请求落到没预热过的 rank 上就是 0% 命中。
+#   所以 WARMUP 至少要 >= DP_SIZE。
+DP_SIZE=${DP_SIZE:-8}
 SEED=${SEED:-42}
 
 SLO_TTFT_MS=${SLO_TTFT_MS:-30000}
@@ -69,6 +73,12 @@ QUESTION=$((IN_LEN - SHARED))
 mkdir -p "$OUT_DIR"
 STEM="$OUT_DIR/v41_128k_1k_cache${CACHE_PCT}_c${CONCURRENCY}_n${NUM_PROMPTS}_$(date +%Y%m%d_%H%M%S)"
 
+if [ "$WARMUP" -lt "$DP_SIZE" ] && [ "$WARMUP" -gt 0 ]; then
+  echo "[warn] WARMUP=$WARMUP < DP_SIZE=$DP_SIZE：前缀缓存按 DP rank 分区，"
+  echo "       warmup 只覆盖 $WARMUP 个 rank，实测请求若落到其它 rank 会 0% 命中。"
+  echo "       建议 WARMUP>=$DP_SIZE（例如 WARMUP=$DP_SIZE）。"
+fi
+
 cat <<EOF
 ===== [0] 本次压测口径 =====
   endpoint      : http://$HOST:$PORT
@@ -76,7 +86,7 @@ cat <<EOF
   input         : $IN_LEN  = shared $SHARED ($CACHE_PCT%) + question $QUESTION
   （实际 token 数约 ${IN_LEN}×${TOKEN_OVERSHOOT} ≈ ${ACTUAL_IN}，须 ≤ 服务端上限 ${SERVER_MAX_IN:-未知}）
   output        : $OUT_LEN
-  prompts / 并发: $NUM_PROMPTS / $CONCURRENCY   (warmup=$WARMUP)
+  prompts / 并发: $NUM_PROMPTS / $CONCURRENCY   (warmup=$WARMUP, dp_size=$DP_SIZE)
   SLO           : TTFT < ${SLO_TTFT_MS}ms, TPOT < ${SLO_TPOT_MS}ms  (按 $SLO_STAT 判定)
   结果          : ${STEM}.jsonl
   日志          : ${STEM}.log
