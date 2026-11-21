@@ -84,9 +84,15 @@ if [ "$SKIP_INSTALL" = "0" ]; then
   echo "===== [1] 取包 ====="
   mkdir -p "$WORK" && cd "$WORK" || exit 1
   if [ -n "$LOCAL_DIR" ]; then
-    cp -f "$LOCAL_DIR"/custom-ops-*.zip "$WORK"/custom-ops.zip && \
-    cp -f "$LOCAL_DIR"/ops-transformer-*.zip "$WORK"/ops-transformer.zip && \
-      echo "从 LOCAL_DIR 复制完成"
+    f1=$(ls -1 "$LOCAL_DIR"/custom-ops* 2>/dev/null | head -1)
+    f2=$(ls -1 "$LOCAL_DIR"/ops-transformer* 2>/dev/null | head -1)
+    if [ -z "$f1" ] || [ -z "$f2" ]; then
+      echo "FAIL: $LOCAL_DIR 里没同时找到 custom-ops* 和 ops-transformer*"
+      ls -l "$LOCAL_DIR" 2>/dev/null
+      exit 1
+    fi
+    cp -f "$f1" custom-ops.zip && cp -f "$f2" ops-transformer.zip \
+      && echo "已从 LOCAL_DIR 复制：" && echo "  $f1" && echo "  $f2"
   else
     echo "-- 网络自检 --"
     echo "  proxy: $(env | grep -i proxy | tr '\n' ' ' || true)"
