@@ -32,4 +32,4 @@ docker run --rm -v "$REPO":/repo:ro $E_OPT --entrypoint bash "$IMG" \
 RC=$?
 
 echo
-echo "（退出码 $RC；如果这里报 image not found，先 docker images | grep -i npu 确认 tag）"
+echo "（退出码 ${RC}；如果这里报 image not found，先 docker images | grep -i npu 确认 tag）"

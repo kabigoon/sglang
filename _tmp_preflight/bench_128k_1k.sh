@@ -40,6 +40,8 @@ WARMUP=${WARMUP:-4}               # 预热请求数（让共享前缀入 cache�
 #   warmup 只覆盖 WARMUP 个 rank，实测请求落到没预热过的 rank 上就是 0% 命中。
 #   所以 WARMUP 至少要 >= DP_SIZE。
 DP_SIZE=${DP_SIZE:-8}
+# 1 = 跳过 flush_cache（阶梯测试时复用已预热的前缀缓存，省掉重复 warmup）
+SKIP_FLUSH=${SKIP_FLUSH:-0}
 SEED=${SEED:-42}
 
 SLO_TTFT_MS=${SLO_TTFT_MS:-30000}
@@ -63,7 +65,7 @@ if [ "$AUTO_FIT" = "1" ]; then
   # 名义输入上限 = (总上限 - 输出) / overshoot
   MAX_IN=$(python3 -c "print(int(($LIMIT_SEQ - $OUT_LEN) / $TOKEN_OVERSHOOT))")
   if [ "$IN_LEN" -gt "$MAX_IN" ]; then
-    echo "[warn] 名义 IN_LEN=$IN_LEN 按 overshoot=$TOKEN_OVERSHOOT 折算后为 $(python3 -c "print(int($IN_LEN*$TOKEN_OVERSHOOT))") > 上限 $LIMIT_SEQ，自动改为 $MAX_IN"
+    echo "[warn] 名义 IN_LEN=$IN_LEN 按 overshoot=$TOKEN_OVERSHOOT 折算后为 $(python3 -c "print(int($IN_LEN*$TOKEN_OVERSHOOT))") > 上限 ${LIMIT_SEQ}，自动改为 $MAX_IN"
     IN_LEN=$MAX_IN
   fi
 fi
@@ -74,9 +76,9 @@ mkdir -p "$OUT_DIR"
 STEM="$OUT_DIR/v41_128k_1k_cache${CACHE_PCT}_c${CONCURRENCY}_n${NUM_PROMPTS}_$(date +%Y%m%d_%H%M%S)"
 
 if [ "$WARMUP" -lt "$DP_SIZE" ] && [ "$WARMUP" -gt 0 ]; then
-  echo "[warn] WARMUP=$WARMUP < DP_SIZE=$DP_SIZE：前缀缓存按 DP rank 分区，"
+  echo "[warn] WARMUP=$WARMUP < DP_SIZE=${DP_SIZE}：前缀缓存按 DP rank 分区，"
   echo "       warmup 只覆盖 $WARMUP 个 rank，实测请求若落到其它 rank 会 0% 命中。"
-  echo "       建议 WARMUP>=$DP_SIZE（例如 WARMUP=$DP_SIZE）。"
+  echo "       建议 WARMUP>=${DP_SIZE}（例如 WARMUP=${DP_SIZE}）。"
 fi
 
 cat <<EOF
@@ -117,8 +119,12 @@ echo "===== [1] 清缓存 + 健康检查 ====="
 curl --noproxy '*' -fsS --connect-timeout 10 --max-time 30 "http://$HOST:$PORT/v1/models" >/dev/null \
   || { echo "服务不可达：http://$HOST:$PORT/v1/models"; exit 1; }
 echo "  /v1/models OK"
-curl --noproxy '*' -fsS --connect-timeout 10 --max-time 120 -X POST "http://$HOST:$PORT/flush_cache?timeout=60" \
-  && echo "  flush_cache OK" || echo "  [!] flush_cache 失败（继续；但命中率可能被上一次残留污染）"
+if [ "$SKIP_FLUSH" = "1" ]; then
+  echo "  SKIP_FLUSH=1，跳过 flush（复用已有前缀缓存）"
+else
+  curl --noproxy '*' -fsS --connect-timeout 10 --max-time 120 -X POST "http://$HOST:$PORT/flush_cache?timeout=60" \
+    && echo "  flush_cache OK" || echo "  [!] flush_cache 失败（继续；但命中率可能被上一次残留污染）"
+fi
 
 # ---------------- 压测 ----------------
 echo
@@ -242,5 +248,5 @@ RC=$?
 echo
 echo "结果文件: ${STEM}.jsonl"
 echo "日志文件: ${STEM}.log"
-echo "（退出码 $RC：0=完整性通过；1=完整性失败；3=SLO 未达标且 STRICT=1）"
+echo "（退出码 ${RC}：0=完整性通过；1=完整性失败；3=SLO 未达标且 STRICT=1）"
 exit $RC
