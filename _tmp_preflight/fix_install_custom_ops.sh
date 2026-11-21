@@ -37,12 +37,19 @@ OPP=/usr/local/Ascend/cann-${CANN}/opp
 
 BASE="https://github.com/sgl-project/sgl-kernel-npu/releases/download/${TAG}"
 
-# 已知 good sha256（仅对 post3 + torch2.13.0 + cann9.2.0 + a3 + aarch64 这一组）
+# 已知 good sha256（来自 GitHub release assets API 的 digest 字段，非本人计算）
+# 只对 torch2.13.0 + cann9.2.0 + a3 + aarch64 这一组有效
 SHA_CA=""; SHA_TR=""
-if [ "$TAG" = "2026.11.0.post3" ] && [ "$TORCH_VER" = "2.13.0" ] && \
-   [ "$CANN" = "9.2.0" ] && [ "$DEVICE" = "a3" ] && [ "$ARCH" = "aarch64" ]; then
-  SHA_CA=827d70c9b31f4baf1c3ad08bb5f1d7ef0719ce04abd2edf1d5f0f1eb685fe048
-  SHA_TR=b65172505dd9933501de421fbca5e9fa1b61bb6598c9cfb4eb3476fac15af85b
+if [ "$TORCH_VER" = "2.13.0" ] && [ "$CANN" = "9.2.0" ] && \
+   [ "$DEVICE" = "a3" ] && [ "$ARCH" = "aarch64" ]; then
+  case "$TAG" in
+    2026.11.0.post1)
+      SHA_CA=e10ca2daeb3a9fb48d97c329594a0f8c6299b79b917ad0ba3382e2782cb89196
+      SHA_TR=0f0e1a8cc6803b847e7759f50fa9789832ca6398baf44a835972dfe96ccd2dbb ;;
+    2026.11.0.post3)
+      SHA_CA=827d70c9b31f4baf1c3ad08bb5f1d7ef0719ce04abd2edf1d5f0f1eb685fe048
+      SHA_TR=b65172505dd9933501de421fbca5e9fa1b61bb6598c9cfb4eb3476fac15af85b ;;
+  esac
 fi
 F_CA="custom-ops-${TAG}-torch${TORCH_VER}-cann${CANN}-${DEVICE}-${ARCH}.zip"
 F_TR="ops-transformer-${TAG}-torch${TORCH_VER}-cann${CANN}-${DEVICE}-${ARCH}.zip"

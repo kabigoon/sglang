@@ -104,14 +104,43 @@ source /usr/local/Ascend/ascend-toolkit/latest/opp/vendors/custom_transformer/bi
 | curl 退出码 `60` / `wget` 报 `Self-signed certificate` | **公司代理在做 SSL 拦截**（如华为 `Huawei Web Secure Internet Gateway CA`）。脚本会自动走四级阶梯：默认CA → `--cacert 系统CA` → `curl -k` → `wget --no-check-certificate`，并在最后用 **sha256** 校验，所以 `-k` 也不会装进被篡改的包 |
 | `HTTP 200` 但下载中断 | 带宽/超时，脚本已带 `--retry 5`，可重跑（wget 分支支持 `-c` 续传） |
 
-### 已知 good 校验和（post3 / torch2.13.0 / cann9.2.0 / a3 / aarch64）
+### 这两个包从哪来、凭什么可信
 
-```
-827d70c9b31f4baf1c3ad08bb5f1d7ef0719ce04abd2edf1d5f0f1eb685fe048  custom-ops-2026.11.0.post3-torch2.13.0-cann9.2.0-a3-aarch64.zip  (73646297 B)
-b65172505dd9933501de421fbca5e9fa1b61bb6598c9cfb4eb3476fac15af85b  ops-transformer-2026.11.0.post3-torch2.13.0-cann9.2.0-a3-aarch64.zip  (12046381 B)
+出处链（每一步都可复核）：
+
+1. **配方来自 PR 自己**：`pr-50205` 的 `docker/npu.Dockerfile` 里就写着
+   `custom-ops-${TAG}-*.zip` / `ops-transformer-${TAG}-*.zip` 的下载 URL、两个 `.run` 的安装命令、
+   以及 `pip install custom_ops-1.0-*.whl`。脚本只是照做，并把它参数化。
+2. **tag 边界来自 release 列表**：`post1`–`post3` 有这两个包，`post4` 起消失（`post3` 是最后一个）。
+3. **文件名来自机器的真实环境**：`torch 2.13.0` + `cann 9.2.0` + `a3` + `aarch64`。
+
+校验和取自 **GitHub release assets API 的 `digest` 字段**（即 GitHub 自己存的哈希，不是我下载后算的）：
+
+| tag | 文件 | 大小 | 上传者 | sha256 |
+|---|---|---|---|---|
+| post1 | `custom-ops-...post1-torch2.13.0-cann9.2.0-a3-aarch64.zip` | 73645995 | github-actions[bot] | `e10ca2daeb3a9fb48d97c329594a0f8c6299b79b917ad0ba3382e2782cb89196` |
+| post1 | `ops-transformer-...post1-...zip` | 12044483 | github-actions[bot] | `0f0e1a8cc6803b847e7759f50fa9789832ca6398baf44a835972dfe96ccd2dbb` |
+| post3 | `custom-ops-...post3-torch2.13.0-cann9.2.0-a3-aarch64.zip` | 73646297 | github-actions[bot] | `827d70c9b31f4baf1c3ad08bb5f1d7ef0719ce04abd2edf1d5f0f1eb685fe048` |
+| post3 | `ops-transformer-...post3-...zip` | 12046381 | github-actions[bot] | `b65172505dd9933501de421fbca5e9fa1b61bb6598c9cfb4eb3476fac15af85b` |
+
+自己复核：
+
+```bash
+sha256sum custom-ops-*.zip ops-transformer-*.zip        # 与上表比
+# 或者直接问 GitHub（不依赖本地文件）
+curl -s https://api.github.com/repos/sgl-project/sgl-kernel-npu/releases/tags/2026.11.0.post3 \
+  | python3 -c "import json,sys;[print(a['name'],a['digest']) for a in json.load(sys.stdin)['assets'] if 'a3-aarch64' in a['name'] and ('custom-ops' in a['name'] or 'ops-transformer' in a['name'])]"
 ```
 
-手动校验：`sha256sum <file>` 对比上面两行。**校验不过就别装**——可能是代理返回了错误页。
+### 诚实的边界（这套组合不是什么）
+
+- **`post3` 不是 PR 作者钉的版本**：PR 的 Dockerfile 钉的是 `post1`。我选 `post3` 的理由是
+  "最后一个仍发布 custom-ops 的版本"，同 ABI、更晚发、含修复；这是我的判断，不是官方声明。
+  想最大程度贴近 PR → `TAG=2026.11.0.post1 bash _tmp_preflight/fix_install_custom_ops.sh`（sha 已内置）。
+- **这是"混搭"**：你镜像里的 `sgl_kernel_npu` 是 `post4`，而 `custom_ops` 是 `post3`。
+  官方测试矩阵里没有这一格。若起服务时报算子参数/schema 不符，根因就是它 ——
+  那时要么整包降到 `post3`，要么把 `#50203` 移植到 PR 代码上。
+- **`-k` 是被迫的**：因为代理拦了证书；但配合上面的 sha256 固定，装进去的字节与 GitHub 官方一致。
 
 ## 注意
 
