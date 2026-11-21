@@ -21,6 +21,7 @@ PR 分支的代码还在用老一代算子注册方式（`torch.ops.custom.*`，
 | `check_import.sh` | 用本仓库代码干跑 import（抓 H15：跑的不是这份代码 / 缺 python 依赖） | ~30-60 s | 否 |
 | `fix_install_custom_ops.sh` | 给**新代镜像**补装 post3 的 `custom-ops` / `ops-transformer`（只在 `VERDICT=NEW_GEN_MISMATCH` 时用） | 1-3 min | 否 |
 | `find_artifacts.sh` | 无外网时在本机翻找现成的 zip / wheel / vendor 目录 | ~1 min | 否 |
+| `check_any_image.sh` | 从宿主机一条命令检查任意镜像（内部就是 `docker run ... check_image.sh`） | ~15 s | 否 |
 
 ## 怎么跑
 
@@ -29,6 +30,12 @@ PR 分支的代码还在用老一代算子注册方式（`torch.ops.custom.*`，
 ```bash
 cd /home/a00821909/sglang
 bash _tmp_preflight/check_image.sh
+```
+
+**或者：直接在宿主机上检查某个镜像**（不用先进容器）
+
+```bash
+bash _tmp_preflight/check_any_image.sh <镜像名或ID>
 ```
 
 **或者：从宿主机直接丢进容器跑**（仓库按只读挂到 `/repo`）
