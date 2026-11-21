@@ -36,6 +36,14 @@ OPP=/usr/local/Ascend/cann-${CANN}/opp
 [ -d "$OPP" ] || OPP=/usr/local/Ascend/ascend-toolkit/latest/opp
 
 BASE="https://github.com/sgl-project/sgl-kernel-npu/releases/download/${TAG}"
+
+# 已知 good sha256（仅对 post3 + torch2.13.0 + cann9.2.0 + a3 + aarch64 这一组）
+SHA_CA=""; SHA_TR=""
+if [ "$TAG" = "2026.11.0.post3" ] && [ "$TORCH_VER" = "2.13.0" ] && \
+   [ "$CANN" = "9.2.0" ] && [ "$DEVICE" = "a3" ] && [ "$ARCH" = "aarch64" ]; then
+  SHA_CA=827d70c9b31f4baf1c3ad08bb5f1d7ef0719ce04abd2edf1d5f0f1eb685fe048
+  SHA_TR=b65172505dd9933501de421fbca5e9fa1b61bb6598c9cfb4eb3476fac15af85b
+fi
 F_CA="custom-ops-${TAG}-torch${TORCH_VER}-cann${CANN}-${DEVICE}-${ARCH}.zip"
 F_TR="ops-transformer-${TAG}-torch${TORCH_VER}-cann${CANN}-${DEVICE}-${ARCH}.zip"
 
@@ -62,38 +70,59 @@ if [ "$SKIP_INSTALL" = "0" ]; then
     cp -f "$LOCAL_DIR"/ops-transformer-*.zip "$WORK"/ops-transformer.zip && \
       echo "从 LOCAL_DIR 复制完成"
   else
-    echo "-- 网络自检（失败时会打印真实错误）--"
+    echo "-- 网络自检 --"
     echo "  proxy: $(env | grep -i proxy | tr '\n' ' ' || true)"
     echo "  工具: curl=$(command -v curl || echo none) wget=$(command -v wget || echo none)"
-    if command -v curl >/dev/null 2>&1; then
-      echo -n "  github.com -> "
-      curl -sS -m 20 -o /dev/null -w 'HTTP %{http_code} in %{time_total}s\n' https://github.com || echo "  (连不上 github.com)"
-      echo -n "  资产URL    -> "
-      curl -sSIL -m 40 -o /dev/null -w 'HTTP %{http_code} redirects=%{num_redirects}\n' "$BASE/$F_CA" || echo "  (资产 URL 连不上)"
-    fi
 
-    fetch() {  # $1=url $2=out ；curl 失败自动回退 wget（反之亦然）
+    # 公司代理常做 SSL 拦截（自签 CA）。阶梯：默认CA -> 系统CA -> -k(带 sha256 兜底)
+    check_sha() {  # $1=file $2=want
+      local f="$1" want="$2" got
+      if [ -z "$want" ]; then echo "  (无预期 sha256，跳过校验)"; return 0; fi
+      got=$( { command -v sha256sum >/dev/null 2>&1 && sha256sum "$f" || shasum -a 256 "$f"; } 2>/dev/null | awk '{print $1}' )
+      echo "  sha256=$got"
+      if [ "$got" = "$want" ]; then echo "  OK 校验通过"; return 0; fi
+      echo "  FAIL 校验失败（期望 $want）"; return 1
+    }
+
+    fetch() {  # $1=url $2=out
       local url="$1" out="$2" rc=0
+      rm -f "$out"
       if command -v curl >/dev/null 2>&1; then
-        echo "  curl -fL --retry 5 -o $out"
-        curl -fL --retry 5 --retry-delay 3 -o "$out" "$url" && return 0
-        rc=$?; echo "  curl 退出码=$rc，改用 wget 再试"
+        echo "  [1/4] curl 默认 CA"
+        curl -fL --retry 3 --retry-delay 2 -o "$out" "$url" && { echo "        OK"; return 0; }
+        rc=$?; echo "        失败 退出码=$rc"
+        if [ -f /etc/ssl/certs/ca-certificates.crt ]; then
+          echo "  [2/4] curl --cacert 系统 CA"
+          curl -fL --retry 3 --retry-delay 2 --cacert /etc/ssl/certs/ca-certificates.crt \
+            -o "$out" "$url" && { echo "        OK"; return 0; }
+          echo "        失败 退出码=$?"
+        fi
+        if [ "$rc" = "60" ] || [ "$rc" = "35" ]; then
+          echo "  [3/4] curl -k（跳过证书校验，随后用 sha256 验证）"
+          curl -fL --retry 3 --retry-delay 2 -k -o "$out" "$url" \
+            && { echo "        OK（注意：本次跳过了证书校验）"; INSECURE=1; return 0; }
+          echo "        失败 退出码=$?"
+        fi
       fi
       if command -v wget >/dev/null 2>&1; then
-        echo "  wget -c -O $out （去掉 -q，让错误可见）"
-        wget -c -O "$out" "$url" && return 0
-        rc=$?; echo "  wget 退出码=$rc"
+        echo "  [4/4] wget --no-check-certificate"
+        wget -c --no-check-certificate -O "$out" "$url" \
+          && { echo "        OK（注意：本次跳过了证书校验）"; INSECURE=1; return 0; }
+        echo "        失败 退出码=$?"
       fi
-      echo "  两种工具都失败。常见原因：企业网需代理(export https_proxy=...)、"
-      echo "  objects.githubusercontent.com 被挡、或磁盘满。无外网请走 LOCAL_DIR= 或本机翻找。"
       return 1
     }
+
+    INSECURE=0
     echo "下载 $F_CA"
     fetch "$BASE/$F_CA" custom-ops.zip || { echo "FAIL: 下载 custom-ops 失败"; exit 1; }
     ls -l custom-ops.zip
+    check_sha custom-ops.zip "${SHA_CA:-}" || exit 1
     echo "下载 $F_TR"
     fetch "$BASE/$F_TR" ops-transformer.zip || { echo "FAIL: 下载 ops-transformer 失败"; exit 1; }
     ls -l ops-transformer.zip
+    check_sha ops-transformer.zip "${SHA_TR:-}" || exit 1
+    [ "$INSECURE" = "1" ] && echo "  提示：本次因代理 SSL 拦截走了不安全通道，但 sha256 已校验通过。"
   fi
 
   echo

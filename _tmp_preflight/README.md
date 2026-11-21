@@ -94,8 +94,17 @@ source /usr/local/Ascend/ascend-toolkit/latest/opp/vendors/custom_transformer/bi
 |---|---|
 | `HTTP 000` / `timed out` | 出不去，需要 `export https_proxy=...` |
 | `HTTP 302` 之后再卡住 | `objects.githubusercontent.com` 被挡（企业网常见；git 能通不代表 release 能下） |
-| curl 退出码 `60` | 证书问题（`-k` 或更新 ca-certificates） |
+| curl 退出码 `60` / `wget` 报 `Self-signed certificate` | **公司代理在做 SSL 拦截**（如华为 `Huawei Web Secure Internet Gateway CA`）。脚本会自动走四级阶梯：默认CA → `--cacert 系统CA` → `curl -k` → `wget --no-check-certificate`，并在最后用 **sha256** 校验，所以 `-k` 也不会装进被篡改的包 |
 | `HTTP 200` 但下载中断 | 带宽/超时，脚本已带 `--retry 5`，可重跑（wget 分支支持 `-c` 续传） |
+
+### 已知 good 校验和（post3 / torch2.13.0 / cann9.2.0 / a3 / aarch64）
+
+```
+827d70c9b31f4baf1c3ad08bb5f1d7ef0719ce04abd2edf1d5f0f1eb685fe048  custom-ops-2026.11.0.post3-torch2.13.0-cann9.2.0-a3-aarch64.zip  (73646297 B)
+b65172505dd9933501de421fbca5e9fa1b61bb6598c9cfb4eb3476fac15af85b  ops-transformer-2026.11.0.post3-torch2.13.0-cann9.2.0-a3-aarch64.zip  (12046381 B)
+```
+
+手动校验：`sha256sum <file>` 对比上面两行。**校验不过就别装**——可能是代理返回了错误页。
 
 ## 注意
 
