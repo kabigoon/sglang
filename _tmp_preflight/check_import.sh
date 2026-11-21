@@ -57,6 +57,33 @@ for m in mods:
         print("import FAIL:", m, "->", type(e).__name__, e)
         fails.append(m)
 
+# --- 走服务端真实路径：init_npu_backend() 之后再数一次 custom 算子 ---
+res["OPS_AFTER_INIT"] = "SKIPPED"
+try:
+    import torch as _t
+    _t.ops  # noqa: B018
+    try:
+        import torch_npu as _tn  # noqa: F401
+        res["TORCH_NPU_PRELOADED"] = "YES"
+    except Exception:
+        res["TORCH_NPU_PRELOADED"] = "NO"
+    from sglang.srt.hardware_backend.npu.utils import init_npu_backend
+    init_npu_backend()
+    names = ("compressor indexer_compress_epilog inplace_partial_rotary_mul "
+             "kv_compress_epilog_v2 npu_hc_post npu_hc_pre_v2 "
+             "npu_kv_quant_sparse_attn_sharedkv npu_sparse_attn_sharedkv "
+             "npu_moe_gating_top_k npu_quant_lightning_indexer").split()
+    try:
+        ns = _t.ops.custom
+        got = [n for n in names if hasattr(ns, n)]
+    except Exception:
+        got = []
+    print("after init_npu_backend: custom ops %d/%d" % (len(got), len(names)))
+    res["OPS_AFTER_INIT"] = "%d/%d" % (len(got), len(names))
+except Exception as e:
+    print("init_npu_backend 检查失败（可能没有可见 NPU 设备）:", type(e).__name__, e)
+    res["OPS_AFTER_INIT"] = "FAIL(%s)" % type(e).__name__
+
 res["IMPORT_FAILS"] = len(fails)
 res["IMPORT_FAIL_NAMES"] = ",".join(fails) if fails else "-"
 
@@ -68,7 +95,7 @@ PY
 echo
 echo "===== 回传块（复制下面几行）====="
 if [ -f "$VERDICT" ]; then
-  grep -E '^(IS_REPO_CODE|IMPORT_FAILS|IMPORT_FAIL_NAMES|SGLANG_FILE)=' "$VERDICT"
+  grep -E '^(IS_REPO_CODE|IMPORT_FAILS|IMPORT_FAIL_NAMES|OPS_AFTER_INIT|TORCH_NPU_PRELOADED|SGLANG_FILE)=' "$VERDICT"
 else
   echo "IS_REPO_CODE=UNKNOWN IMPORT_FAILS=UNKNOWN"
 fi

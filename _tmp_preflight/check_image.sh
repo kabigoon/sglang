@@ -73,26 +73,6 @@ verdict_path = sys.argv[1]
 names = os.environ.get("NAMES", "").split()
 res = {}
 
-# --- 包是否存在 ---
-hits = []
-try:
-    paths = list(site.getsitepackages()) + [site.getusersitepackages()]
-except Exception:
-    paths = []
-for p in set(paths):
-    hits += glob.glob(os.path.join(p, "custom_ops*"))
-res["CUSTOM_OPS_PKG"] = "yes" if hits else "no"
-print("custom_ops 安装目录:", hits if hits else "MISSING")
-
-try:
-    import custom_ops  # noqa: F401
-    res["CUSTOM_OPS_IMPORT"] = "OK"
-except Exception as e:
-    res["CUSTOM_OPS_IMPORT"] = "FAIL(%s)" % type(e).__name__
-    if type(e).__name__ == "ImportError":
-        print("  提示: 包在但加载失败，通常是这个 shell 没 source vendor 的 set_env.bash")
-print("import custom_ops:", res["CUSTOM_OPS_IMPORT"])
-
 # --- torch / torch_npu ---
 torch = None
 res["OPS_CUSTOM"] = "UNTESTED"
@@ -110,6 +90,25 @@ try:
 except Exception as e:
     res["TORCH_NPU"] = "FAIL(%s)" % type(e).__name__
 print("torch_npu:", res["TORCH_NPU"])
+# --- 包是否存在 ---
+hits = []
+try:
+    paths = list(site.getsitepackages()) + [site.getusersitepackages()]
+except Exception:
+    paths = []
+for p in set(paths):
+    hits += glob.glob(os.path.join(p, "custom_ops*"))
+res["CUSTOM_OPS_PKG"] = "yes" if hits else "no"
+print("custom_ops 安装目录:", hits if hits else "MISSING")
+
+try:
+    import custom_ops  # noqa: F401
+    res["CUSTOM_OPS_IMPORT"] = "OK"
+except Exception as e:
+    res["CUSTOM_OPS_IMPORT"] = "FAIL(%s)" % type(e).__name__
+    print("  import 详情: %s" % (str(e)[:200] or repr(e)))
+print("import custom_ops:", res["CUSTOM_OPS_IMPORT"])
+
 
 # --- 三个命名空间 ---
 if torch is not None:
