@@ -41,6 +41,10 @@ DP_SIZE=${DP_SIZE:-8}
 # 想要每 rank 4096，就要写 32768（DP=8）。
 CHUNKED_PREFILL=${CHUNKED_PREFILL:-4096}
 MAX_RUNNING=${MAX_RUNNING:-16}
+# ⚠ 这个值决定"权重+KV 池"的总预算，剩下的才是 prefill 激活的余量。
+#   池子 4.19M token 对 C≤16 都过剩；prefill 大 chunk 反而需要几 GB 激活内存。
+#   128K + chunk 4096 建议 0.85；仍 OOM 再降到 0.80。
+MEM_FRACTION=${MEM_FRACTION:-0.96}
 
 case "$VARIANT" in
   w4a8) DEFAULT_W=/home/weights/DeepSeek-V4.1-Flash-1017-w4a8 ;;
@@ -62,6 +66,7 @@ echo "  GRAPH_MAX_SEQ  : $GRAPH_MAX_SEQ"
 ATTN_TP=$((TP_SIZE / DP_SIZE))
 echo "  tp-size / dp   : $TP_SIZE / $DP_SIZE  ⇒ 每 DP 组内 attn_tp = $ATTN_TP"
 [ "$ATTN_TP" -eq 1 ] && echo "  [提醒] attn_tp=1：单请求的 attention 只由 1 个 die 算，单请求延迟通常更差（吞吐更好）"
+echo "  mem-fraction   : $MEM_FRACTION"
 echo "  chunked prefill: $CHUNKED_PREFILL (全局) -> $((CHUNKED_PREFILL / DP_SIZE)) 每 DP rank"
 echo "  max running    : $MAX_RUNNING (全局) -> $((MAX_RUNNING / DP_SIZE)) 每 DP rank"
 echo "=================================================="
@@ -194,7 +199,7 @@ python3 -m sglang.launch_server --model-path ${MODEL_PATH} \
     --device npu \
     --watchdog-timeout 9000 \
     --host 0.0.0.0 --port ${PORT} \
-    --mem-fraction-static 0.96 \
+    --mem-fraction-static ${MEM_FRACTION} \
     --max-running-requests ${MAX_RUNNING} \
     --chunked-prefill-size ${CHUNKED_PREFILL} \
     --max-prefill-tokens 131072 \
