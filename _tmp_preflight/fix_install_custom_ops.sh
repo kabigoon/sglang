@@ -8,7 +8,7 @@
 # 用法（容器内，root）：
 #   bash _tmp_preflight/fix_install_custom_ops.sh
 # 可选覆盖：TAG=... CANN=... DEVICE=... ARCH=... WORK=... LOCAL_DIR=...
-# 无外网时：先在有网的机器上把两个 zip 放进 $LOCAL_DIR，再 LOCAL_DIR=/path bash ...
+# 无外网时：先在有网的机器上把两个 zip 放进 ${LOCAL_DIR}，再 LOCAL_DIR=/path bash ...
 set -u
 
 PY=${PYTHON:-python3}
@@ -114,7 +114,7 @@ if [ "$SKIP_INSTALL" = "0" ]; then
       got=$( { command -v sha256sum >/dev/null 2>&1 && sha256sum "$f" || shasum -a 256 "$f"; } 2>/dev/null | awk '{print $1}' )
       echo "  sha256=$got"
       if [ "$got" = "$want" ]; then echo "  OK 校验通过"; return 0; fi
-      echo "  FAIL 校验失败（期望 $want）"; return 1
+      echo "  FAIL 校验失败（期望 ${want}）"; return 1
     }
 
     fetch() {  # $1=url $2=out [$3=expected_size]
@@ -124,7 +124,7 @@ if [ "$SKIP_INSTALL" = "0" ]; then
         local cur
         cur=$(stat -c %s "$out" 2>/dev/null || stat -f %z "$out" 2>/dev/null || echo 0)
         if [ "$cur" -gt "$want" ]; then echo "  已有 $out 比期望大，丢弃"; rm -f "$out"; fi
-        if [ "$cur" -gt 0 ] && [ "$cur" -le "$want" ]; then echo "  检测到已有 $out（$cur B），尝试续传"; fi
+        if [ "$cur" -gt 0 ] && [ "$cur" -le "$want" ]; then echo "  检测到已有 ${out}（$cur B），尝试续传"; fi
       fi
       if command -v curl >/dev/null 2>&1; then
         echo "  [1/4] curl 默认 CA（支持续传；<1KB/s 持续 90s 视为卡死并重试）"
