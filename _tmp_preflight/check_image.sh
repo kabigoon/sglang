@@ -50,6 +50,21 @@ ls -1 /usr/local/Ascend/ascend-toolkit/latest/opp/vendors/ 2>/dev/null \
   || echo "(vendors 目录不存在)"
 
 echo
+echo "===== [1b] source vendor 环境（custom_ops 需要的 aclnn 路径）====="
+VENDOR_SOURCED=no
+for envf in /usr/local/Ascend/ascend-toolkit/latest/opp/vendors/*/bin/set_env.bash \
+            /usr/local/Ascend/cann-*/opp/vendors/*/bin/set_env.bash; do
+  [ -f "$envf" ] || continue
+  set +u
+  # shellcheck disable=SC1090
+  . "$envf" >/dev/null 2>&1
+  set -u
+  echo "  sourced: $envf"
+  VENDOR_SOURCED=yes
+done
+[ "$VENDOR_SOURCED" = "no" ] && echo "  (没有 vendor 的 set_env.bash —— 说明是纯新代镜像，不奇怪)"
+
+echo
 echo "===== [2] 算子探测（PR 的 13 个 custom 名字）====="
 "$PY" - "$VERDICT" <<'PY'
 import glob, os, site, sys
@@ -74,6 +89,8 @@ try:
     res["CUSTOM_OPS_IMPORT"] = "OK"
 except Exception as e:
     res["CUSTOM_OPS_IMPORT"] = "FAIL(%s)" % type(e).__name__
+    if type(e).__name__ == "ImportError":
+        print("  提示: 包在但加载失败，通常是这个 shell 没 source vendor 的 set_env.bash")
 print("import custom_ops:", res["CUSTOM_OPS_IMPORT"])
 
 # --- torch / torch_npu ---
@@ -148,6 +165,7 @@ echo "===== 回传块（复制下面这几行）====="
 if [ -f "$VERDICT" ]; then
   grep -E '^(CUSTOM_OPS_PKG|CUSTOM_OPS_IMPORT|TORCH|TORCH_NPU|OPS_CUSTOM|OPS_CUSTOM_MISSING|OPS_NPU|OPERATORS_ROPE|OPERATORS_ATTENTION|OPERATORS_INDEXER|OPERATORS_MEM_CACHE|VERDICT|IDEAL)=' "$VERDICT"
   echo "SGL_KERNEL_NPU=$("$PY" -m pip show sgl-kernel-npu 2>/dev/null | awk '/^Version:/ {print $2}')"
+  echo "VENDOR_ENV_SOURCED=$VENDOR_SOURCED"
   echo "LOG=$LOG"
 else
   echo "VERDICT=NO_OUTPUT  (python 探测失败，把上面整段日志发回)"
