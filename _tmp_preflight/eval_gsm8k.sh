@@ -84,20 +84,25 @@ fi
 
 # ---------------- 正式评测 ----------------
 echo
-echo "===== [2] 开始评测（$LIMIT 条）====="
-GEN_CFG=$(cat <<JSON
-{
-  "temperature": $TEMPERATURE,
-  "max_tokens": $MAX_TOKENS,
-  "seed": 3407,
-  "n": 1,
-  "timeout": $TIMEOUT,
-  "stream": true,
-  "extra_body": {"chat_template_kwargs": {"enable_thinking": $ENABLE_THINKING}}
-}
-JSON
-)
+echo "===== [2] 执行命令 ====="
+GEN_CFG_ONE=$(printf '%s' "$GEN_CFG" | tr '\n' ' ' | tr -s ' ')
+DATASET_ARGS_ONE="{\"gsm8k\": {\"local_path\": \"$DATASET_DIR\", \"shuffle\": true, \"shuffle_choices\": true}}"
+echo "evalscope eval \\"
+echo "  --model '$MODEL_NAME' \\"
+echo "  --api-url '$API_URL' \\"
+echo "  --api-key '$API_KEY' \\"
+echo "  --eval-type openai_api \\"
+echo "  --generation-config '$GEN_CFG_ONE' \\"
+echo "  --datasets gsm8k \\"
+echo "  --dataset-hub Local \\"
+echo "  --dataset-args '$DATASET_ARGS_ONE' \\"
+echo "  --eval-batch-size $EVAL_BATCH_SIZE \\"
+echo "  --ignore-errors \\"
+echo "  --work-dir '$WORK_DIR' \\"
+echo "  --limit $LIMIT"
 
+echo
+echo "===== [3] 原始输出（以下为 evalscope 原样输出，可直接截图）====="
 evalscope eval \
   --model "$MODEL_NAME" \
   --api-url "$API_URL" \
@@ -106,24 +111,32 @@ evalscope eval \
   --generation-config "$GEN_CFG" \
   --datasets gsm8k \
   --dataset-hub Local \
-  --dataset-args "{\"gsm8k\": {\"local_path\": \"$DATASET_DIR\", \"shuffle\": true, \"shuffle_choices\": true}}" \
+  --dataset-args "$DATASET_ARGS_ONE" \
   --eval-batch-size "$EVAL_BATCH_SIZE" \
   --ignore-errors \
   --work-dir "$WORK_DIR" \
   --limit "$LIMIT" \
   2>&1 | tee "$LOG"
+echo "===== [3] 原始输出结束 ====="
 
-# ---------------- 结果摘要 ----------------
+# ---------------- 原始汇总表：从日志原样截出，方便整段截图 ----------------
 echo
-echo "===== [3] 结果摘要 ====="
-grep -Ei "gsm8k|accuracy|score" "$LOG" | tail -15
+echo "===== [4] 原始汇总表（从日志原样截取）====="
+START=$(grep -n "GSM8K" "$LOG" 2>/dev/null | tail -1 | cut -d: -f1)
+if [ -n "${START:-}" ]; then
+  S=$(( START > 8 ? START - 8 : 1 ))
+  sed -n "${S},\$p" "$LOG"
+else
+  echo "(日志里没找到 GSM8K 表格，直接看 [3] 段的尾部)"
+  tail -30 "$LOG"
+fi
+
 echo
 echo "结果目录: $(pwd)/$WORK_DIR"
 echo "完整日志: $(pwd)/$LOG"
 
-echo
 echo "===== 回传块（复制下面几行）====="
 echo "LIMIT=$LIMIT MAX_TOKENS=$MAX_TOKENS TEMP=$TEMPERATURE THINKING=$ENABLE_THINKING"
 echo "WORK_DIR=$WORK_DIR"
-grep -Ei "averageaccuracy|accuracy" "$LOG" | tail -3
+grep -E "GSM8K|AverageAccuracy" "$LOG" | tail -4
 echo "===== 回传块结束 ====="
