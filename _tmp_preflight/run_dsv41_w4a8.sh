@@ -21,7 +21,12 @@
 VARIANT=${VARIANT:-w4a8}
 DISABLE_SPEC=${DISABLE_SPEC:-0}
 RADIX_OFF=${RADIX_OFF:-0}
-GRAPH_MAX_SEQ=${GRAPH_MAX_SEQ:-135168}   # 130048 输入 + 1024 输出 = 131072，留余量
+GRAPH_MAX_SEQ=${GRAPH_MAX_SEQ:-135168}
+# 量化方言：modelslim | none | quark ...
+# w4a8 若是 Quark/其它格式，用 --quantization modelslim 会报
+# "Unsupported Linear modelslim scheme" / "Missing ModelSlim MoE quantization description"
+QUANT=${QUANT:-modelslim}
+DRAFT_QUANT=${DRAFT_QUANT:-$QUANT}   # 130048 输入 + 1024 输出 = 131072，留余量
 PORT=${PORT:-5684}
 DP_SIZE=${DP_SIZE:-8}
 
@@ -36,7 +41,8 @@ export MODEL_PATH=${MODEL_PATH:-$DEFAULT_W}
 echo "==================== 启动配置 ===================="
 echo "  VARIANT        : $VARIANT"
 echo "  MODEL_PATH     : $MODEL_PATH"
-echo "  quantization   : modelslim"
+echo "  quantization   : ${QUANT}（none=让 sglang 从 config 自动识别）"
+echo "  draft quant    : ${DRAFT_QUANT}"
 echo "  DSpark 投机    : $([ "$DISABLE_SPEC" = "1" ] && echo 关闭 || echo 开启)"
 echo "  前缀缓存(radix): $([ "$RADIX_OFF" = "1" ] && echo 关闭 || echo 开启)"
 echo "  GRAPH_MAX_SEQ  : $GRAPH_MAX_SEQ"
@@ -134,12 +140,18 @@ export SGLANG_COMPRESSOR_DECODE_USE_TRITON=1
 export SGLANG_RAGGED_VERIFY_MODE=static
 
 # 组装可选参数
+QUANT_ARGS=()
+[ "$QUANT" != "none" ] && QUANT_ARGS=(--quantization "$QUANT")
+
+DRAFT_QUANT_ARGS=()
+[ "$DRAFT_QUANT" != "none" ] && DRAFT_QUANT_ARGS=(--speculative-draft-model-quantization "$DRAFT_QUANT")
+
 SPEC_ARGS=()
 if [ "$DISABLE_SPEC" != "1" ]; then
   SPEC_ARGS=(
     --speculative-algorithm DSPARK
     --speculative-draft-model-path "$MODEL_PATH"
-    --speculative-draft-model-quantization modelslim
+    ${DRAFT_QUANT_ARGS[@]+"${DRAFT_QUANT_ARGS[@]}"}
     --speculative-draft-kv-cache-dtype bf16
     --speculative-dspark-block-size 5
   )
@@ -151,7 +163,7 @@ RADIX_ARGS=()
 # 注意：[2] 去掉了 "quantization_config": null，并显式 --quantization modelslim
 echo "[4/4] 启动 server（下面就是 python 原生命令，参数逐一列出）"
 python3 -m sglang.launch_server --model-path ${MODEL_PATH} \
-    --quantization modelslim \
+    ${QUANT_ARGS[@]+"${QUANT_ARGS[@]}"} \
     --page-size 128 \
     --tp-size 16 \
     --trust-remote-code \
