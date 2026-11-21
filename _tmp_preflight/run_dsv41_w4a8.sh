@@ -148,9 +148,9 @@ export SGLANG_RAGGED_VERIFY_MODE=static
 
 # 组装可选参数
 if [ "$OVERRIDE_STYLE" = "legacy" ]; then
-  JSON_OVERRIDE='{"architectures": ["DeepseekV41ForCausalLM"], "quantization_config": null}'
+  JSON_OVERRIDE="{\"architectures\": [\"$ARCH_OVERRIDE\"], \"quantization_config\": null}"
 else
-  JSON_OVERRIDE='{"architectures": ["DeepseekV41ForCausalLM"]}'
+  JSON_OVERRIDE="{\"architectures\": [\"$ARCH_OVERRIDE\"]}"
 fi
 
 QUANT_ARGS=()
