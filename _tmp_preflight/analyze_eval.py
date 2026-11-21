@@ -30,16 +30,29 @@ def walk_values(obj, key):
             yield from walk_values(v, key)
 
 
+def _deep_text(x):
+    """把任意嵌套结构里的字符串拼起来（model_output 可能是 str/dict/list）。"""
+    if isinstance(x, str):
+        return x
+    if isinstance(x, dict):
+        return "\n".join(t for t in (_deep_text(v) for v in x.values()) if t)
+    if isinstance(x, (list, tuple)):
+        return "\n".join(t for t in (_deep_text(v) for v in x) if t)
+    return ""
+
+
 def text_of(row):
-    """尽量从各种结构里取出模型回答文本。"""
-    for k in ("response", "prediction", "model_output", "output", "gen", "text"):
-        v = row.get(k)
-        if isinstance(v, str):
-            return v
-        if isinstance(v, dict):
-            for kk in ("text", "content", "response"):
-                if isinstance(v.get(kk), str):
-                    return v[kk]
+    """优先取模型回答（model_output / response ...），最后才退回 messages。"""
+    for k in ("model_output", "response", "prediction", "output", "gen", "text"):
+        if k in row:
+            t = _deep_text(row[k])
+            if t.strip():
+                return t
+    msgs = row.get("messages")
+    if isinstance(msgs, list):
+        for m in reversed(msgs):
+            if isinstance(m, dict) and str(m.get("role", "")).lower() == "assistant":
+                return _deep_text(m.get("content", ""))
     return ""
 
 
@@ -77,6 +90,11 @@ def report(path):
     print(path, "(%d rows)" % len(rows))
     print("keys:", ", ".join(sorted(rows[0].keys()))[:500])
 
+    if "model_output" in rows[0]:
+        mo = rows[0]["model_output"]
+        preview = json.dumps(mo, ensure_ascii=False) if not isinstance(mo, str) else mo
+        print("  model_output 类型: %s | 预览: %s" % (type(mo).__name__, preview[:180].replace("\n", " ")))
+
     # finish_reason：递归搜集
     for key in ("finish_reason", "finish_reasons", "stop_reason"):
         vals = list(itertools.chain.from_iterable(walk_values(r, key) for r in rows))
@@ -90,10 +108,14 @@ def report(path):
         print("     示例:", str(errs[0])[:200])
 
     # 得分
-    for key in ("score", "correct", "accuracy", "is_correct"):
+    for key in ("score", "sample_score", "correct", "is_correct", "accuracy", "macro_score", "num_correct"):
         vals = [r.get(key) for r in rows if key in r]
         if vals:
             print("  %-14s %s" % (key + ":", dict(collections.Counter(str(v) for v in vals).most_common(6))))
+
+    if "num" in rows[0] and "num_correct" in rows[0]:
+        r0 = rows[0]
+        print("  准确率: %s / %s = %.2f%%" % (r0.get("num_correct"), r0.get("num"), 100.0 * r0.get("num_correct", 0) / max(r0.get("num", 1), 1)))
 
     # 答案完整性（gsm8k 要求 "#### 数字"）
     texts = [text_of(r) for r in rows]
@@ -109,7 +131,7 @@ def report(path):
     # 错题预览（答案末尾，判断是"算错"还是"截断/没给最终答案"）
     wrong = []
     for r in rows:
-        for key in ("score", "correct", "is_correct"):
+        for key in ("sample_score", "score", "correct", "is_correct"):
             if key in r:
                 v = str(r[key]).lower()
                 if v in ("false", "0", "0.0", "incorrect"):
