@@ -19,6 +19,7 @@ PR 分支的代码还在用老一代算子注册方式（`torch.ops.custom.*`，
 | `check_image.sh` | 镜像代际（pip / custom_ops / opp vendors）+ 13 个算子逐个探测 + 结论 | ~10 s | 否 |
 | `dump_ops.sh` | 把 `custom` / `npu` / `cann_ops_transformer` 三个命名空间已注册算子全量导出（部分命中时才需要） | ~10 s | 否 |
 | `check_import.sh` | 用本仓库代码干跑 import（抓 H15：跑的不是这份代码 / 缺 python 依赖） | ~30-60 s | 否 |
+| `fix_install_custom_ops.sh` | 给**新代镜像**补装 post3 的 `custom-ops` / `ops-transformer`（只在 `VERDICT=NEW_GEN_MISMATCH` 时用） | 1-3 min | 否 |
 
 ## 怎么跑
 
@@ -56,6 +57,26 @@ git 通道是单向的，所以你只要**复制末尾 `===== 回传块 =====` �
 | `CUSTOM_OPS_IMPORT=FAIL(...)` 且 `OPERATORS_ROPE=OK` | **新代镜像，与 PR 代码不匹配** | 三选一：换老镜像 / 补装 post3 的 custom-ops / 移植 #50203 |
 | `OPS_CUSTOM` 介于 1/13 和 12/13 之间 | 镜像介于两代之间（vendor 装了一半） | 跑 `dump_ops.sh`，我按 A3 可达性逐条判断 |
 | `TORCH=FAIL` 或 `OPERATORS_ROPE=FAIL` 且 custom 也 FAIL | 镜像本身不对（不是 NPU 运行时） | 先确认镜像 |
+
+## 路线 B：现场补装（仅当 `VERDICT=NEW_GEN_MISMATCH`）
+
+```bash
+bash _tmp_preflight/fix_install_custom_ops.sh          # 会自己探测 torch/cann/arch
+bash _tmp_preflight/check_image.sh                     # 复验，期望 OPS_CUSTOM=13/13
+```
+
+- 无外网时：先把 `custom-ops-2026.11.0.post3-torch2.13.0-cann9.2.0-a3-aarch64.zip` 和
+  同名 `ops-transformer-*.zip` 拷进机器，然后
+  `LOCAL_DIR=/path/to/zips bash _tmp_preflight/fix_install_custom_ops.sh`；
+- 装完**必须**让启动脚本 source 这两行（你现在的脚本里已经有了，之前因为目录不存在而静默失败）：
+
+```bash
+source /usr/local/Ascend/ascend-toolkit/latest/opp/vendors/customize/bin/set_env.bash
+source /usr/local/Ascend/ascend-toolkit/latest/opp/vendors/custom_transformer/bin/set_env.bash
+```
+
+- 回滚：`pip uninstall -y custom_ops`，再删掉 `opp/vendors/{customize,custom_transformer}`；
+- 如果容器是一次性的，装成功后建议 `docker commit <容器> sglang-npu-a3:pr50205-post3ops` 固化下来。
 
 ## 注意
 
