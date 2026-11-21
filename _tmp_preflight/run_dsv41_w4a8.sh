@@ -1,0 +1,157 @@
+#!/bin/bash
+# run_dsv41_w4a8.sh —— 从用户的 run_dsv41.sh 派生，为「128k/1k + 50% 前缀缓存」压测准备。
+#
+# 相对原脚本的 4 处改动：
+#   [1] 权重换成 w4a8（493G vs 728G，TP16 下每 die 省 ~14.7G → KV 池从 46K 涨到数十万 token）
+#   [2] 显式打开 modelslim 量化；并把 json-model-override-args 里的 "quantization_config": null 删掉
+#       （原来既没 --quantization、又把 quantization_config 抹成 null，很可能按 bf16 加载）
+#   [3] 去掉 FORCE_DRAFT_MODEL_NON_QUANT=1（草稿模型不再强制 bf16）
+#   [4] 去掉 --disable-radix-cache  ← 否则前缀缓存关闭，「50% cache」永远命中 0%
+#
+# 用法：
+#   bash run_dsv41_w4a8.sh                        # 默认 w4a8 + 开 DSpark + 开前缀缓存
+#   VARIANT=w8a8 bash run_dsv41_w4a8.sh           # 换回 w8a8（精度对照用）
+#   DISABLE_SPEC=1 bash run_dsv41_w4a8.sh         # 关投机：纯 prefill 基线，TTFT 不受投机影响
+#   RADIX_OFF=1 bash run_dsv41_w4a8.sh            # 临时恢复禁用前缀缓存
+set -u
+
+# ---------------- 可覆盖参数 ----------------
+VARIANT=${VARIANT:-w4a8}
+DISABLE_SPEC=${DISABLE_SPEC:-0}
+RADIX_OFF=${RADIX_OFF:-0}
+GRAPH_MAX_SEQ=${GRAPH_MAX_SEQ:-135168}   # 130048 输入 + 1024 输出 = 131072，留余量
+PORT=${PORT:-5684}
+DP_SIZE=${DP_SIZE:-8}
+
+case "$VARIANT" in
+  w4a8) DEFAULT_W=/home/weights/DeepSeek-V4.1-Flash-1017-w4a8 ;;
+  w8a8) DEFAULT_W=/home/weights/DeepSeek-V4.1-Flash-1017-w8a8 ;;
+  *) echo "VARIANT 只能是 w4a8 或 w8a8"; exit 2 ;;
+esac
+export MODEL_PATH=${MODEL_PATH:-$DEFAULT_W}
+[ -d "$MODEL_PATH" ] || { echo "权重目录不存在: $MODEL_PATH"; exit 2; }
+
+echo "==================== 启动配置 ===================="
+echo "  VARIANT        : $VARIANT"
+echo "  MODEL_PATH     : $MODEL_PATH"
+echo "  quantization   : modelslim"
+echo "  DSpark 投机    : $([ "$DISABLE_SPEC" = "1" ] && echo 关闭 || echo 开启)"
+echo "  前缀缓存(radix): $([ "$RADIX_OFF" = "1" ] && echo 关闭 || echo 开启)"
+echo "  GRAPH_MAX_SEQ  : $GRAPH_MAX_SEQ"
+echo "  dp-size / tp   : $DP_SIZE / 16"
+echo "=================================================="
+echo
+
+unset https_proxy http_proxy HTTPS_PROXY HTTP_PROXY
+
+# Kill any existing processes
+pkill -9 python 2>/dev/null || true
+pkill -9 sglang 2>/dev/null || true
+
+# JIT 缓存：原脚本用 mktemp 每次新目录（每次重启都重编）。这里默认复用固定目录。
+# 想强制重编：JIT_FRESH=1 bash run_dsv41_w4a8.sh
+if [ "${JIT_FRESH:-0}" = "1" ]; then
+  export TORCH_EXTENSIONS_DIR="$(mktemp -d /tmp/dsv41-jit.XXXXXX)"
+else
+  export TORCH_EXTENSIONS_DIR="${TORCH_EXTENSIONS_DIR:-/tmp/dsv41-jit-cache}"
+  mkdir -p "$TORCH_EXTENSIONS_DIR"
+fi
+export CANN_OP_BUILDER_NO_FPRINT_CACHE=1
+
+echo performance | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor >/dev/null 2>&1 || true
+sysctl -w vm.swappiness=0 >/dev/null 2>&1 || true
+sysctl -w kernel.numa_balancing=0 >/dev/null 2>&1 || true
+
+# vendor 环境（custom_ops 安装后才有这两个目录，必须 source）
+source /usr/local/Ascend/ascend-toolkit/latest/opp/vendors/customize/bin/set_env.bash 2>/dev/null || \
+  echo "[warn] customize set_env.bash 不存在（custom_ops 没装？）"
+source /usr/local/Ascend/ascend-toolkit/latest/opp/vendors/custom_transformer/bin/set_env.bash 2>/dev/null || \
+  echo "[warn] custom_transformer set_env.bash 不存在"
+source /usr/local/Ascend/ascend-toolkit/latest/set_env.sh 2>/dev/null || true
+source /usr/local/Ascend/nnal/atb/set_env.sh 2>/dev/null || true
+
+export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
+export STREAMS_PER_DEVICE=32
+export SGLANG_SET_CPU_AFFINITY=1
+
+#TEST
+export TASK_QUEUE_ENABLE=1
+export INF_NAN_MODE_FORCE_DISABLE=1
+export SGLANG_DEFAULT_THINKING=1
+export SGLANG_DSV4_REASONING_EFFORT=max
+
+export HCCL_BUFFSIZE=128
+export HCCL_SOCKET_IFNAME=lo
+export GLOO_SOCKET_IFNAME=lo
+
+export DEEPEP_NORMAL_COMBINE_ENABLE_LONG_SEQ=1
+export DEEPEP_NORMAL_LONG_SEQ_ROUND=16
+export DEEPEP_NORMAL_LONG_SEQ_PER_ROUND_TOKENS=2048
+
+# skip gpu branch
+export SGLANG_OPT_USE_OVERLAP_STORE_CACHE=False
+# [3] 原为 export FORCE_DRAFT_MODEL_NON_QUANT=1  ← 强制草稿模型 bf16，显存杀手，已去掉
+export SGLANG_DSV4_FP4_EXPERTS=True
+export SGLANG_OPT_FUSE_WQA_WKV=0
+export SGLANG_OPT_BF16_FP32_GEMM_ALGO=torch
+export SGLANG_OPT_USE_FUSED_HASH_TOPK=False
+export SGLANG_OPT_USE_TILELANG_MHC_PRE=False
+export SGLANG_OPT_DEEPGEMM_HC_PRENORM=False
+export SGLANG_OPT_USE_TILELANG_MHC_POST=False
+export SGLANG_OPT_FP8_WO_A_GEMM=False
+
+export PYTHONPATH=/home/a00821909/sglang/python:${PYTHONPATH:-}
+
+# perfermance
+export SGLANG_ENABLE_OVERLAP_PLAN_STREAM=1
+export SGLANG_DSV4_GRAPH_MAX_SEQ=$GRAPH_MAX_SEQ
+
+export SGLANG_DEFAULT_THINKING=1
+export SGLANG_DSV4_REASONING_EFFORT=max
+
+export SGLANG_DSV4_NATIVE_ATTN=0
+export SGLANG_SHALLOW_FUSED_ROPE_FQ4=0
+
+export SGLANG_COMPRESSOR_PREFILL_USE_TRITON=1
+export SGLANG_COMPRESSOR_DECODE_USE_TRITON=1
+
+export SGLANG_RAGGED_VERIFY_MODE=static
+
+# 组装可选参数
+SPEC_ARGS=()
+if [ "$DISABLE_SPEC" != "1" ]; then
+  SPEC_ARGS=(
+    --speculative-algorithm DSPARK
+    --speculative-draft-model-path "$MODEL_PATH"
+    --speculative-draft-model-quantization modelslim
+    --speculative-draft-kv-cache-dtype bf16
+    --speculative-dspark-block-size 5
+  )
+fi
+
+RADIX_ARGS=()
+[ "$RADIX_OFF" = "1" ] && RADIX_ARGS=(--disable-radix-cache)
+
+# 注意：[2] 去掉了 "quantization_config": null，并显式 --quantization modelslim
+python3 -m sglang.launch_server --model-path ${MODEL_PATH} \
+    --quantization modelslim \
+    --page-size 128 \
+    --tp-size 16 \
+    --trust-remote-code \
+    --attention-backend dsv4 \
+    --device npu \
+    --watchdog-timeout 9000 \
+    --host 0.0.0.0 --port ${PORT} \
+    --mem-fraction-static 0.96 \
+    --max-running-requests 16 \
+    --chunked-prefill-size 4096 \
+    --max-prefill-tokens 131072 \
+    --kv-cache-dtype auto \
+    --enable-dp-lm-head \
+    --cuda-graph-bs-decode 1 2 \
+    --enable-dp-attention --dp-size ${DP_SIZE} \
+    --reasoning-parser deepseek-v4 \
+    --language-model-only \
+    --json-model-override-args '{"architectures": ["DeepseekV4ForCausalLM"]}' \
+    ${RADIX_ARGS[@]+"${RADIX_ARGS[@]}"} \
+    ${SPEC_ARGS[@]+"${SPEC_ARGS[@]}"}
