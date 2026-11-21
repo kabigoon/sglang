@@ -13,7 +13,9 @@
 #   VARIANT=w8a8 bash run_dsv41_w4a8.sh           # 换回 w8a8（精度对照用）
 #   DISABLE_SPEC=1 bash run_dsv41_w4a8.sh         # 关投机：纯 prefill 基线，TTFT 不受投机影响
 #   RADIX_OFF=1 bash run_dsv41_w4a8.sh            # 临时恢复禁用前缀缓存
-set -u
+#
+# 注意：本脚本刻意不设 set -u / set -e —— CANN 的 set_env.sh 会引用未定义变量，
+#       set -u 会让 source 阶段静默中止整个脚本（表现为"打印完配置就没动静"）。
 
 # ---------------- 可覆盖参数 ----------------
 VARIANT=${VARIANT:-w4a8}
@@ -44,10 +46,17 @@ echo
 
 unset https_proxy http_proxy HTTPS_PROXY HTTP_PROXY
 
-# Kill any existing processes
-pkill -9 python 2>/dev/null || true
-pkill -9 sglang 2>/dev/null || true
+echo "[1/4] 停旧进程"
+if [ "${SKIP_PKILL:-0}" = "1" ]; then
+  echo "      SKIP_PKILL=1，跳过（先自己确认旧 server 已停）"
+else
+  pkill -9 python 2>/dev/null || true
+  pkill -9 sglang 2>/dev/null || true
+  sleep 2
+  echo "      完成"
+fi
 
+echo "[2/4] 准备 JIT 目录"
 # JIT 缓存：原脚本用 mktemp 每次新目录（每次重启都重编）。这里默认复用固定目录。
 # 想强制重编：JIT_FRESH=1 bash run_dsv41_w4a8.sh
 if [ "${JIT_FRESH:-0}" = "1" ]; then
@@ -57,18 +66,25 @@ else
   mkdir -p "$TORCH_EXTENSIONS_DIR"
 fi
 export CANN_OP_BUILDER_NO_FPRINT_CACHE=1
+echo "      TORCH_EXTENSIONS_DIR=$TORCH_EXTENSIONS_DIR"
 
 echo performance | tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor >/dev/null 2>&1 || true
 sysctl -w vm.swappiness=0 >/dev/null 2>&1 || true
 sysctl -w kernel.numa_balancing=0 >/dev/null 2>&1 || true
 
-# vendor 环境（custom_ops 安装后才有这两个目录，必须 source）
-source /usr/local/Ascend/ascend-toolkit/latest/opp/vendors/customize/bin/set_env.bash 2>/dev/null || \
-  echo "[warn] customize set_env.bash 不存在（custom_ops 没装？）"
-source /usr/local/Ascend/ascend-toolkit/latest/opp/vendors/custom_transformer/bin/set_env.bash 2>/dev/null || \
-  echo "[warn] custom_transformer set_env.bash 不存在"
-source /usr/local/Ascend/ascend-toolkit/latest/set_env.sh 2>/dev/null || true
-source /usr/local/Ascend/nnal/atb/set_env.sh 2>/dev/null || true
+echo "[3/4] source vendor 环境"
+for f in /usr/local/Ascend/ascend-toolkit/latest/opp/vendors/customize/bin/set_env.bash \
+         /usr/local/Ascend/ascend-toolkit/latest/opp/vendors/custom_transformer/bin/set_env.bash \
+         /usr/local/Ascend/ascend-toolkit/latest/set_env.sh \
+         /usr/local/Ascend/nnal/atb/set_env.sh; do
+  if [ -f "$f" ]; then
+    echo "      source $f"
+    source "$f"
+  else
+    echo "[warn] 不存在: $f"
+  fi
+done
+echo "      source 完成（ASCEND_CUSTOM_OPP_PATH=${ASCEND_CUSTOM_OPP_PATH:-未设置}）"
 
 export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
 export STREAMS_PER_DEVICE=32
@@ -133,6 +149,7 @@ RADIX_ARGS=()
 [ "$RADIX_OFF" = "1" ] && RADIX_ARGS=(--disable-radix-cache)
 
 # 注意：[2] 去掉了 "quantization_config": null，并显式 --quantization modelslim
+echo "[4/4] 启动 server（下面就是 python 原生命令，参数逐一列出）"
 python3 -m sglang.launch_server --model-path ${MODEL_PATH} \
     --quantization modelslim \
     --page-size 128 \
