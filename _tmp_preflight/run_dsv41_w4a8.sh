@@ -67,6 +67,10 @@ ATTN_TP=$((TP_SIZE / DP_SIZE))
 echo "  tp-size / dp   : $TP_SIZE / $DP_SIZE  ⇒ 每 DP 组内 attn_tp = $ATTN_TP"
 [ "$ATTN_TP" -eq 1 ] && echo "  [提醒] attn_tp=1：单请求的 attention 只由 1 个 die 算，单请求延迟通常更差（吞吐更好）"
 echo "  mem-fraction   : $MEM_FRACTION"
+if [ "$DISABLE_SPEC" != "1" ] && awk "BEGIN{exit !($MEM_FRACTION < 0.83)}"; then
+  echo "  [warn] 开 DSpark 时 draft 权重也计入预算：MEM_FRACTION 必须 > 0.817（建议 0.85）"
+  echo "         否则会报 'Loaded weights leave no GPU memory for the KV cache'"
+fi
 echo "  chunked prefill: $CHUNKED_PREFILL (全局) -> $((CHUNKED_PREFILL / DP_SIZE)) 每 DP rank"
 echo "  max running    : $MAX_RUNNING (全局) -> $((MAX_RUNNING / DP_SIZE)) 每 DP rank"
 echo "=================================================="
