@@ -20,6 +20,7 @@ PR 分支的代码还在用老一代算子注册方式（`torch.ops.custom.*`，
 | `dump_ops.sh` | 把 `custom` / `npu` / `cann_ops_transformer` 三个命名空间已注册算子全量导出（部分命中时才需要） | ~10 s | 否 |
 | `check_import.sh` | 用本仓库代码干跑 import（抓 H15：跑的不是这份代码 / 缺 python 依赖） | ~30-60 s | 否 |
 | `fix_install_custom_ops.sh` | 给**新代镜像**补装 post3 的 `custom-ops` / `ops-transformer`（只在 `VERDICT=NEW_GEN_MISMATCH` 时用） | 1-3 min | 否 |
+| `find_artifacts.sh` | 无外网时在本机翻找现成的 zip / wheel / vendor 目录 | ~1 min | 否 |
 
 ## 怎么跑
 
@@ -77,6 +78,24 @@ source /usr/local/Ascend/ascend-toolkit/latest/opp/vendors/custom_transformer/bi
 
 - 回滚：`pip uninstall -y custom_ops`，再删掉 `opp/vendors/{customize,custom_transformer}`；
 - 如果容器是一次性的，装成功后建议 `docker commit <容器> sglang-npu-a3:pr50205-post3ops` 固化下来。
+
+## 下载失败怎么办
+
+两个包分别是 **70 MB**（custom-ops）和 **11 MB**（ops-transformer）。
+
+1. **先重跑 `fix_install_custom_ops.sh`**：新版会打印 `proxy=` / `工具:` /
+   `github.com -> HTTP xxx` / `资产URL -> HTTP xxx redirects=n`，以及 curl、wget 各自的退出码。
+2. **看有没有现成的**：`bash _tmp_preflight/find_artifacts.sh`
+   （搜 `/home /root /tmp /mnt /data /opt /workspace`，包括 pip 缓存和老镜像留下的包）。
+3. 都找不到再传：在有外网的机器下载这两个 zip，拷进 NPU 机器，然后
+   `LOCAL_DIR=/path/to/zips bash _tmp_preflight/fix_install_custom_ops.sh`。
+
+| 自检看到 | 含义 |
+|---|---|
+| `HTTP 000` / `timed out` | 出不去，需要 `export https_proxy=...` |
+| `HTTP 302` 之后再卡住 | `objects.githubusercontent.com` 被挡（企业网常见；git 能通不代表 release 能下） |
+| curl 退出码 `60` | 证书问题（`-k` 或更新 ca-certificates） |
+| `HTTP 200` 但下载中断 | 带宽/超时，脚本已带 `--retry 5`，可重跑（wget 分支支持 `-c` 续传） |
 
 ## 注意
 

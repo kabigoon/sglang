@@ -62,19 +62,38 @@ if [ "$SKIP_INSTALL" = "0" ]; then
     cp -f "$LOCAL_DIR"/ops-transformer-*.zip "$WORK"/ops-transformer.zip && \
       echo "从 LOCAL_DIR 复制完成"
   else
-    fetch() {  # $1=url  $2=out
-      if command -v wget >/dev/null 2>&1; then
-        wget -q -c -O "$2" "$1"
-      elif command -v curl >/dev/null 2>&1; then
-        curl -fL --retry 3 -o "$2" "$1"
-      else
-        echo "FAIL: 既没有 wget 也没有 curl"; return 1
+    echo "-- 网络自检（失败时会打印真实错误）--"
+    echo "  proxy: $(env | grep -i proxy | tr '\n' ' ' || true)"
+    echo "  工具: curl=$(command -v curl || echo none) wget=$(command -v wget || echo none)"
+    if command -v curl >/dev/null 2>&1; then
+      echo -n "  github.com -> "
+      curl -sS -m 20 -o /dev/null -w 'HTTP %{http_code} in %{time_total}s\n' https://github.com || echo "  (连不上 github.com)"
+      echo -n "  资产URL    -> "
+      curl -sSIL -m 40 -o /dev/null -w 'HTTP %{http_code} redirects=%{num_redirects}\n' "$BASE/$F_CA" || echo "  (资产 URL 连不上)"
+    fi
+
+    fetch() {  # $1=url $2=out ；curl 失败自动回退 wget（反之亦然）
+      local url="$1" out="$2" rc=0
+      if command -v curl >/dev/null 2>&1; then
+        echo "  curl -fL --retry 5 -o $out"
+        curl -fL --retry 5 --retry-delay 3 -o "$out" "$url" && return 0
+        rc=$?; echo "  curl 退出码=$rc，改用 wget 再试"
       fi
+      if command -v wget >/dev/null 2>&1; then
+        echo "  wget -c -O $out （去掉 -q，让错误可见）"
+        wget -c -O "$out" "$url" && return 0
+        rc=$?; echo "  wget 退出码=$rc"
+      fi
+      echo "  两种工具都失败。常见原因：企业网需代理(export https_proxy=...)、"
+      echo "  objects.githubusercontent.com 被挡、或磁盘满。无外网请走 LOCAL_DIR= 或本机翻找。"
+      return 1
     }
     echo "下载 $F_CA"
-    fetch "$BASE/$F_CA" custom-ops.zip || { echo "FAIL: 下载 custom-ops 失败（无外网？请用 LOCAL_DIR=）"; exit 1; }
+    fetch "$BASE/$F_CA" custom-ops.zip || { echo "FAIL: 下载 custom-ops 失败"; exit 1; }
+    ls -l custom-ops.zip
     echo "下载 $F_TR"
     fetch "$BASE/$F_TR" ops-transformer.zip || { echo "FAIL: 下载 ops-transformer 失败"; exit 1; }
+    ls -l ops-transformer.zip
   fi
 
   echo
