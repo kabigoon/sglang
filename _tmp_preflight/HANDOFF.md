@@ -506,6 +506,36 @@ EXTRA_ENV="SGLANG_NPU_PROFILE_RANK0_ONLY=1 SGLANG_NPU_PROFILE_SIMPLIFY=1" \
 `Profiling done` 后 `du -sh /tmp/prof_learn/*` 应该**只有一个目录**；并且 `/stop_profile` **能返回**（不卡 = barrier 对称性正确）。
 精简后的数据 **MindStudio Insight 仍可打开**（算子时间线/耗时/`step_trace_time.csv` 都在，少的是细粒度 flow 连线）。
 
+#### 11.2.2 证据包：把 trace 压成几百 KB 传出来（`collect_profile_bundle.py`）
+
+NPU 机器到外网只有 git 一条通道、且只能推几百 KB，所以**不要传 trace**，只传聚合结果。
+一个 rank 的 `ASCEND_PROFILER_OUTPUT` 上百 MB，但要看的信息加起来只有几十 KB。
+
+```bash
+cd /home/a00821909/sglang
+python3 _tmp_preflight/collect_profile_bundle.py /tmp/prof_b1 --tag prof_b1
+du -sh _tmp_preflight/profile_bundle/prof_b1        # 期望 < 400 KB
+git add _tmp_preflight/profile_bundle/prof_b1
+git commit -m "chore(preflight): profile bundle prof_b1 (not part of the PR)"
+git push origin feat/dsv41-a3-trace
+```
+
+产物（`_tmp_preflight/profile_bundle/<tag>/`）：
+
+| 文件 | 用途 |
+|---|---|
+| `stream_summary.csv` | **每个 Stream ID 的 kernel 数/总耗时/占比/top 算子** —— 认泳道全靠它 |
+| `step_trace_time.csv` | 每步 Computing / Communication / Free（看每步耗时与通信占比） |
+| `op_statistic_top.csv` / `op_statistic.csv` | 算子桶分布 |
+| `kernel_top.csv` | 耗时 top-N kernel，含 `aic_*` / `aiv_*` pipe 比率 |
+| `comm_summary.csv` | HCCL 通信算子汇总 |
+| `meta.txt` | 时间 / 主机 / git sha / 源目录 |
+
+**泳道（swimlane/track）怎么读**：一行 = 一条 AscendCL stream，块 = 该 stream 上的 task/kernel，
+不同 stream 可并发。`STREAMS_PER_DEVICE=32` 会开很多流，**光看编号猜不出角色**，必须看
+`stream_summary.csv` 里的 `top_ops`：全是 `allreduce/allgather` 的是通信流，全是 `GroupedMatmul/Moe*`
+的是 MoE 流，`SparseFlashMla/MatMul` 的是主计算流，`Cast/RealDiv/ReduceSum` 的是 vector 流。
+
 ### 11.3 备选：2×2 角落点（若 profile 跑不通）
 
 `/start_profile` 与 `/stop_profile` 是 HTTP 端点（`http_server.py:1220`），不需要改 PR 代码，
