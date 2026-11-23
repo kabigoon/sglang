@@ -37,8 +37,13 @@ BUCKETS = [
     ("MoE/gating",  r"moe|gating|top_?k|expert|grouped|gmm"),
     ("matmul/linear", r"matmul|gemm|addmm|\bmm\b|batchmatmul|linear|nz_?mm|quant_matmul"),
     ("rope/norm",   r"rotary|rope|rms_?norm|layer_?norm|\bnorm\b|hc_pre|hc_post"),
-    ("elementwise", r"add|mul|sub|div|silu|gelu|swiglu|sigmoid|exp|cast|copy|transpose|contiguous|"
-                    r"cumsum|scatter|gather|reshape|slice|fill|zeros|cat|concat|quant|dequant|sort|argsort"),
+    ("elementwise", r"add|mul|sub|div|silu|gelu|swiglu|sigmoid|exp|sqrt|rsqrt|abs|neg|pow|log|"
+                    r"cast|copy|transpose|contiguous|cumsum|scatter|gather|reshape|slice|fill|zeros|"
+                    r"cat|concat|quant|dequant|sort|argsort|argmax|argmin|"
+                    r"reduce_?sum|reducesum|reduce_?max|reducemax|reduce_?min|reduce_?mean|"
+                    r"clipbyvalue|clip|leftshift|rightshift|\bindex\b|where|select|logical|"
+                    r"greater|less|equal|mask|tril|triu|pad|repeat|tile|broadcast|expand|"
+                    r"unsqueeze|squeeze|view|stack|split|nonzero|unique"),
 ]
 
 def bucket_of(op: str) -> str:
@@ -104,6 +109,7 @@ def main() -> int:
     # ---- 跨 rank 汇总 ----
     agg_op = defaultdict(lambda: [0, 0.0])          # (bucket, op) -> [count, total_us]
     agg_bucket = defaultdict(lambda: [0, 0.0])      # bucket -> [count, total_us]
+    agg_core = defaultdict(lambda: [0, 0.0])        # Core Type -> [count, total_us]
     per_rank_total = {}
     missing = 0
 
@@ -128,6 +134,9 @@ def main() -> int:
             agg_op[(b, r["op"])][1] += r["total_us"]
             agg_bucket[b][0] += r["count"]
             agg_bucket[b][1] += r["total_us"]
+            core = r["core"] or "?"
+            agg_core[core][0] += r["count"]
+            agg_core[core][1] += r["total_us"]
 
     if not per_rank_total:
         print("没有可解析的 op_statistic.csv（missing=%d）" % missing, file=sys.stderr)
@@ -142,6 +151,12 @@ def main() -> int:
     print("%-14s %10s %12s %8s" % ("类别", "调用次数", "总耗时", "占比"))
     for b, (cnt, us) in sorted(agg_bucket.items(), key=lambda kv: -kv[1][1]):
         print("%-14s %10d %12s %7.1f%%" % (b, cnt, fmt_us(us), 100.0 * us / grand_total))
+
+    # ---- Core Type 汇总（AI_CPU 基本就是 host 侧调度出来的算子，值得单独看）----
+    print("\n===== 按 Core Type 汇总 =====")
+    print("%-12s %10s %12s %8s" % ("Core Type", "调用次数", "总耗时", "占比"))
+    for c, (cnt, us) in sorted(agg_core.items(), key=lambda kv: -kv[1][1]):
+        print("%-12s %10d %12s %7.1f%%" % (c, cnt, fmt_us(us), 100.0 * us / grand_total))
 
     # ---- top 算子 ----
     print("\n===== top %d 算子（按总耗时，跨 rank 相加） =====" % args.top)
