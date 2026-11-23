@@ -254,14 +254,19 @@ TTFT ≈ 6.93e-7 · T^1.11 · U^0.49      （3 点、2 参数，恰好定解）
 | `HANDOFF.md` | 新增 §5.3（双变量标度拟合，改写旧"超线性"结论）、§6 加对照注、§7.1 换成可跑命令、本节 |
 | `oneshot_bench.sh` | 新增 `SCALE=`（同一 server 跑标度曲线）/`IN_LEN=`/`OUT_LEN=`/`EXTRA_ENV=`/`DECODE_BS=`/`DISABLE_SPEC=`/`SKIP_FLUSH=` 透传；新增**标度表 + 段间标度指数 + 带 median 的登记行**；修 `$?` 取到 tail 退出码的 bug（改 `PIPESTATUS[0]`）；透传 `EXTRA_ENV` 后 §7.2 的开关扫描才真正能一键跑 |
 | `bench_128k_1k.sh` | 修 `${ACTUAL_IN}` 在定义前被 heredoc 引用（`set -u` 下 `cat` 直接失败，口径头段打印不出来）；把预估提前到 heredoc 之前 |
+| `oneshot_bench.sh`（第 3 轮） | **改用后台跑 + 心跳**：原来 `\| tee \| tail -30`，`tail` 要等 EOF 才吐字，屏幕上会静默 10-15 分钟（"看不出跑没跑"就是这么来的）。现在每 `HB`（默认 30）秒打一行「已运行 Ns + 日志最后一行」，跑完再打末尾 30 行；开头打印 `脚本版本: <git sha>`，一眼看出机器上跑的是不是新脚本 |
+| `oneshot_bench.sh`（第 3 轮） | **修 `$SLOG）` 这类 locale 相关的隐蔽崩溃**（见 §10.4 ②）：变量名后紧跟中文标点时改成 `${SLOG}` 写法，3 处 |
 
-自测（无 NPU 也能做的部分）：`bash -n` 通过；`DRY_RUN=1` 输出正确；用 3 组合成 jsonl 跑通了抽数/表格/指数/登记行四段 python。
+自测（无 NPU 也能做的部分）：`bash -n` 通过；`DRY_RUN=1` 输出正确；用 3 组合成 jsonl 跑通了抽数/表格/指数/登记行四段 python；用假 server（本地 5684 假 HTTP）+ 假 bench 搭了端到端 harness，验证了心跳、退出码、抽数失败降级（标 `ERR` 不中断循环）、server 清理、单点/标度两种输出。
 
 ### 10.2 待跑（按顺序，每轮只变一个变量）
 
 ```bash
-# ① 96K 标度点：唯一变量=上下文长度（dp=4，与 §5.2 三点可比）
 cd /home/a00821909/sglang
+git fetch origin && git log --oneline -1        # 确认在最新提交（脚本会自己打印版本 sha）
+tmux new -s bench                               # 建议：SSH 断了不会连带杀掉 bench
+
+# ① 96K 标度点：唯一变量=上下文长度（dp=4，与 §5.2 三点可比）
 DP_SIZE=4 CHUNKED_PREFILL=16384 MEM_FRACTION=0.85 DECODE_GRAPH=1 DECODE_BS="1 2 4 8 16" \
   WARMUP=4 NUM_PROMPTS=8 CONCURRENCY=1 CACHE_PCT=50 SCALE="98304" \
   bash _tmp_preflight/oneshot_bench.sh
@@ -281,4 +286,26 @@ DP_SIZE=4 CHUNKED_PREFILL=16384 MEM_FRACTION=0.85 DECODE_GRAPH=1 DECODE_BS="1 2 
 另外带一句 server 侧的 `max_total_num_tokens`（脚本已自动打印）。
 
 判据：指数平滑 → kernel 常数因子（走开关/profiler）；某段指数明显突跳 → 那里有路径突变，先查分支。
+
+### 10.4 "看不见输出 / 不知道跑没跑"的排障（本轮新增）
+
+症状：屏幕上只有前几行，之后十几分钟一个字都没有；或者完全没有结果。
+
+| 可能 | 怎么确认 | 状态 |
+|---|---|---|
+| **① bench 的 stdout 被 `tail -30` 吞了**（旧版 `\| tee \| tail -30`，`tail` 等 EOF 才吐字） | `/tmp/oneshot_*/bench_in*.log` **在实时增长**：`tail -f` 能看到；`wc -l` 每隔半分钟变大 | ✅ 已改：后台跑 + 心跳 + 末尾 30 行 |
+| **② 变量名后紧跟中文标点**（`"…（日志 $SLOG）"`）→ UTF-8 locale 下 bash 把标点字节算进变量名 → `set -u` 报 `SLOG?: unbound variable` **直接退出**，此时还没起 server | `locale`；日志/屏幕上搜 `unbound variable`。实测：`LC_ALL=C` 不报，`C.UTF-8` / `en_US.UTF-8` 必报 | ✅ 已改 `${SLOG}`（**这是原脚本就有的老 bug**，不是本轮引入的） |
+| **③ 会话断了**（SSH 断 → 子进程被杀，输出随终端丢） | `pgrep -f sglang.launch_server` 为空但 `/tmp/oneshot_*` 目录存在 | 用 `tmux` 或 `nohup … > /tmp/run.log 2>&1 &` |
+
+自检三连（贴回传块时一起带上，我就能判"跑到哪一步死的"）：
+
+```bash
+ls -lt /tmp/oneshot_* | head              # 有无本次目录（目录名带启动时刻）
+ls -lt /home/dsv4_test/bench_out | head   # bench 自己落的 jsonl，跟我的脚本无关，一定有
+cat $(ls -dt /tmp/oneshot_* | head -1)/summary.tsv      # 每点一行，抽数失败标 ERR
+tail -40 $(ls -dt /tmp/oneshot_* | head -1)/server.log  # 起 server 阶段的问题都在这
+```
+
+注意 `/tmp/oneshot_*` 里会有**空目录**：脚本先 `mkdir` 再判断 `DRY_RUN`，所以干跑（以及任何在 `[2/3]` 之前就退出的情况）都会留下空壳——
+**目录存在 ≠ 跑过**，要看里面有没有 `server.log` / `bench_in*.log`。
 
