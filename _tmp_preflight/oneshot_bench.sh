@@ -136,6 +136,7 @@ echo "    启动 env: DP_SIZE=$DP_SIZE CHUNKED_PREFILL=$CHUNKED_PREFILL MEM_FRAC
     ${SRV_ENV[@]+"${SRV_ENV[@]}"} \
     bash "$HERE/run_dsv41_w4a8.sh" ) > "$SLOG" 2>&1 &
 LAUNCH_PID=$!
+disown "$LAUNCH_PID" 2>/dev/null || true   # 移出作业表：否则 kill 它时 bash 会打一行 "Killed: 9" 噪声
 echo "    启动器 pid=${LAUNCH_PID}（前导阶段要 pkill/source/sysctl，几秒到几十秒后才出现 python 进程，属正常）"
 
 RES=""; wait_s=0; last_rep=0
@@ -314,4 +315,16 @@ if [ "$KEEP_SERVER" = "1" ]; then
 else
   echo
   echo "释放机器：停 server"
+  cleanup           # 显式调一次（幂等），然后确认真的死了，别只说"已发信号"
+  sleep 2
+  LEFT=$(pgrep -f "sglang.launch_server" 2>/dev/null | tr '\n' ' ')
+  if [ -z "$LEFT" ]; then
+    echo "  ✓ 已确认停掉：没有残留的 sglang.launch_server 进程"
+  else
+    echo "  [!] 仍有残留进程: $LEFT"
+    echo "      补一刀：pkill -9 -f sglang.launch_server"
+    echo "      若还占卡，看 pgrep -af python 找 worker 进程"
+  fi
+  stage "server released（残留=[${LEFT}]）"
+  trap - EXIT INT TERM
 fi
