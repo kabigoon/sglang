@@ -41,6 +41,7 @@ TAG=${TAG:-prof_128k}
 HB=${HB:-30}
 KEEP_SERVER=${KEEP_SERVER:-0}
 TP_SIZE=${TP_SIZE:-16}
+EXTRA_ARGS=${EXTRA_ARGS:-}       # 透传给启动器的额外 CLI 参数（如 --moe-a2a-backend deepep）
 DRY_RUN=${DRY_RUN:-0}
 PORT=${PORT:-5684}
 
@@ -56,6 +57,7 @@ echo "  脚本版本: $(git -C "$SEG" rev-parse --short HEAD 2>/dev/null || echo
 echo "  dp=${DP_SIZE}  chunk=${CHUNKED_PREFILL}(全局)/$((CHUNKED_PREFILL / DP_SIZE))(每rank)  mem=${MEM_FRACTION}"
 echo "  cache=${CACHE_PCT}%  warmup=${WARMUP}  out_len=${OUT_LEN}  num_steps=${NUM_STEPS}"
 echo "  rank0_only=${RANK0_ONLY} simplify=${SIMPLIFY}（体积控制）"
+[ -n "$EXTRA_ARGS" ] && echo "  extra args: ${EXTRA_ARGS}"
 echo "  trace 目录: ${PROF_DIR}"
 echo "  工作目录  : ${OUT}"
 echo "  证据包 TAG: ${TAG}"
@@ -138,6 +140,7 @@ stage "launch server dp=$DP_SIZE chunk=$CHUNKED_PREFILL mem=$MEM_FRACTION graph=
     MEM_FRACTION="$MEM_FRACTION" DECODE_GRAPH="$DECODE_GRAPH" \
     ${DECODE_BS:+DECODE_BS="$DECODE_BS"} \
     ${PROF_ENV:+EXTRA_ENV="$PROF_ENV"} \
+    ${EXTRA_ARGS:+EXTRA_ARGS="$EXTRA_ARGS"} \
     bash "$HERE/run_dsv41_w4a8.sh" ) > "$SLOG" 2>&1 &
 LAUNCH_PID=$!
 disown "$LAUNCH_PID" 2>/dev/null || true

@@ -48,6 +48,10 @@ MEM_FRACTION=${MEM_FRACTION:-0.96}
 # 1 = 开 prefill 图（--cuda-graph-backend-prefill=full）。默认为 0：NPU 上默认被自动禁用。
 # 目的：chunk 之间的 CPU launch 开销是 TTFT 的大头，prefill 图可能把它吃掉。
 PREFILL_GRAPH=${PREFILL_GRAPH:-0}
+# 任意**额外 CLI 参数**透传（空格分隔），用于扫 --moe-a2a-backend 这类服务端开关
+# 例：EXTRA_ARGS="--moe-a2a-backend deepep --deepep-mode auto"
+#     注意：值里不要带空格（不会被引号保护）
+EXTRA_ARGS=${EXTRA_ARGS:-}
 # 任意环境变量透传，空格分隔 K=V；用于扫 SGLANG_OPT_* 这类开关
 # 例：EXTRA_ENV="SGLANG_OPT_FUSE_WQA_WKV=1 SGLANG_DSV4_NATIVE_ATTN=1"
 EXTRA_ENV=${EXTRA_ENV:-}
@@ -86,6 +90,7 @@ fi
 echo "  prefill graph  : $PREFILL_GRAPH (1=开)"
 echo "  decode graph   : $DECODE_GRAPH (1=保留, 0=关闭)  bs=[$DECODE_BS]"
 [ -n "$EXTRA_ENV" ] && echo "  extra env      : $EXTRA_ENV"
+[ -n "$EXTRA_ARGS" ] && echo "  extra args     : $EXTRA_ARGS"
 echo "  chunked prefill: $CHUNKED_PREFILL (全局) -> $((CHUNKED_PREFILL / DP_SIZE)) 每 DP rank"
 echo "  max running    : $MAX_RUNNING (全局) -> $((MAX_RUNNING / DP_SIZE)) 每 DP rank"
 echo "=================================================="
@@ -251,4 +256,5 @@ python3 -m sglang.launch_server --model-path ${MODEL_PATH} \
     --json-model-override-args "${JSON_OVERRIDE}" \
     ${PGRAPH_ARGS[@]+"${PGRAPH_ARGS[@]}"} \
     ${RADIX_ARGS[@]+"${RADIX_ARGS[@]}"} \
-    ${SPEC_ARGS[@]+"${SPEC_ARGS[@]}"}
+    ${SPEC_ARGS[@]+"${SPEC_ARGS[@]}"} \
+    ${EXTRA_ARGS}
