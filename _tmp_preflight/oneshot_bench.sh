@@ -230,9 +230,39 @@ try:
     cached = cr.get("total_cached_tokens") or 0
     actual_in = sum(r.get("input_lens") or [0]) / n
     unc = (prompt - cached) / n if prompt else float("nan")
-    ttft_mean = r.get("ttft_mean_ms", float("nan")) / 1000.0
-    ttft_med = r.get("ttft_median_ms", float("nan")) / 1000.0
-    tpot = r.get("tpot_mean_ms", float("nan"))
+
+    # ⚠ sglang 的 jsonl 用的是 "<统计量>_<指标>_ms"（mean_ttft_ms / median_ttft_ms），
+    #   不是 ttft_mean_ms。两种拼法都试，别再一次静默出 nan。
+    def first_num(obj, names):
+        for nm in names:
+            v = obj.get(nm)
+            if isinstance(v, (int, float)) and v == v:
+                return float(v)
+        return float("nan")
+
+    import statistics
+    ttft_mean_ms = first_num(r, ("mean_ttft_ms", "ttft_mean_ms"))
+    ttft_med_ms = first_num(r, ("median_ttft_ms", "ttft_median_ms"))
+    tpot_ms = first_num(r, ("mean_tpot_ms", "tpot_mean_ms"))
+    if ttft_med_ms != ttft_med_ms and isinstance(r.get("ttfts"), list):   # 退路：从原始数组算
+        ts = [t for t in r["ttfts"] if isinstance(t, (int, float))]
+        if ts:
+            ttft_mean_ms, ttft_med_ms = statistics.mean(ts), statistics.median(ts)
+    if tpot_ms != tpot_ms and isinstance(r.get("itls"), list):
+        flat = []
+        for x in r["itls"]:
+            if isinstance(x, (int, float)):
+                flat.append(x)
+            elif isinstance(x, list):
+                flat += [t for t in x if isinstance(t, (int, float))]
+        if flat:
+            tpot_ms = statistics.mean(flat)
+    if ttft_med_ms != ttft_med_ms:
+        sys.stderr.write("[warn] jsonl 里找不到 TTFT 字段，现有键: %s\n" % sorted(r.keys())[:30])
+
+    ttft_mean = ttft_mean_ms / 1000.0
+    ttft_med = ttft_med_ms / 1000.0
+    tpot = tpot_ms
     tput = r.get("output_throughput", float("nan"))
     hit = cr.get("cache_hit_rate_pct", float("nan"))
     rate = unc / ttft_med if ttft_med else float("nan")
