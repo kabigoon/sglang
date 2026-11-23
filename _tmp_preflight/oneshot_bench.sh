@@ -204,7 +204,8 @@ for L in $POINTS; do
   while kill -0 "$BPID" 2>/dev/null; do
     sleep "$HB"
     EL=$((EL + HB))
-    LAST=$(grep -v '^[[:space:]]*$' "$BLOG" 2>/dev/null | tail -1 | tr -d '\r' | cut -c1-100)
+    # tqdm 用 \r 原地刷新，直接 tail -1 会拿到一整串拼接碎片；先转成换行再取最后一个非空段
+    LAST=$(tr '\r' '\n' < "$BLOG" 2>/dev/null | grep -v '^[[:space:]]*$' | tail -1 | cut -c1-100)
     echo "    [${EL}s] ${LAST:-（还没有输出）}"
   done
   wait "$BPID"; RC=$?
