@@ -1,0 +1,6 @@
+generated_at = 2026-11-23T11:54:30+00:00
+host = node-61-47-19-68
+git_head = c0fa158cf7
+source_rank_dir = /tmp/prof_b1/node-61-47-19-68_143076_20261123094840601_ascend_pt
+command = _tmp_preflight/collect_profile_bundle.py /tmp/prof_b1 --tag prof_b1
+bundle_bytes = 74270
