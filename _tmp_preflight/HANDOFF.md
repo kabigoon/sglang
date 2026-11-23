@@ -261,6 +261,7 @@ TTFT ≈ 6.93e-7 · T^1.11 · U^0.49      （3 点、2 参数，恰好定解）
 | `oneshot_bench.sh`（第 4 轮） | **就绪探测换成不依赖 curl 的 python3 探测**，并**在等待期每 30s 打印一次探测结果**（`[30s] 等 ready…探测=200 / ERR:ConnectionRefusedError  日志末行: …`）；原来 `until curl` 是彻底静默的，`curl` 缺失时和"server 没起来"在屏幕上无法区分。超时/进程退出两条 FAIL 分支都会打出**最后一次探测结果** |
 | `oneshot_bench.sh`（第 4 轮） | 新增 **`stage.txt` 轨迹文件**（追加写：start / launch / ready / 每个 bench 点的 start+end / FAIL 原因）。会话断掉、被 SIGKILL、`trap` 不执行的情况下，`cat stage.txt` 仍能告诉我们死在哪一步、几点停的 |
 | `oneshot_bench.sh`（第 4 轮） | 启动时打印**工具可用性**（python3/curl/pkill/pgrep）和 **locale**；`cleanup` 在没有 `pkill` 时退化为 `pgrep`+`kill`，都没有就明确告警 |
+| `oneshot_bench.sh`（第 5 轮） | **修「等 ready 阶段 0s 误判失败」的竞态**（见 §10.4 ⑤，这是 11-23 那次事故的真正根因）：失败判据从「pgrep 看不到 `sglang.launch_server`」改成「**启动器子 shell 也死了** 且看不到 server 进程」；`cleanup` 先 `pkill -9 -P $LAUNCH_PID` + `kill -9 $LAUNCH_PID` 再杀 python，保证退出时不会留下"稍后才把 server 拉起来"的孤儿 |
 | `diag_run.sh`（新增） | 一条命令收齐上一轮的证据（oneshot 目录+stage、server.log 里 v1/models/崩溃行、bench_out、端口占用、工具与 locale），末尾打一个**回传块**。不解码、不启服务，秒级完成 |
 
 自测（无 NPU 也能做的部分）：`bash -n` 通过；`DRY_RUN=1` 输出正确；用 3 组合成 jsonl 跑通了抽数/表格/指数/登记行四段 python；用假 server（本地 5684 假 HTTP）+ 假 bench 搭了端到端 harness，验证了心跳、退出码、抽数失败降级（标 `ERR` 不中断循环）、server 清理、单点/标度两种输出。
@@ -323,6 +324,38 @@ DP_SIZE=4 CHUNKED_PREFILL=16384 MEM_FRACTION=0.85 DECODE_GRAPH=1 DECODE_BS="1 2 
 | **② 变量名后紧跟中文标点**（`$SLOG）`）→ 把标点字节算进变量名，`set -u` 下 `unbound variable` 直接退出 | `locale` + `bash --version`。`LC_ALL=C` 不报；**bash 3.2 + UTF-8 必报，bash 5.x 不报** | ✅ 已改 `${SLOG}`；**本机（bash 5.x）不适用** |
 | **③ 等 ready 阶段静默 + 探测依赖 curl** | `server.log` 里有没有 `GET /v1/models`；没有 ⇒ 探测没打进去 | ✅ 已改：python3 探测 + 每 30s 心跳 + 两条 FAIL 分支都打最后一次探测结果 |
 | **④ 主脚本被 SIGKILL / 挂起（Ctrl-Z），或会话断了** | `stage.txt` 的最后一条；`pgrep -f 'sglang[.]launch_server'` 有进程但没有任何探测日志 | ✅ 新增 `stage.txt`（追加写，SIGKILL 也留痕）；跑法改成 `nohup`，别用会被 Ctrl-Z 卡住的前台 |
+
+### 10.5 根因定案：等 ready 阶段的竞态 + 孤儿（2026-11-23 那次事故）
+
+**症状**：启动后几秒到几分钟就 `Exit 1`，屏幕上只有几行；或者像 11:42 那次——脚本退出了，
+但 server 在 5 分钟后自己起来占卡。
+
+**根因（在本地用假启动器 100% 复现）**：
+
+```
+oneshot: 启动器子 shell 拉起来   → 立刻进 until 循环
+启动器: [1/4] pkill -9 python → sleep 2 → source 4 份 CANN env → sysctl → 才 exec python3 -m sglang.launch_server
+        └─ 这段前导要几秒到几十秒，期间 pgrep 看不到 sglang.launch_server
+旧判据: if ! pgrep -f "sglang.launch_server"  → 在 0s 就判定"server 进程已退出" → exit 1
+退出时: trap cleanup 跑 pkill -f "sglang.launch_server" → 此时 python 还没起来，什么也没杀到
+        ← 但没人去杀那个「启动器子 shell」，它继续跑，几秒后真的把 server 拉起来了 ⇒ 孤儿
+```
+
+这**逐条解释**了 11:42 那次的全部证据：`GET /v1/models` 次数 0（父进程已退出，探测再没跑过）、
+无 `bench_in*.log`、900s 超时没触发（循环所在的进程早没了）、server 一直活到 14:01:57 才被外部杀掉。
+
+**修法**（已改，三条缺一不可）：
+
+1. 记 `LAUNCH_PID=$!`，失败判据改为：**启动器已退出** `&&` 看不到 server 进程（启动器活着就一直等，不看 pgrep）；
+2. `cleanup` 先 `pkill -9 -P $LAUNCH_PID`、再 `kill -9 $LAUNCH_PID`，最后才按 pattern 杀 python —— 退出后启动器不可能再把 server 拉起来；
+3. 心跳里带 `启动器=活/已退出`，异常时一眼能看出来。
+
+**验证**（本地假启动器，三条都过）：
+| 场景 | 结果 |
+|---|---|
+| 前导 10s 才起 python | 继续等，心跳显示 `启动器=活`，10s 后 `ready（探测=200）`，正常跑 bench |
+| 前导期间就超时退出（`READY_TIMEOUT=3`） | FAIL 后等 15s，**没有**孤儿进程、5684 端口关闭 |
+| 启动器立刻失败（如权重路径不对） | `[FAIL] 启动器已退出且没有 server 进程` + 日志尾部，0s 内给出 |
 
 **一条命令取证**（下次别来回猜）：
 
