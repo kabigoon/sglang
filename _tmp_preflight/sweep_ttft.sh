@@ -12,6 +12,7 @@
 #   bash _tmp_preflight/sweep_ttft.sh                    # 跑默认 8 个配置
 #   MAX_HOURS=6 bash _tmp_preflight/sweep_ttft.sh
 #   DRY_RUN=1 bash _tmp_preflight/sweep_ttft.sh           # 只验证流程/产出表格，不真跑
+#   SWEEP_ENVS="DECODE_GRAPH=0" bash _tmp_preflight/sweep_ttft.sh   # 每个配置都追加的 env
 #
 # 产出（默认 /tmp/dsv41_sweep/）：
 #   results.csv        每配置一行
@@ -75,6 +76,7 @@ run_one() {
     [ "$spec" = "1" ] || envs="$envs DISABLE_SPEC=1"
     [ "$pgraph" = "1" ] && envs="$envs PREFILL_GRAPH=1"
     [ -n "${EXTRA_ENV_CFG:-}" ] && envs="$envs EXTRA_ENV=\"$EXTRA_ENV_CFG\""
+    [ -n "${SWEEP_ENVS:-}" ] && envs="$envs $SWEEP_ENVS"
     # shellcheck disable=SC2086
     ( env $envs timeout "$PER_CONFIG_TIMEOUT" bash "$HERE/run_dsv41_w4a8.sh" ) > "$slog" 2>&1 &
     local srv_pid=$!

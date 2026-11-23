@@ -51,6 +51,10 @@ PREFILL_GRAPH=${PREFILL_GRAPH:-0}
 # 任意环境变量透传，空格分隔 K=V；用于扫 SGLANG_OPT_* 这类开关
 # 例：EXTRA_ENV="SGLANG_OPT_FUSE_WQA_WKV=1 SGLANG_DSV4_NATIVE_ATTN=1"
 EXTRA_ENV=${EXTRA_ENV:-}
+# 1=保留 decode 图（默认）；0=关掉。
+# 关掉的用途：dp≠8 时 --cuda-graph-bs-decode 的派生配置会算出空列表
+# （AssertionError: capture_bs=[]），而 TTFT 实验只需要 prefill，用不到 decode 图。
+DECODE_GRAPH=${DECODE_GRAPH:-1}
 
 case "$VARIANT" in
   w4a8) DEFAULT_W=/home/weights/DeepSeek-V4.1-Flash-1017-w4a8 ;;
@@ -78,6 +82,7 @@ if [ "$DISABLE_SPEC" != "1" ] && awk "BEGIN{exit !($MEM_FRACTION < 0.83)}"; then
   echo "         否则会报 'Loaded weights leave no GPU memory for the KV cache'"
 fi
 echo "  prefill graph  : $PREFILL_GRAPH (1=开)"
+echo "  decode graph   : $DECODE_GRAPH (1=保留, 0=关闭)"
 [ -n "$EXTRA_ENV" ] && echo "  extra env      : $EXTRA_ENV"
 echo "  chunked prefill: $CHUNKED_PREFILL (全局) -> $((CHUNKED_PREFILL / DP_SIZE)) 每 DP rank"
 echo "  max running    : $MAX_RUNNING (全局) -> $((MAX_RUNNING / DP_SIZE)) 每 DP rank"
@@ -183,13 +188,23 @@ else
   JSON_OVERRIDE="{\"architectures\": [\"$ARCH_OVERRIDE\"]}"
 fi
 
+DGRAPH_ARGS=()
+if [ "$DECODE_GRAPH" = "0" ]; then
+  DGRAPH_ARGS=(--cuda-graph-backend-decode=disabled)
+fi
+
 PGRAPH_ARGS=()
 [ "$PREFILL_GRAPH" = "1" ] && PGRAPH_ARGS=(--cuda-graph-backend-prefill=full)
 
 QUANT_ARGS=()
 [ "$QUANT" != "none" ] && QUANT_ARGS=(--quantization "$QUANT")
 
-DRAFT_PGRAPH_ARGS=()
+DRAFT_DGRAPH_ARGS=()
+if [ "$DECODE_GRAPH" = "0" ]; then
+  DGRAPH_ARGS=(--cuda-graph-backend-decode=disabled)
+fi
+
+PGRAPH_ARGS=()
 [ "$PREFILL_GRAPH" = "1" ] && PGRAPH_ARGS=(--cuda-graph-backend-prefill=full)
 
 QUANT_ARGS=()
@@ -226,6 +241,7 @@ python3 -m sglang.launch_server --model-path ${MODEL_PATH} \
     --max-prefill-tokens 131072 \
     --kv-cache-dtype auto \
     --enable-dp-lm-head \
+    ${DGRAPH_ARGS[@]+"${DGRAPH_ARGS[@]}"} \
     --cuda-graph-bs-decode 1 2 \
     --enable-dp-attention --dp-size ${DP_SIZE} \
     --reasoning-parser deepseek-v4 \
