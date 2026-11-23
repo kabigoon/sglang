@@ -42,17 +42,24 @@ IN_LEN=${IN_LEN:-}                  # 空=让 bench 脚本自己推导（默认 
 OUT_LEN=${OUT_LEN:-}
 SKIP_FLUSH=${SKIP_FLUSH:-}
 SCALE=${SCALE:-}                    # 非空=同一 server 依次跑这些名义输入长度
-HB=${HB:-30}                        # 心跳间隔秒（测试时可调小）
+HB=${HB:-30}                        # bench 阶段心跳间隔秒（测试时可调小）
+READY_TIMEOUT=${READY_TIMEOUT:-900}   # 等 ready 的上限秒
+PROBE_HB=${PROBE_HB:-30}              # 等 ready 阶段每多少秒打印一次探测结果
 KEEP_SERVER=${KEEP_SERVER:-0}
 DRY_RUN=${DRY_RUN:-0}
 
 OUT=${OUT:-/tmp/oneshot_$(date +%m%d_%H%M%S)_dp${DP_SIZE}}
 mkdir -p "$OUT"
 SLOG="$OUT/server.log"
+# 轨迹文件：脚本万一被外部杀掉（会话断、SIGKILL，trap 不执行），
+# cat 这个文件就知道它跑到哪一步、几点停的。追加写，保留全过程。
+STAGE="$OUT/stage.txt"
+stage() { printf '%s | %s\n' "$(date '+%F %T')" "$*" >> "$STAGE" 2>/dev/null || true; }
 
 echo "===== 本次尝试 ====="
 # 版本号：机器上一眼看出跑的是不是最新脚本（没 pull 会显示旧 sha）
 echo "  脚本版本: $(git -C "$SEG" rev-parse --short HEAD 2>/dev/null || echo 未知)  ($HERE)"
+echo "  工具: python3=$(command -v python3 >/dev/null && echo ok || echo 缺) curl=$(command -v curl >/dev/null && echo ok || echo 缺) pkill=$(command -v pkill >/dev/null && echo ok || echo 缺) pgrep=$(command -v pgrep >/dev/null && echo ok || echo 缺)"
 echo "  dp=$DP_SIZE  chunk=${CHUNKED_PREFILL}(全局)/$((CHUNKED_PREFILL / DP_SIZE))(每rank)  mem=$MEM_FRACTION"
 echo "  decode_graph=$DECODE_GRAPH  bs=[${DECODE_BS:-默认}]  spec=$([ "$DISABLE_SPEC" = "1" ] && echo off || echo on)"
 echo "  CACHE_PCT=$CACHE_PCT  warmup=$WARMUP  prompts=$NUM_PROMPTS  conc=$CONCURRENCY"
@@ -60,6 +67,8 @@ echo "  CACHE_PCT=$CACHE_PCT  warmup=$WARMUP  prompts=$NUM_PROMPTS  conc=$CONCUR
 [ -n "$IN_LEN" ] && echo "  IN_LEN=$IN_LEN"
 [ -n "$EXTRA_ENV" ] && echo "  EXTRA_ENV=$EXTRA_ENV   ← 本轮唯一变量"
 echo "  输出目录: $OUT"
+echo "  轨迹文件: ${STAGE}   ← 万一脚本被杀，看这个就知道死在哪一步"
+stage "start pid=$$ dp=$DP_SIZE scale=[${SCALE:-}] in_len=[${IN_LEN:-}] cache=${CACHE_PCT}%"
 echo
 
 if [ "$DRY_RUN" = "1" ]; then
@@ -74,13 +83,39 @@ if [ "$DRY_RUN" = "1" ]; then
   exit 0
 fi
 
-cleanup() { pkill -9 -f "sglang.launch_server" 2>/dev/null || true; }
+cleanup() {
+  if command -v pkill >/dev/null 2>&1; then
+    pkill -9 -f "sglang.launch_server" 2>/dev/null || true
+  elif command -v pgrep >/dev/null 2>&1; then
+    for _p in $(pgrep -f "sglang.launch_server" 2>/dev/null); do kill -9 "$_p" 2>/dev/null || true; done
+  else
+    echo "    [warn] 既没有 pkill 也没有 pgrep，旧 server 得手动 kill"
+  fi
+}
 trap cleanup EXIT INT TERM
 
+# 不依赖 curl 的就绪探测（容器里可能没有 curl；curl 失败时旧版是彻底静默的）。
+# 只打印 HTTP 状态码或异常名，成功判据是 200。
+ready_probe() {
+  python3 - <<'PY'
+import http.client
+try:
+    c = http.client.HTTPConnection("127.0.0.1", 5684, timeout=5)
+    c.request("GET", "/v1/models")
+    r = c.getresponse(); r.read()
+    print(r.status)
+except Exception as e:
+    print("ERR:%s" % type(e).__name__)
+PY
+}
+
 echo "[1/3] 停旧 server"
+stage "stop old server"
 cleanup; sleep 3
 
 echo "[2/3] 起 server（日志 ${SLOG}）"
+stage "launch server dp=$DP_SIZE chunk=$CHUNKED_PREFILL mem=$MEM_FRACTION graph=$DECODE_GRAPH extra=[${EXTRA_ENV:-}]"
+
 # 注意：EXTRA_ENV / DECODE_BS 的值里含空格（"1 2 4 8 16"、"A=1 B=2"），
 # 不能写成 ${VAR:+K="$VAR"}（外层没引号会被 word splitting 拆成多个 env 参数），必须走数组。
 SRV_ENV=()
@@ -93,15 +128,25 @@ echo "    启动 env: DP_SIZE=$DP_SIZE CHUNKED_PREFILL=$CHUNKED_PREFILL MEM_FRAC
     ${SRV_ENV[@]+"${SRV_ENV[@]}"} \
     bash "$HERE/run_dsv41_w4a8.sh" ) > "$SLOG" 2>&1 &
 
-wait_s=0
-until curl --noproxy '*' -fsS -m 5 http://127.0.0.1:5684/v1/models >/dev/null 2>&1; do
+RES=""; wait_s=0; last_rep=0
+until RES=$(ready_probe) && [ "$RES" = "200" ]; do
   if ! pgrep -f "sglang.launch_server" >/dev/null 2>&1; then
-    echo "  [FAIL] server 进程已退出，看日志：" && tail -20 "$SLOG"; exit 1
+    echo "  [FAIL] server 进程已退出（等待 ${wait_s}s，最后一次探测=${RES}），日志尾部："
+    tail -20 "$SLOG"; stage "FAIL server exited after ${wait_s}s probe=$RES"; exit 1
   fi
-  sleep 10; wait_s=$((wait_s + 10))
-  if [ "$wait_s" -ge 900 ]; then echo "  [FAIL] 等待 900s 仍未 ready" && tail -20 "$SLOG"; exit 1; fi
+  sleep 5; wait_s=$((wait_s + 5))
+  # 用「距上次打印」而不是取模：sleep 步长 5s，取模在 PROBE_HB 非 5 的倍数时永远不命中
+  if [ $((wait_s - last_rep)) -ge "$PROBE_HB" ]; then
+    echo "    [${wait_s}s] 等 ready…探测=${RES}  日志末行: $(tail -1 "$SLOG" 2>/dev/null | tr -d '\r' | cut -c1-90)"
+    last_rep=$wait_s
+  fi
+  if [ "$wait_s" -ge "$READY_TIMEOUT" ]; then
+    echo "  [FAIL] ${READY_TIMEOUT}s 仍未 ready（探测=${RES}），日志尾部："
+    tail -20 "$SLOG"; stage "FAIL ready timeout probe=$RES"; exit 1
+  fi
 done
-echo "  ready（等待 ${wait_s}s）"
+echo "  ready（等待 ${wait_s}s，探测=${RES}）"
+stage "ready after ${wait_s}s"
 grep -oE "max_total_num_tokens=[0-9]+|chunked_prefill_size=[0-9]+|available_gpu_mem=[0-9.]+ GB" "$SLOG" | head -3 | sed 's/^/    /'
 echo "    chunked prefill: ${CHUNKED_PREFILL}(全局) -> $((CHUNKED_PREFILL / DP_SIZE)) 每 DP rank"
 
@@ -127,6 +172,7 @@ for L in $POINTS; do
   BLOG="$OUT/bench_in${TAG}.log"
   echo
   echo "----- 点 IN_LEN=$TAG -----"
+  stage "bench IN_LEN=$TAG start"
   echo "  bench 日志: $BLOG"
   echo "  预计 10-15 分钟（128K 点约 15 分钟）。每 ${HB}s 一个心跳，别急着 Ctrl-C。"
   # 不能用 `| tee | tail -30`：tail 要等 EOF 才吐字，屏幕上会静默十几分钟。
@@ -148,6 +194,7 @@ for L in $POINTS; do
   wait "$BPID"; RC=$?
   echo "  bench 结束：${EL}s，退出码 ${RC}。末尾 30 行："
   tail -30 "$BLOG"
+  stage "bench IN_LEN=$TAG end rc=$RC elapsed=${EL}s"
   [ "$RC" -ne 0 ] && RC_ALL=$RC
   # 抽数进汇总（读 bench 落盘的 jsonl，比 grep 文本稳）
   python3 - "$BLOG" "$TAG" "$TSV" <<'PY'
@@ -243,6 +290,7 @@ echo "汇总 tsv : $TSV"
 echo "各点日志 : ${OUT}/bench_in*.log"
 echo "（退出码 ${RC_ALL}：0=全部完整性通过）"
 
+stage "done rc=$RC_ALL"
 if [ "$KEEP_SERVER" = "1" ]; then
   echo
   echo "KEEP_SERVER=1：server 保留运行（pid $(pgrep -f sglang.launch_server | head -1)）"
