@@ -129,25 +129,30 @@ fi
 # ---------------- 压测 ----------------
 echo
 echo "===== [2] 开始压测（前台，原始输出随 tee 打印）====="
-python3 -m sglang.benchmark.serving \
-  --backend sglang \
-  --host "$HOST" --port "$PORT" \
-  --model "$MODEL" \
-  --dataset-name generated-shared-prefix \
-  --gsp-num-groups 1 \
-  --gsp-prompts-per-group "$NUM_PROMPTS" \
-  --gsp-system-prompt-len "$SHARED" \
-  --gsp-question-len "$QUESTION" \
-  --gsp-output-len "$OUT_LEN" \
-  --num-prompts "$NUM_PROMPTS" \
-  --max-concurrency "$CONCURRENCY" \
-  --request-rate inf \
-  --seed "$SEED" \
-  --warmup-requests "$WARMUP" \
-  --cache-report \
-  --output-details \
-  --output-file "${STEM}.jsonl" \
-  2>&1 | tee "${STEM}.log"
+BENCH_CMD=(
+  python3 -m sglang.benchmark.serving
+  --backend sglang
+  --host "$HOST" --port "$PORT"
+  --model "$MODEL"
+  --dataset-name generated-shared-prefix
+  --gsp-num-groups 1
+  --gsp-prompts-per-group "$NUM_PROMPTS"
+  --gsp-system-prompt-len "$SHARED"
+  --gsp-question-len "$QUESTION"
+  --gsp-output-len "$OUT_LEN"
+  --num-prompts "$NUM_PROMPTS"
+  --max-concurrency "$CONCURRENCY"
+  --request-rate inf
+  --seed "$SEED"
+  --warmup-requests "$WARMUP"
+  --cache-report
+  --output-details
+  --output-file "${STEM}.jsonl"
+)
+echo "client 命令（复现/登记用）："
+printf '  %q' "${BENCH_CMD[@]}"; echo
+echo
+"${BENCH_CMD[@]}" 2>&1 | tee "${STEM}.log"
 
 # ---------------- 解析 + SLO 判定 ----------------
 echo
