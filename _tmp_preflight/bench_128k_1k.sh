@@ -81,6 +81,9 @@ if [ "$WARMUP" -lt "$DP_SIZE" ] && [ "$WARMUP" -gt 0 ]; then
   echo "       建议 WARMUP>=${DP_SIZE}（例如 WARMUP=${DP_SIZE}）。"
 fi
 
+# 实际 token 数预估（必须在下面 heredoc 之前算好：set -u 下未定义变量会让 cat 失败）
+ACTUAL_IN=$(python3 -c "print(int($IN_LEN * $TOKEN_OVERSHOOT))")
+
 cat <<EOF
 ===== [0] 本次压测口径 =====
   endpoint      : http://$HOST:$PORT
@@ -94,8 +97,7 @@ cat <<EOF
   日志          : ${STEM}.log
 EOF
 
-# 实际 token 数预估 + 服务端上限校验（超了就别浪费一轮）
-ACTUAL_IN=$(python3 -c "print(int($IN_LEN * $TOKEN_OVERSHOOT))")
+# 服务端上限校验（超了就别浪费一轮）
 if [ "$SERVER_MAX_IN" -gt 0 ] 2>/dev/null; then
   if [ $((ACTUAL_IN + OUT_LEN)) -gt "$SERVER_MAX_IN" ]; then
     cat <<MSG
