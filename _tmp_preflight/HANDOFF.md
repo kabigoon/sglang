@@ -471,6 +471,41 @@ bash _tmp_preflight/diag_run.sh
 
 ⚠ 未验证项（第一次跑要先确认）：`activities` 是否接受 `"NPU"`、trace 体积、`profile_by_stage` 语义、trace 落盘路径。
 
+#### 11.2.1 体积控制开关（已实现；**只在 `feat/dsv41-a3-trace` 分支**）
+
+128K prefill 全量采集约 **32 GB**（133 MB/step/rank × 15 step × 16 rank），不可持续。
+`scheduler_components/profiler_manager.py` 上加了一组 **env 门控、默认全关** 的旋钮：
+
+| env | 作用 | 体积 |
+|---|---|---|
+| `SGLANG_NPU_PROFILE_RANK0_ONLY=1` | 只有 `tp_rank==0` 真正采集，其余跳过 | ~16× |
+| `SGLANG_NPU_PROFILE_SIMPLIFY=1` | `data_simplification=True`（丢冗余 task/flow 事件） | 数倍 |
+| `SGLANG_NPU_PROFILE_LEVEL=0\|1\|2` | `ProfilerLevel`（0=算子级最省） | Level0 明显更小 |
+| `SGLANG_NPU_PROFILE_NO_AIC=1` | `aic_metrics=AiCoreNone`（不采 pipe 明细） | 明显更小 |
+
+默认全关时与原行为**逐字节等价**（PipeUtilization / Level1 / simplification=False / 全 rank 采）。
+
+⚠ **两个只会"卡住"、不会报错的坑**（写这段时踩到的）：
+
+1. `_stop_profile` 在 `torch_profiler.stop()` 之后有一次 `torch.distributed.barrier(self.dp_tp_cpu_group)`，
+   而 `get_dp_tp_group()` 在开 DP attention 时是 **attn_tp 组**（dp=8 时只有 2 个 rank）。
+   所以"跳过采集"**不能连 barrier 一起跳**，否则采集 rank 永久卡住。现实现让被跳过的 rank
+   保持 `profile_in_progress=True`、照常走 stop 分支对称 barrier 一次。
+2. gate 必须放在 **`num_steps` 记账之后**（不是 `_init_profile` 开头）。提前 return 的 rank 拿不到
+   `profiler_target_forward_ct`，就不会在同一个 forward 上自动停，barrier 依旧会对不上。
+
+**验证（最小 case，约 1 分钟）**：
+
+```bash
+# 起 server 时带上两个开关（run_dsv41_w4a8.sh 会把 EXTRA_ENV 里的 K=V 都 export）
+EXTRA_ENV="SGLANG_NPU_PROFILE_RANK0_ONLY=1 SGLANG_NPU_PROFILE_SIMPLIFY=1" \
+  DP_SIZE=8 CHUNKED_PREFILL=32768 MEM_FRACTION=0.85 bash _tmp_preflight/run_dsv41_w4a8.sh
+```
+
+判据：`/start_profile` 后日志应出现 **1 条** `Profiling starts` + **15 条** `skipped`；
+`Profiling done` 后 `du -sh /tmp/prof_learn/*` 应该**只有一个目录**；并且 `/stop_profile` **能返回**（不卡 = barrier 对称性正确）。
+精简后的数据 **MindStudio Insight 仍可打开**（算子时间线/耗时/`step_trace_time.csv` 都在，少的是细粒度 flow 连线）。
+
 ### 11.3 备选：2×2 角落点（若 profile 跑不通）
 
 `/start_profile` 与 `/stop_profile` 是 HTTP 端点（`http_server.py:1220`），不需要改 PR 代码，
