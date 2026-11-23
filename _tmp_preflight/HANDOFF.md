@@ -271,17 +271,16 @@ TTFT ≈ 6.93e-7 · T^1.11 · U^0.49      （3 点、2 参数，恰好定解）
 cd /home/a00821909/sglang
 git fetch origin && git log --oneline -1        # 确认在最新提交（脚本会自己打印版本 sha）
 bash _tmp_preflight/diag_run.sh                 # 先取证：上一轮跑到哪了（秒级，不启服务）
-tmux new -s bench                               # 建议：SSH 断了不会连带杀掉 bench
-#   没有 tmux 就退而求其次（输出仍留一份在文件里）：
-#   nohup env DP_SIZE=4 ... bash _tmp_preflight/oneshot_bench.sh > /tmp/run_98304.log 2>&1 &
-#   tail -f /tmp/run_98304.log
 
+# 跑法：这台机器**没有 tmux**，用 nohup（会话断了不丢输出，也不会被 Ctrl-Z 挂住）
 # ① 96K 标度点：唯一变量=上下文长度（dp=4，与 §5.2 三点可比）
-DP_SIZE=4 CHUNKED_PREFILL=16384 MEM_FRACTION=0.85 DECODE_GRAPH=1 DECODE_BS="1 2 4 8 16" \
-  WARMUP=4 NUM_PROMPTS=8 CONCURRENCY=1 CACHE_PCT=50 SCALE="98304" \
-  bash _tmp_preflight/oneshot_bench.sh
+nohup env DP_SIZE=4 CHUNKED_PREFILL=16384 MEM_FRACTION=0.85 DECODE_GRAPH=1 \
+  DECODE_BS="1 2 4 8 16" WARMUP=4 NUM_PROMPTS=8 CONCURRENCY=1 CACHE_PCT=50 \
+  SCALE="98304" bash _tmp_preflight/oneshot_bench.sh > /tmp/run_98304.log 2>&1 &
+tail -f /tmp/run_98304.log                      # 另开一个窗口看
 
-# ② 若 ① 落在 48-56s（平滑）→ 按 §5.3 的优先级扫开关，先 attention 路径：
+# ② 若 ① 落在 48-56s（平滑）→ 按 §5.3 的优先级扫开关，先 attention 路径
+#    （同样用 nohup 包一层，日志换名字）：
 DP_SIZE=4 CHUNKED_PREFILL=16384 MEM_FRACTION=0.85 DECODE_GRAPH=1 DECODE_BS="1 2 4 8 16" \
   WARMUP=4 NUM_PROMPTS=8 CONCURRENCY=1 CACHE_PCT=50 \
   EXTRA_ENV="SGLANG_DSV4_NATIVE_ATTN=1" bash _tmp_preflight/oneshot_bench.sh
@@ -297,37 +296,43 @@ DP_SIZE=4 CHUNKED_PREFILL=16384 MEM_FRACTION=0.85 DECODE_GRAPH=1 DECODE_BS="1 2 
 
 判据：指数平滑 → kernel 常数因子（走开关/profiler）；某段指数明显突跳 → 那里有路径突变，先查分支。
 
-### 10.4 "看不见输出 / 不知道跑没跑"的排障
+### 10.4 "看不见输出 / 不知道跑没跑"的排障（已用一次真实事故验证）
 
-**一次真实事故（2026-11-23，本轮）：** 用户在本地 11:47 启动，屏幕上只看到前几行，感觉"没打印"。
-事后从文件取证：
+**事故复盘（2026-11-23，已用 `diag_run.sh` 取证）：** 本地 11:42:31 启动（= 容器 `03:42:31 UTC`，容器时钟是 UTC，本地 UTC+8），
+屏幕上只看到前几行，感觉"没打印"。
 
 | 取证 | 结论 |
 |---|---|
-| `bench_out` 最新文件是 **11-21 10:40** | 那天**一次 bench 都没跑**（bench 的 jsonl 由 bench 自己落盘，与 oneshot 无关，所以这是硬证据） |
-| oneshot 目录里**只有 `server.log`**，无 `bench_in*.log` / `summary.tsv` | 脚本**没走到 bench 循环** |
-| `server.log` 里**零条 `GET /v1/models`**（只有启动自检的 `/model_info`、`/generate`、`/freeze_gc`） | 就绪探测**一次都没打通** |
-| `server.log` 显示 server 完全健康（16 die prewarm、`ready to roll`、`load_weight=126.9s`） | **server 没问题**，卡在"等 ready" |
-| 容器 `03:47` 起、`06:01` 被 Killed（= 本地 11:47 → 14:01，空转 134 分钟） | 脚本在 900s 超时**之前**就没了（否则 12:02 就会 FAIL 并杀掉 server）→ **会话/进程被外部杀掉，`trap` 没执行，server 成孤儿** |
+| `bench_out` 最新产物 `03:21 UTC`（= 本地 11:21），**早于**那次 oneshot（03:42:31） | 那次 oneshot **确实没跑 bench**。⚠ 但**"今天没跑过 bench"是错的**——今天 `03:02–03:21` 有 7 个产物，属于上一个窗口。早先我用 `ls -lt … \| tail -5` 判断（`tail` 取的是**最旧** 5 个），已纠正 |
+| oneshot 只有一个目录 `oneshot_1123_034231_dp4`，里面**只有 `server.log`** | 没走到 bench 循环（无 `bench_in*.log`、无 `summary.tsv`） |
+| `server.log` 里 `GET /v1/models` **次数 = 0** | 就绪探测**一次都没打通** |
+| server 健康：16 die prewarm、`ready to roll`（`03:47:16`）、`load_weight=126.9s` | **server 本身没问题** |
+| `run_dsv41_w4a8.sh: line 254: 887552 Killed` 出现在 `06:01:57` | 这行是**启动器的子 shell** 打的：说明 `( cd … )` 子 shell 一直活到本地 14:01:57，即 **oneshot 主脚本早已不在、server 成为被收养的孤儿**，最后被外部 pkill/手杀 |
+| 900s 超时本该在 `04:02:16` 触发却没有 | 印证主脚本在进入探测循环前/后就没了（SIGKILL 不跑 trap，或进程被挂起/Ctrl-Z）。trap 没执行 ⇒ server 没被清理 |
 
-**结论：那一次是"脚本在静默的等 ready 阶段被外部终止"，而不是 server 或 bench 的问题。**
-两处设计缺陷已修（不是环境问题）：等 ready 完全静默、探测依赖 curl 且失败无痕迹。
+**结论：那次是"主脚本在静默的等 ready 阶段消失"，server / bench / 环境都正常。**
+新版 `stage.txt` 会把这类情况精确暴露：最后一条 stage 会停在 `launch server` 而没有 `ready`。
+
+**locale 更正**：这台机器是 `en_US.UTF-8` / `en_US.UTF-8`，而 `"…（日志 $SLOG）"` 那行**并没有崩**——
+它是 bash 5.x，对多字节变量名解析正确；那个 bug 只在 **macOS 自带的 bash 3.2** 上复现（我本机就是 3.2.57）。
+所以下面②在这台机器上**排除**；`${SLOG}` 的改写仍保留（无害且更严谨）。
 
 | 可能 | 怎么确认 | 状态 |
 |---|---|---|
-| **① bench 的 stdout 被 `tail -30` 吞了**（旧版 `\| tee \| tail -30`，`tail` 等 EOF 才吐字） | `/tmp/oneshot_*/bench_in*.log` **在实时增长**：`tail -f` 能看到 | ✅ 已改：后台跑 + 心跳 + 末尾 30 行 |
-| **② 变量名后紧跟中文标点**（`"…（日志 $SLOG）"`）→ UTF-8 locale 下 bash 把标点字节算进变量名 → `set -u` 报 `SLOG?: unbound variable` **直接退出**（此时还没起 server） | `locale`；搜 `unbound variable`。实测：`LC_ALL=C` 不报，`C.UTF-8` / `en_US.UTF-8` 必报。**2026-11-23 那台机器上没触发**（server 起来了 ⇒ 它那边不是 UTF-8 locale） | ✅ 已改 `${SLOG}`（**原脚本就有的老 bug**） |
-| **③ 等 ready 阶段静默 + 探测依赖 curl** | server.log 里有没有 `GET /v1/models`；没有 ⇒ 探测没打进去 | ✅ 已改 python3 探测 + 每 30s 心跳 |
-| **④ 会话断了**（SSH 断 → 子进程被杀，输出随终端丢） | `pgrep -f 'sglang[.]launch_server'` 为空但 `/tmp/oneshot_*` 目录存在、`stage.txt` 停在 `launch server` | 用 `tmux` 或 `nohup … > /tmp/run.log 2>&1 &`。**144 分钟空转就是这么来的** |
+| **① bench 的 stdout 被 `tail -30` 吞了**（旧版 `\| tee \| tail -30`，`tail` 等 EOF 才吐字） | `/tmp/oneshot_*/bench_in*.log` 是否在实时增长 | ✅ 已改：后台跑 + 心跳 + 末尾 30 行 |
+| **② 变量名后紧跟中文标点**（`$SLOG）`）→ 把标点字节算进变量名，`set -u` 下 `unbound variable` 直接退出 | `locale` + `bash --version`。`LC_ALL=C` 不报；**bash 3.2 + UTF-8 必报，bash 5.x 不报** | ✅ 已改 `${SLOG}`；**本机（bash 5.x）不适用** |
+| **③ 等 ready 阶段静默 + 探测依赖 curl** | `server.log` 里有没有 `GET /v1/models`；没有 ⇒ 探测没打进去 | ✅ 已改：python3 探测 + 每 30s 心跳 + 两条 FAIL 分支都打最后一次探测结果 |
+| **④ 主脚本被 SIGKILL / 挂起（Ctrl-Z），或会话断了** | `stage.txt` 的最后一条；`pgrep -f 'sglang[.]launch_server'` 有进程但没有任何探测日志 | ✅ 新增 `stage.txt`（追加写，SIGKILL 也留痕）；跑法改成 `nohup`，别用会被 Ctrl-Z 卡住的前台 |
 
-**一条命令取证**（下次不要来回猜，直接跑这个贴回传块）：
+**一条命令取证**（下次别来回猜）：
 
 ```bash
 bash _tmp_preflight/diag_run.sh
 ```
 
-它会把：oneshot 目录清单 + `stage.txt` 轨迹 + `server.log` 里的 `v1/models`/崩溃/`Killed` 行 +
-`bench_out` 最新产物 + 端口探测 + 工具与 locale，一次打成一个回传块。
+它一次打出：oneshot 目录清单 + `stage.txt` 轨迹 + `server.log` 里 `v1/models`/崩溃/`Killed` 行 +
+`bench_out` 最新产物 + 端口探测 + 工具与 locale。
 
-⚠ `/tmp/oneshot_*` 里的**空目录不代表跑过**：脚本先 `mkdir` 再判 `DRY_RUN`，任何在 `[2/3]` 前退出的情况都会留空壳。
-现在有了 `stage.txt`，"跑没跑、跑到哪"看它就够了。
+⚠ 两个容易踩的坑：
+- `/tmp/oneshot_*` 里的**空目录不代表跑过**（脚本先 `mkdir` 再判 `DRY_RUN`）。
+- **`ls -lt 目录 | tail -N` 看的是最旧的那几个**，要看最新用 `head -N`。
