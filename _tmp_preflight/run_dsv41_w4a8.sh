@@ -55,6 +55,8 @@ EXTRA_ENV=${EXTRA_ENV:-}
 # 关掉的用途：dp≠8 时 --cuda-graph-bs-decode 的派生配置会算出空列表
 # （AssertionError: capture_bs=[]），而 TTFT 实验只需要 prefill，用不到 decode 图。
 DECODE_GRAPH=${DECODE_GRAPH:-1}
+# decode 图的 bs 列表。若 dp!=8 时仍报 capture_bs=[]，改成 "1 2 4 8 16" 再试。
+DECODE_BS=${DECODE_BS:-"1 2"}
 
 case "$VARIANT" in
   w4a8) DEFAULT_W=/home/weights/DeepSeek-V4.1-Flash-1017-w4a8 ;;
@@ -82,7 +84,7 @@ if [ "$DISABLE_SPEC" != "1" ] && awk "BEGIN{exit !($MEM_FRACTION < 0.83)}"; then
   echo "         否则会报 'Loaded weights leave no GPU memory for the KV cache'"
 fi
 echo "  prefill graph  : $PREFILL_GRAPH (1=开)"
-echo "  decode graph   : $DECODE_GRAPH (1=保留, 0=关闭)"
+echo "  decode graph   : $DECODE_GRAPH (1=保留, 0=关闭)  bs=[$DECODE_BS]"
 [ -n "$EXTRA_ENV" ] && echo "  extra env      : $EXTRA_ENV"
 echo "  chunked prefill: $CHUNKED_PREFILL (全局) -> $((CHUNKED_PREFILL / DP_SIZE)) 每 DP rank"
 echo "  max running    : $MAX_RUNNING (全局) -> $((MAX_RUNNING / DP_SIZE)) 每 DP rank"
@@ -242,7 +244,7 @@ python3 -m sglang.launch_server --model-path ${MODEL_PATH} \
     --kv-cache-dtype auto \
     --enable-dp-lm-head \
     ${DGRAPH_ARGS[@]+"${DGRAPH_ARGS[@]}"} \
-    --cuda-graph-bs-decode 1 2 \
+    --cuda-graph-bs-decode ${DECODE_BS} \
     --enable-dp-attention --dp-size ${DP_SIZE} \
     --reasoning-parser deepseek-v4 \
     --language-model-only \
