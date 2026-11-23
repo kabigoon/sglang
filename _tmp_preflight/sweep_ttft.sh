@@ -32,7 +32,7 @@ START_TS=$(date +%s)
 mkdir -p "$OUT_DIR"
 CSV="$OUT_DIR/results.csv"
 REPORT="$OUT_DIR/report.md"
-echo "name,dp_size,chunk_global,chunk_per_rank,mem_fraction,spec,prefill_graph,max_total_num_tokens,avail_gb,hit,ttft_ms,tpot_ms,tput,complete,status" > "$CSV"
+echo "name,dp_size,chunk_global,chunk_per_rank,mem_fraction,spec,prefill_graph,cache_pct,max_total_num_tokens,avail_gb,hit,ttft_ms,tpot_ms,tput,complete,status" > "$CSV"
 
 cleanup() {
   if [ "$DRY_RUN" != "1" ]; then
@@ -57,7 +57,7 @@ prefill_graph|8|32768|0.85|1|1
 '}
 
 run_one() {
-  local name=$1 dp=$2 chunk=$3 mem=$4 spec=$5 pgraph=$6
+  local name=$1 dp=$2 chunk=$3 mem=$4 spec=$5 pgraph=$6 cachepct=${7:-50}
   local slog="$OUT_DIR/$name.server.log"
   local blog="$OUT_DIR/$name.bench.log"
 
@@ -74,6 +74,7 @@ run_one() {
     local envs="DP_SIZE=$dp CHUNKED_PREFILL=$chunk MEM_FRACTION=$mem"
     [ "$spec" = "1" ] || envs="$envs DISABLE_SPEC=1"
     [ "$pgraph" = "1" ] && envs="$envs PREFILL_GRAPH=1"
+    [ -n "${EXTRA_ENV_CFG:-}" ] && envs="$envs EXTRA_ENV=\"$EXTRA_ENV_CFG\""
     # shellcheck disable=SC2086
     ( env $envs timeout "$PER_CONFIG_TIMEOUT" bash "$HERE/run_dsv41_w4a8.sh" ) > "$slog" 2>&1 &
     local srv_pid=$!
@@ -87,7 +88,7 @@ run_one() {
     done
     if [ "$ok" != "1" ]; then
       echo "  [FAIL] server 未就绪（等待 ${waited}s），跳过"
-      echo "$name,$dp,$chunk,$((chunk/dp)),$mem,$spec,$pgraph,,,,,,,FAIL_NOT_READY" >> "$CSV"
+      echo "$name,$dp,$chunk,$((chunk/dp)),$mem,$spec,$pgraph,$cachepct,,,,,,,FAIL_NOT_READY" >> "$CSV"
       cleanup
       return
     fi
@@ -96,7 +97,7 @@ run_one() {
     # 等 warmup 覆盖所有 DP rank（前缀缓存按 rank 分区）
     local W=$dp
     # shellcheck disable=SC2086
-    WARMUP=$W NUM_PROMPTS=$NUM_PROMPTS CONCURRENCY=$CONCURRENCY DP_SIZE=$dp \
+    WARMUP=$W NUM_PROMPTS=$NUM_PROMPTS CONCURRENCY=$CONCURRENCY DP_SIZE=$dp CACHE_PCT=$cachepct \
       timeout "$PER_CONFIG_TIMEOUT" bash "$HERE/bench_128k_1k.sh" > "$blog" 2>&1
     echo "  bench rc=$?"
   fi
@@ -115,7 +116,7 @@ run_one() {
   [ "${comp:-}" = "True" ] || status=INCOMPLETE
 
   echo "  pool=${pool:-?} chunk=${chunk_eff:-?} avail=${avail:-?}GB HIT=${hit:-?} TTFT=${ttft:-?} TPOT=${tpot:-?} ${status}"
-  echo "$name,$dp,$chunk,$((chunk/dp)),$mem,$spec,$pgraph,${pool:-},${avail:-},${hit:-},${ttft:-},${tpot:-},${tput:-},${comp:-},$status" >> "$CSV"
+  echo "$name,$dp,$chunk,$((chunk/dp)),$mem,$spec,$pgraph,$cachepct,${pool:-},${avail:-},${hit:-},${ttft:-},${tpot:-},${tput:-},${comp:-},$status" >> "$CSV"
 
   cleanup
   sleep 5
@@ -128,8 +129,8 @@ for cfg in $CONFIGS; do
     echo "[stop] 已跑 $(elapsed_h) 小时，达到 MAX_HOURS=${MAX_HOURS}，收尾"
     break
   fi
-  IFS='|' read -r n d c m s p <<< "$cfg"
-  run_one "$n" "$d" "$c" "$m" "$s" "$p"
+  IFS='|' read -r n d c m s p cp <<< "$cfg"
+  run_one "$n" "$d" "$c" "$m" "$s" "$p" "${cp:-50}"
 done
 
 # ---- 报告 ----
@@ -140,11 +141,11 @@ done
   echo "- 条件：输入 130,048（50% 共享前缀）、输出 1,024、并发 ${CONCURRENCY}、每配置 $NUM_PROMPTS 条"
   echo "- SLO：TTFT < 30000 ms，TPOT < 50 ms"
   echo
-  echo "| 配置 | dp | chunk(全局/每rank) | mem | spec | prefill图 | 池子 | avail | HIT | TTFT(ms) | TPOT(ms) | 状态 |"
-  echo "|---|---|---|---|---|---|---|---|---|---|---|---|"
-  tail -n +2 "$CSV" | while IFS=, read -r name dp cg cpr mem spec pg pool avail hit ttft tpot tput comp status; do
-    printf "| %s | %s | %s / %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n" \
-      "$name" "$dp" "$cg" "$cpr" "$mem" "$spec" "$pg" "${pool:--}" "${avail:--}" "${hit:--}" "${ttft:--}" "${tpot:--}" "$status"
+  echo "| 配置 | dp | chunk(全局/每rank) | mem | spec | prefill图 | cache% | 池子 | avail | HIT | TTFT(ms) | TPOT(ms) | 状态 |"
+  echo "|---|---|---|---|---|---|---|---|---|---|---|---|---|"
+  tail -n +2 "$CSV" | while IFS=, read -r name dp cg cpr mem spec pg cp pool avail hit ttft tpot tput comp status; do
+    printf "| %s | %s | %s / %s | %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |\n" \
+      "$name" "$dp" "$cg" "$cpr" "$mem" "$spec" "$pg" "$cp" "${pool:--}" "${avail:--}" "${hit:--}" "${ttft:--}" "${tpot:--}" "$status"
   done
   echo
   echo "明细日志：$OUT_DIR"
