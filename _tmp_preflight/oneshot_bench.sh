@@ -184,17 +184,24 @@ TSV="$OUT/summary.tsv"
 : > "$TSV"
 RC_ALL=0
 for L in $POINTS; do
-  if [ "$L" = "-" ]; then TAG=auto; BENCH_IN_LEN=""; else TAG="$L"; BENCH_IN_LEN="$L"; fi
+  # 支持 "IN_LEN:命中率" 的写法，用来做「固定 U、只变 T」的扫描：
+  #   SCALE="58800:50 88200:67 117600:75"  → 三点的未命中长度都≈30K，只有总长 T 在变
+  POINT_PCT=""
+  case "$L" in
+    -)      TAG=auto; BENCH_IN_LEN="" ;;
+    *:*)    BENCH_IN_LEN=${L%%:*}; POINT_PCT=${L##*:}; TAG="${BENCH_IN_LEN}_c${POINT_PCT}" ;;
+    *)      TAG="$L"; BENCH_IN_LEN="$L" ;;
+  esac
   BLOG="$OUT/bench_in${TAG}.log"
   echo
-  echo "----- 点 IN_LEN=$TAG -----"
+  echo "----- 点 IN_LEN=$TAG${POINT_PCT:+（命中率 $POINT_PCT%，覆盖全局 $CACHE_PCT%）} -----"
   stage "bench IN_LEN=$TAG start"
   echo "  bench 日志: $BLOG"
   echo "  预计 10-15 分钟（128K 点约 15 分钟）。每 ${HB}s 一个心跳，别急着 Ctrl-C。"
   # 不能用 `| tee | tail -30`：tail 要等 EOF 才吐字，屏幕上会静默十几分钟。
   # 改成后台跑 + 父进程心跳，跑完再打末尾 30 行。
   env WARMUP="$WARMUP" NUM_PROMPTS="$NUM_PROMPTS" CONCURRENCY="$CONCURRENCY" \
-      DP_SIZE="$DP_SIZE" CACHE_PCT="$CACHE_PCT" \
+      DP_SIZE="$DP_SIZE" CACHE_PCT="${POINT_PCT:-$CACHE_PCT}" \
       ${BENCH_IN_LEN:+IN_LEN="$BENCH_IN_LEN"} \
       ${OUT_LEN:+OUT_LEN="$OUT_LEN"} \
       ${SKIP_FLUSH:+SKIP_FLUSH="$SKIP_FLUSH"} \
