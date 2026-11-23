@@ -42,6 +42,7 @@ IN_LEN=${IN_LEN:-}                  # 空=让 bench 脚本自己推导（默认 
 OUT_LEN=${OUT_LEN:-}
 SKIP_FLUSH=${SKIP_FLUSH:-}
 SCALE=${SCALE:-}                    # 非空=同一 server 依次跑这些名义输入长度
+HB=${HB:-30}                        # 心跳间隔秒（测试时可调小）
 KEEP_SERVER=${KEEP_SERVER:-0}
 DRY_RUN=${DRY_RUN:-0}
 
@@ -50,6 +51,8 @@ mkdir -p "$OUT"
 SLOG="$OUT/server.log"
 
 echo "===== 本次尝试 ====="
+# 版本号：机器上一眼看出跑的是不是最新脚本（没 pull 会显示旧 sha）
+echo "  脚本版本: $(git -C "$SEG" rev-parse --short HEAD 2>/dev/null || echo 未知)  ($HERE)"
 echo "  dp=$DP_SIZE  chunk=${CHUNKED_PREFILL}(全局)/$((CHUNKED_PREFILL / DP_SIZE))(每rank)  mem=$MEM_FRACTION"
 echo "  decode_graph=$DECODE_GRAPH  bs=[${DECODE_BS:-默认}]  spec=$([ "$DISABLE_SPEC" = "1" ] && echo off || echo on)"
 echo "  CACHE_PCT=$CACHE_PCT  warmup=$WARMUP  prompts=$NUM_PROMPTS  conc=$CONCURRENCY"
@@ -77,7 +80,7 @@ trap cleanup EXIT INT TERM
 echo "[1/3] 停旧 server"
 cleanup; sleep 3
 
-echo "[2/3] 起 server（日志 $SLOG）"
+echo "[2/3] 起 server（日志 ${SLOG}）"
 # 注意：EXTRA_ENV / DECODE_BS 的值里含空格（"1 2 4 8 16"、"A=1 B=2"），
 # 不能写成 ${VAR:+K="$VAR"}（外层没引号会被 word splitting 拆成多个 env 参数），必须走数组。
 SRV_ENV=()
@@ -111,7 +114,7 @@ fi
 if [ -n "$SCALE" ]; then
   POINTS="$SCALE"
   echo
-  echo "[3/3] 标度曲线：依次跑 IN_LEN = $POINTS（server 配置不变，唯一变量=上下文长度）"
+  echo "[3/3] 标度曲线：依次跑 IN_LEN = ${POINTS}（server 配置不变，唯一变量=上下文长度）"
 else
   POINTS="${IN_LEN:--}"
 fi
@@ -124,13 +127,27 @@ for L in $POINTS; do
   BLOG="$OUT/bench_in${TAG}.log"
   echo
   echo "----- 点 IN_LEN=$TAG -----"
+  echo "  bench 日志: $BLOG"
+  echo "  预计 10-15 分钟（128K 点约 15 分钟）。每 ${HB}s 一个心跳，别急着 Ctrl-C。"
+  # 不能用 `| tee | tail -30`：tail 要等 EOF 才吐字，屏幕上会静默十几分钟。
+  # 改成后台跑 + 父进程心跳，跑完再打末尾 30 行。
   env WARMUP="$WARMUP" NUM_PROMPTS="$NUM_PROMPTS" CONCURRENCY="$CONCURRENCY" \
       DP_SIZE="$DP_SIZE" CACHE_PCT="$CACHE_PCT" \
       ${BENCH_IN_LEN:+IN_LEN="$BENCH_IN_LEN"} \
       ${OUT_LEN:+OUT_LEN="$OUT_LEN"} \
       ${SKIP_FLUSH:+SKIP_FLUSH="$SKIP_FLUSH"} \
-      bash "$HERE/bench_128k_1k.sh" 2>&1 | tee "$BLOG" | tail -30
-  RC=${PIPESTATUS[0]}
+      bash "$HERE/bench_128k_1k.sh" > "$BLOG" 2>&1 &
+  BPID=$!
+  EL=0
+  while kill -0 "$BPID" 2>/dev/null; do
+    sleep "$HB"
+    EL=$((EL + HB))
+    LAST=$(grep -v '^[[:space:]]*$' "$BLOG" 2>/dev/null | tail -1 | tr -d '\r' | cut -c1-100)
+    echo "    [${EL}s] ${LAST:-（还没有输出）}"
+  done
+  wait "$BPID"; RC=$?
+  echo "  bench 结束：${EL}s，退出码 ${RC}。末尾 30 行："
+  tail -30 "$BLOG"
   [ "$RC" -ne 0 ] && RC_ALL=$RC
   # 抽数进汇总（读 bench 落盘的 jsonl，比 grep 文本稳）
   python3 - "$BLOG" "$TAG" "$TSV" <<'PY'
