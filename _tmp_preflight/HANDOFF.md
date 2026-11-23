@@ -87,7 +87,7 @@ DP_SIZE=8 CHUNKED_PREFILL=32768 MEM_FRACTION=0.85 DECODE_GRAPH=1 \
 |---|---|
 | `run_dsv41_w4a8.sh` | **主启动器**。所有 env 见 §3.2；会打印配置摘要（含每 rank 实际值） |
 | `run_dp4_debug.sh` | 单独起 server 的调试版（日志落盘 + 崩了给提示），默认 dp=4 |
-| `oneshot_bench.sh` | **一次一条命令**：起 server → 等 ready → 跑 bench → 打「登记行」→ 停 server。机器不独占时用这个 |
+| `oneshot_bench.sh` | **一次一条命令**：起 server → 等 ready → 跑 bench → 打「登记行」→ 停 server。机器不独占时用这个。现在支持 `SCALE="65536 98304 126250"`（同一 server 跑标度曲线）、`IN_LEN=`、`OUT_LEN=`、`EXTRA_ENV=`（扫开关）、`DECODE_BS=`、`DISABLE_SPEC=`、`SKIP_FLUSH=` 透传，并自动输出**标度表 + 段间标度指数 + 带 median 的登记行** |
 | `bench_128k_1k.sh` | client 压测（128K/1K、50% 共享前缀、SLO 判定）。会打印完整 python 命令，便于登记/复现 |
 | `bench_ladder.sh` | 并发阶梯（一次预热跑 C=1/2/4/8） |
 | `sweep_ttft.sh` | 过夜扫参（配置矩阵 + 超时保护 + 自动出 report.md） |
@@ -103,6 +103,11 @@ DP_SIZE=8 CHUNKED_PREFILL=32768 MEM_FRACTION=0.85 DECODE_GRAPH=1 \
 # ① 单次完整实验（推荐，机器不独占时）
 DP_SIZE=4 CHUNKED_PREFILL=16384 MEM_FRACTION=0.85 DECODE_GRAPH=1 DECODE_BS="1 2 4 8 16" \
   WARMUP=4 NUM_PROMPTS=8 CONCURRENCY=1 CACHE_PCT=50 bash _tmp_preflight/oneshot_bench.sh
+
+# ①b 标度曲线：起一次 server 跑多个输入长度（省掉每次 3-5 分钟起服务；唯一变量=上下文长度）
+DP_SIZE=4 CHUNKED_PREFILL=16384 MEM_FRACTION=0.85 DECODE_GRAPH=1 DECODE_BS="1 2 4 8 16" \
+  WARMUP=4 NUM_PROMPTS=8 CONCURRENCY=1 CACHE_PCT=50 SCALE="65536 98304 126250" \
+  bash _tmp_preflight/oneshot_bench.sh
 
 # ② server 已在跑，只跑 client
 WARMUP=4 NUM_PROMPTS=8 CONCURRENCY=1 DP_SIZE=4 CACHE_PCT=50 zsh _tmp_preflight/bench_128k_1k.sh
@@ -148,6 +153,38 @@ bash _tmp_preflight/eval_gsm8k.sh && python3 _tmp_preflight/analyze_eval.py
 
 **登记表用 median**：mean 被"warmup 全命中的那 1 条"拉低（128K 时 mean 65.8 vs median 74.9）。
 
+### 5.3 标度的双变量拟合（本轮新增：只用 §5.2 已有 3 点，**没有新测量**）
+
+把 TTFT 当成 **(T=总输入长度, U=未命中 token 数)** 的函数去拟合上面 3 点：
+
+```
+TTFT ≈ 6.93e-7 · T^1.11 · U^0.49      （3 点、2 参数，恰好定解）
+  64K/55.6%  T=66,991  U=29,700  → 实测 25.93s   模型 25.93s
+  128K/55%   T=129,099 U=58,100  → 实测 74.87s   模型 74.87s
+  128K/0%    T=129,099 U=129,000 → 实测 110.77s  模型 110.77s
+```
+
+**这推翻了"超线性"的旧表述。** 旧结论说"2× 上下文 → 2.89× 时间"，但那条曲线里 T 和 U 是同时变大的，
+把两个变量混在了一起。用 U 单变量幂律（指数 1.58，就是旧结论）去预测 128K/0% 会得 **264s**，实测 110.8s，**差 2.4×**。
+双变量模型的三个指数含义：
+
+| 项 | 指数 | 含义 |
+|---|---|---|
+| T（总长度） | **1.11** | 缓存命中的 token **并没有被跳过**：新 token 的 attention 仍要扫过全部 T 个 key。前缀缓存省的是 cached 段上的 FFN/linear，**不省 attention 对 cached prefix 的计算** |
+| U（未命中） | **0.49** | 亚线性：未命中部分被 chunk（4096/rank）× DP rank 并行摊掉了 |
+| 推论 | — | 128K/50% 的 2.5× 缺口**不可能靠加并行/chunk 拿到**（U 项只有 0.49 次幂，且 chunk 已证伪）；只能砍 T 项的常数或让 attention 不必扫全 prefix |
+
+对下一步的三条影响：
+
+1. **96K 标度点的预测值**：模型给 **53.2s**（不同拟合口径给 48–56s）。实测若落在这区间 → 平滑，问题在 kernel 常数因子；
+   若明显偏低（例如 <40s）→ 说明 96K 附近有路径突变，那里的分支/kernel 选择就是首要线索。
+2. **7 个开关的优先级要重排**：先打 **attention 路径**上的（`SGLANG_DSV4_NATIVE_ATTN`、`SGLANG_SHALLOW_FUSED_ROPE_FQ4`、
+   `SGLANG_OPT_USE_TILELANG_MHC_PRE/POST`、compressor 相关），再打 FFN 路径上的（`FP8_WO_A_GEMM`、`DEEPGEMM_HC_PRENORM`）——
+   按 T^1.11 的读数，FFN 只占长上下文 prefill 的次要部分。
+3. **profiler 要按"每 chunk 的 attention 时间是否随 prefix 长度线性涨"来切**，这才是能直接证伪/证实 T^1.11 的解释。
+
+⚠ 这是 3 点拟合出来的**假设**，不是结论；它比旧表述更能解释已有数据（尤其是 128K/0% 那点差 2.4×），但需要 96K 点和 profiler 去验。
+
 ---
 
 ## 6. 已排除的假设（别再重复试）
@@ -162,12 +199,21 @@ bash _tmp_preflight/eval_gsm8k.sh && python3 _tmp_preflight/analyze_eval.py
 
 **当前正确的结论**：TTFT 对上下文**超线性**（2× 上下文 → 2.89× 时间），是 **长上下文 attention 的算力/带宽**问题；同命中率下 128K 的 prefill 效率只有 64K 的 68%（775 vs 1147 tok/s 等效速率）。128K/50% 要达标需 **2.5×** 提升。
 
+> ⚠ **上面这段已被 §5.3 改写**（"2.89×"把 T 和 U 混在一起了；正确形式是 `T^1.11 · U^0.49`）。
+> 保留原文只为对照。"是长上下文 attention 的问题"这个方向仍然成立，但机制从"超线性算力"变成
+> "**attention 仍要扫过已缓存的 prefix**"，所以抓手也不同（不是加并行，是砍 prefix 扫描的常数/让 prefix 免扫）。
+
 ---
 
 ## 7. 未闭合问题（下一个窗口可以接着查）
 
-1. **96K 标度点未测**：平滑 T^1.5 还是 96K 附近有路径突变？
-   `IN_LEN=98304 CACHE_PCT=50 WARMUP=4 NUM_PROMPTS=8 CONCURRENCY=1 DP_SIZE=4 bash _tmp_preflight/bench_128k_1k.sh`（不用重启）
+1. **96K 标度点未测**（脚本已就绪，见 §10）。平滑 T^1.5 还是 96K 附近有路径突变？§5.3 给的点预测是 **53.2s**。
+   ```bash
+   DP_SIZE=4 CHUNKED_PREFILL=16384 MEM_FRACTION=0.85 DECODE_GRAPH=1 DECODE_BS="1 2 4 8 16" \
+     WARMUP=4 NUM_PROMPTS=8 CONCURRENCY=1 CACHE_PCT=50 SCALE="98304" \
+     bash _tmp_preflight/oneshot_bench.sh
+   ```
+   （`KEEP_SERVER=1` 可保留 server 接着跑别的长度，省一次启动）
 2. **7 个被关掉的算子开关未试**：`SGLANG_OPT_FUSE_WQA_WKV=0`、`USE_FUSED_HASH_TOPK=False`、`USE_TILELANG_MHC_PRE/POST=False`、`DEEPGEMM_HC_PRENORM=False`、`FP8_WO_A_GEMM=False`、`SGLANG_DSV4_NATIVE_ATTN=0`、`SHALLOW_FUSED_ROPE_FQ4=0`。用 `EXTRA_ENV="SGLANG_OPT_FUSE_WQA_WKV=1"` 逐个试，**每次都要过 GSM8K**。
 3. **profiler 没上**：`--profile` / torch profiler 定位 128K prefill 里 attention vs FFN vs compressor 占比。
 4. **dp≠8 的 `capture_bs=[]` 机制未验证**：放宽 `--cuda-graph-bs-decode` 到 `1 2 4 8 16` 就好了，推断是 [base_cuda_graph_runner.py:112](../python/sglang/srt/model_executor/runner/base_cuda_graph_runner.py) 的整除过滤（`bs*alignment_width % mul_base == 0`，DSpark 下 alignment_width=6），**但没证实**。验证：`grep -iE "capture" /tmp/dp4_*.log`。
@@ -191,5 +237,48 @@ bash _tmp_preflight/eval_gsm8k.sh && python3 _tmp_preflight/analyze_eval.py
 ## 9. 一句话状态
 
 > 环境已修好、128K 能跑通、TPOT 已达标（33ms）、GSM8K 97%；**只剩 TTFT**（128K/50% 需 74.9s → 30s）。
-> 已排除 chunk/mem/prefill-graph/dp 四个方向，确认瓶颈是长上下文 attention 的超线性成本。
-> 下一步优先级：**96K 标度点 → 算子开关 → profiler**。
+> 已排除 chunk/mem/prefill-graph/dp 四个方向。瓶颈机制按 §5.3 改判为"**attention 仍要扫过已缓存的 prefix**"
+> （TTFT ≈ `T^1.11 · U^0.49`），不是单纯"超线性算力"。
+> 下一步优先级：**96K 标度点（命令已就绪，§7.1/§10）→ 算子开关（先 attention 路径）→ profiler**。
+
+---
+
+## 10. 本轮（接手窗口）的产出与待跑命令
+
+本轮**没有新测量数据**（这台 Mac 上没有到 NPU 机器的通道，实验要靠人跑、贴回传块）。
+
+### 10.1 改动清单（全在 `_tmp_preflight/`，不碰 PR 代码）
+
+| 文件 | 改动 |
+|---|---|
+| `HANDOFF.md` | 新增 §5.3（双变量标度拟合，改写旧"超线性"结论）、§6 加对照注、§7.1 换成可跑命令、本节 |
+| `oneshot_bench.sh` | 新增 `SCALE=`（同一 server 跑标度曲线）/`IN_LEN=`/`OUT_LEN=`/`EXTRA_ENV=`/`DECODE_BS=`/`DISABLE_SPEC=`/`SKIP_FLUSH=` 透传；新增**标度表 + 段间标度指数 + 带 median 的登记行**；修 `$?` 取到 tail 退出码的 bug（改 `PIPESTATUS[0]`）；透传 `EXTRA_ENV` 后 §7.2 的开关扫描才真正能一键跑 |
+| `bench_128k_1k.sh` | 修 `${ACTUAL_IN}` 在定义前被 heredoc 引用（`set -u` 下 `cat` 直接失败，口径头段打印不出来）；把预估提前到 heredoc 之前 |
+
+自测（无 NPU 也能做的部分）：`bash -n` 通过；`DRY_RUN=1` 输出正确；用 3 组合成 jsonl 跑通了抽数/表格/指数/登记行四段 python。
+
+### 10.2 待跑（按顺序，每轮只变一个变量）
+
+```bash
+# ① 96K 标度点：唯一变量=上下文长度（dp=4，与 §5.2 三点可比）
+cd /home/a00821909/sglang
+DP_SIZE=4 CHUNKED_PREFILL=16384 MEM_FRACTION=0.85 DECODE_GRAPH=1 DECODE_BS="1 2 4 8 16" \
+  WARMUP=4 NUM_PROMPTS=8 CONCURRENCY=1 CACHE_PCT=50 SCALE="98304" \
+  bash _tmp_preflight/oneshot_bench.sh
+
+# ② 若 ① 落在 48-56s（平滑）→ 按 §5.3 的优先级扫开关，先 attention 路径：
+DP_SIZE=4 CHUNKED_PREFILL=16384 MEM_FRACTION=0.85 DECODE_GRAPH=1 DECODE_BS="1 2 4 8 16" \
+  WARMUP=4 NUM_PROMPTS=8 CONCURRENCY=1 CACHE_PCT=50 \
+  EXTRA_ENV="SGLANG_DSV4_NATIVE_ATTN=1" bash _tmp_preflight/oneshot_bench.sh
+#   过了 TTFT 关还要过精度：bash _tmp_preflight/eval_gsm8k.sh && python3 _tmp_preflight/analyze_eval.py
+#   注意 SGLANG_OPT_FUSE_WQA_WKV 在 run 脚本里是 "=0" 而其它是 "=False"，EXTRA_ENV 里照抄原写法（K=V 直接 export）
+```
+
+### 10.3 回传要点（贴回来我就能接着判）
+
+只需要 `===== 标度曲线（复制整段回传） =====` 到 `===== 回传块结束 =====` 之间那段：
+含 `IN_LEN / actual_in / HIT% / U_unc / TTFT_mean / TTFT_med / TPOT / TPUT / U_per_s` 九个字段，以及自动算的**段间标度指数**。
+另外带一句 server 侧的 `max_total_num_tokens`（脚本已自动打印）。
+
+判据：指数平滑 → kernel 常数因子（走开关/profiler）；某段指数明显突跳 → 那里有路径突变，先查分支。
+
