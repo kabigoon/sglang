@@ -84,6 +84,14 @@ if [ "$DRY_RUN" = "1" ]; then
 fi
 
 cleanup() {
+  # 先杀掉启动器子 shell：否则我们退出后它仍会继续跑下去、把 server 拉起来变成孤儿
+  # （2026-11-23 那次 134 分钟孤儿 server 就是这么产生的）
+  if [ -n "${LAUNCH_PID:-}" ]; then
+    if command -v pkill >/dev/null 2>&1; then
+      pkill -9 -P "$LAUNCH_PID" 2>/dev/null || true
+    fi
+    kill -9 "$LAUNCH_PID" 2>/dev/null || true
+  fi
   if command -v pkill >/dev/null 2>&1; then
     pkill -9 -f "sglang.launch_server" 2>/dev/null || true
   elif command -v pgrep >/dev/null 2>&1; then
@@ -127,17 +135,24 @@ echo "    启动 env: DP_SIZE=$DP_SIZE CHUNKED_PREFILL=$CHUNKED_PREFILL MEM_FRAC
     MEM_FRACTION="$MEM_FRACTION" DECODE_GRAPH="$DECODE_GRAPH" \
     ${SRV_ENV[@]+"${SRV_ENV[@]}"} \
     bash "$HERE/run_dsv41_w4a8.sh" ) > "$SLOG" 2>&1 &
+LAUNCH_PID=$!
+echo "    启动器 pid=${LAUNCH_PID}（前导阶段要 pkill/source/sysctl，几秒到几十秒后才出现 python 进程，属正常）"
 
 RES=""; wait_s=0; last_rep=0
 until RES=$(ready_probe) && [ "$RES" = "200" ]; do
-  if ! pgrep -f "sglang.launch_server" >/dev/null 2>&1; then
-    echo "  [FAIL] server 进程已退出（等待 ${wait_s}s，最后一次探测=${RES}），日志尾部："
-    tail -20 "$SLOG"; stage "FAIL server exited after ${wait_s}s probe=$RES"; exit 1
+  # ⚠ 不能用「pgrep 看不到 sglang.launch_server」当失败判据：启动器在前导阶段
+  #   （pkill -9 python、source 4 份 CANN env、sysctl）里还没有 python 进程，
+  #   那样会在 0s 就误判失败并退出——然后启动器继续跑，把 server 变成孤儿。
+  #   正确判据：启动器子 shell 自己死了，且确实看不到 server 进程。
+  launch_alive=1; kill -0 "$LAUNCH_PID" 2>/dev/null || launch_alive=0
+  if [ "$launch_alive" = "0" ] && ! pgrep -f "sglang.launch_server" >/dev/null 2>&1; then
+    echo "  [FAIL] 启动器已退出且没有 server 进程（等待 ${wait_s}s，最后一次探测=${RES}），日志尾部："
+    tail -30 "$SLOG"; stage "FAIL launcher exited after ${wait_s}s probe=$RES"; exit 1
   fi
   sleep 5; wait_s=$((wait_s + 5))
   # 用「距上次打印」而不是取模：sleep 步长 5s，取模在 PROBE_HB 非 5 的倍数时永远不命中
   if [ $((wait_s - last_rep)) -ge "$PROBE_HB" ]; then
-    echo "    [${wait_s}s] 等 ready…探测=${RES}  日志末行: $(tail -1 "$SLOG" 2>/dev/null | tr -d '\r' | cut -c1-90)"
+    echo "    [${wait_s}s] 等 ready…探测=${RES}  启动器=$([ "$launch_alive" = "1" ] && echo 活 || echo 已退出)  日志末行: $(tail -1 "$SLOG" 2>/dev/null | tr -d '\r' | cut -c1-80)"
     last_rep=$wait_s
   fi
   if [ "$wait_s" -ge "$READY_TIMEOUT" ]; then
