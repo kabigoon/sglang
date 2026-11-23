@@ -78,11 +78,16 @@ echo "[1/3] 停旧 server"
 cleanup; sleep 3
 
 echo "[2/3] 起 server（日志 $SLOG）"
+# 注意：EXTRA_ENV / DECODE_BS 的值里含空格（"1 2 4 8 16"、"A=1 B=2"），
+# 不能写成 ${VAR:+K="$VAR"}（外层没引号会被 word splitting 拆成多个 env 参数），必须走数组。
+SRV_ENV=()
+[ -n "$DECODE_BS" ]   && SRV_ENV+=("DECODE_BS=$DECODE_BS")
+[ -n "$EXTRA_ENV" ]   && SRV_ENV+=("EXTRA_ENV=$EXTRA_ENV")
+[ -n "$DISABLE_SPEC" ] && [ "$DISABLE_SPEC" != "0" ] && SRV_ENV+=("DISABLE_SPEC=$DISABLE_SPEC")
+echo "    启动 env: DP_SIZE=$DP_SIZE CHUNKED_PREFILL=$CHUNKED_PREFILL MEM_FRACTION=$MEM_FRACTION DECODE_GRAPH=$DECODE_GRAPH ${SRV_ENV[*]:-}"
 ( cd "$SEG" && env DP_SIZE="$DP_SIZE" CHUNKED_PREFILL="$CHUNKED_PREFILL" \
     MEM_FRACTION="$MEM_FRACTION" DECODE_GRAPH="$DECODE_GRAPH" \
-    ${DECODE_BS:+DECODE_BS="$DECODE_BS"} \
-    ${EXTRA_ENV:+EXTRA_ENV="$EXTRA_ENV"} \
-    ${DISABLE_SPEC:+DISABLE_SPEC="$DISABLE_SPEC"} \
+    ${SRV_ENV[@]+"${SRV_ENV[@]}"} \
     bash "$HERE/run_dsv41_w4a8.sh" ) > "$SLOG" 2>&1 &
 
 wait_s=0
