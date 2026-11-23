@@ -130,7 +130,18 @@ def build_op_top(op_csv: str, out_csv: str, top: int) -> int:
 
 
 def build_comm_summary(comm_json: str, out_csv: str, top: int) -> int:
-    """communication_matrix.json 结构随版本变化，这里做尽力而为的通用汇总。"""
+    """解析 communication_matrix.json。
+
+    实测 schema（CANN 9.2 / torch_npu 2.13）：
+      {"step": {"p2p": {...},
+                "collective": {"allreduce-top1@<id>": {"0-0": {"Transport Type": "LOCAL",
+                                                              "Transit Size(MB)": 25.08,
+                                                              "Transit Time(ms)": 0.0423,
+                                                              "Bandwidth(GB/s)": 579.0,
+                                                              "Op Name": "hcom_allReduce__503_9_1"}, ...},
+                               "allreduce-middle@<id>": {...}}}}
+    注意 "Transit Time(ms)" 是**每条链路**的传输时间，各链路并行，所以整体时长更接近 max 而非 sum。
+    """
     if not os.path.isfile(comm_json):
         return 0
     try:
@@ -139,42 +150,60 @@ def build_comm_summary(comm_json: str, out_csv: str, top: int) -> int:
         print("[warn] communication_matrix.json 解析失败: %s" % e)
         return 0
 
-    agg = defaultdict(lambda: defaultdict(float))
-    counts = defaultdict(int)
-
-    def walk(node):
-        if isinstance(node, dict):
-            # 常见的键名组合，做一个宽松匹配
-            name = (node.get("OpType") or node.get("op_type") or node.get("Name")
-                    or node.get("name") or node.get("GroupName"))
-            dur = node.get("Duration(us)") or node.get("duration") or node.get("ElapseTime")
-            size = node.get("TransitSize") or node.get("Size") or node.get("DataSize")
-            if name is not None:
-                key = str(name)[:60]
-                counts[key] += 1
-                if dur is not None:
-                    agg[key]["dur_us"] += to_float(dur)
-                if size is not None:
-                    agg[key]["bytes"] += to_float(size)
-            for v in node.values():
-                walk(v)
-        elif isinstance(node, list):
-            for v in node:
-                walk(v)
-
-    walk(data)
-    if not agg:
-        print("[warn] communication_matrix.json 里没解析出可聚合字段，原样复制")
+    coll = ((data.get("step") or {}).get("collective")) or {}
+    if not coll:
+        print("[warn] 没有 step.collective，原样复制 json")
         shutil.copyfile(comm_json, out_csv.replace(".csv", ".json"))
         return 0
 
+    rows = []
+    for name, links in coll.items():
+        if not isinstance(links, dict):
+            continue
+        n = 0
+        times, sizes, bws = [], [], []
+        transports = defaultdict(int)
+        ops = set()
+        for _k, m in links.items():
+            if not isinstance(m, dict):
+                continue
+            n += 1
+            t = to_float(m.get("Transit Time(ms)"))
+            if t:
+                times.append(t)
+            sizes.append(to_float(m.get("Transit Size(MB)")))
+            b = to_float(m.get("Bandwidth(GB/s)"))
+            if b:
+                bws.append(b)
+            transports[(m.get("Transport Type") or "?").strip()] += 1
+            op = m.get("Op Name")
+            if op:
+                ops.add(str(op))
+        if not n:
+            continue
+        rows.append([
+            re.sub(r"@\d+$", "", str(name)),          # 去掉尾部 @id，便于同类聚合
+            n,
+            "%.4f" % (max(times) if times else 0.0),
+            "%.4f" % sum(times),
+            "%.2f" % sum(sizes),
+            "%.1f" % (sum(bws) / len(bws) if bws else 0.0),
+            ",".join("%s:%d" % kv for kv in sorted(transports.items(), key=lambda kv: -kv[1])),
+            len(ops),
+        ])
+    if not rows:
+        print("[warn] collective 里没有可解析链路，原样复制 json")
+        shutil.copyfile(comm_json, out_csv.replace(".csv", ".json"))
+        return 0
+
+    rows.sort(key=lambda r: -float(r[3]))
     with open(out_csv, "w", newline="") as f:
         w = csv.writer(f)
-        w.writerow(["comm_op", "count", "total_us", "total_bytes"])
-        for k, v in sorted(agg.items(), key=lambda kv: -kv[1].get("dur_us", 0.0))[:top]:
-            w.writerow([k, counts[k], "%.1f" % v.get("dur_us", 0.0), "%.0f" % v.get("bytes", 0.0)])
-    print("  comm_summary.csv: %d 类通信算子" % min(len(agg), top))
-    return min(len(agg), top)
+        w.writerow(["collective", "links", "max_link_ms", "sum_link_ms", "total_MB",
+                    "avg_GBps", "transports", "distinct_ops"])
+        w.writerows(rows[:top])
+    print("  comm_summary.csv: %d 类通信（按 sum_link_ms 排序）" % min(len(rows), top))
+    return min(len(rows), top)
 
 
 def git_sha(repo: str) -> str:
