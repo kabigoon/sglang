@@ -48,6 +48,9 @@ MEM_FRACTION=${MEM_FRACTION:-0.96}
 # 1 = 开 prefill 图（--cuda-graph-backend-prefill=full）。默认为 0：NPU 上默认被自动禁用。
 # 目的：chunk 之间的 CPU launch 开销是 TTFT 的大头，prefill 图可能把它吃掉。
 PREFILL_GRAPH=${PREFILL_GRAPH:-0}
+# 任意环境变量透传，空格分隔 K=V；用于扫 SGLANG_OPT_* 这类开关
+# 例：EXTRA_ENV="SGLANG_OPT_FUSE_WQA_WKV=1 SGLANG_DSV4_NATIVE_ATTN=1"
+EXTRA_ENV=${EXTRA_ENV:-}
 
 case "$VARIANT" in
   w4a8) DEFAULT_W=/home/weights/DeepSeek-V4.1-Flash-1017-w4a8 ;;
@@ -75,6 +78,7 @@ if [ "$DISABLE_SPEC" != "1" ] && awk "BEGIN{exit !($MEM_FRACTION < 0.83)}"; then
   echo "         否则会报 'Loaded weights leave no GPU memory for the KV cache'"
 fi
 echo "  prefill graph  : $PREFILL_GRAPH (1=开)"
+[ -n "$EXTRA_ENV" ] && echo "  extra env      : $EXTRA_ENV"
 echo "  chunked prefill: $CHUNKED_PREFILL (全局) -> $((CHUNKED_PREFILL / DP_SIZE)) 每 DP rank"
 echo "  max running    : $MAX_RUNNING (全局) -> $((MAX_RUNNING / DP_SIZE)) 每 DP rank"
 echo "=================================================="
@@ -168,6 +172,9 @@ export SGLANG_COMPRESSOR_PREFILL_USE_TRITON=1
 export SGLANG_COMPRESSOR_DECODE_USE_TRITON=1
 
 export SGLANG_RAGGED_VERIFY_MODE=static
+
+# 额外 env 透传（放在最后，可覆盖上面所有默认值）
+for kv in $EXTRA_ENV; do export "$kv"; done
 
 # 组装可选参数
 if [ "$OVERRIDE_STYLE" = "legacy" ]; then
