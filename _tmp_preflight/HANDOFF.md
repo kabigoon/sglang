@@ -218,6 +218,42 @@ TTFT ≈ 6.93e-7 · T^1.11 · U^0.49      （3 点、2 参数，恰好定解）
 **这条也决定了 7 个开关该怎么打**：盲打 7 个是 7×20 分钟；先用「固定 U、只变 T」的三点扫描
 （§11.2）量出 attention-scan-prefix 占 TTFT 的份额，再决定打 attention 路径还是 FFN 路径。
 
+### 5.5 固定-U 的 T 扫描（2026-11-23）：**前缀扫描比之前拟合的便宜得多**
+
+设计：**U 固定 ≈27K，只让 T 变**（60K→90K→120K），用 `SCALE="58800:50 88200:67 117600:75"` 一次跑完。
+
+| 点 | actual T | HIT% | U | TTFT_med | 旧模型(4点 T^1.10·U^0.50) 预测 | 残差 |
+|---|---|---|---|---|---|---|
+| a 60K/c50 | 60,102 | 55.03 | 27,030 | **22.2 s** | 23.0 | −3% |
+| b 90K/c67 | 90,176 | 69.41 | 27,584 | **30.4 s** | 35.8 | **−15%** |
+| c 120K/c75 | 120,262 | 78.06 | 26,390 | **36.8 s** | 49.5 | **−26%** |
+
+**关键读数：固定 U 下 T 翻倍，TTFT 只涨 1.66×（22.2→36.8），旧模型说的是 2.14×。**
+段间 T 指数只有 **0.78 / 0.67**。⇒ 之前"attention 扫 prefix 是主要成本"被削弱：旧指数 `T^1.10` 是 T 与 U 同步上涨时**归因过头**的产物。
+
+局部边际（实测，不依赖模型形式）：
+
+| 方向 | 边际 |
+|---|---|
+| ∂t/∂T 在 U≈27K（c 点附近） | **0.213 ms / prefix-token**（1K 前缀 ≈ 0.21 s） |
+| ∂t/∂U 在 T≈129K（128K/0% 对 55%） | **0.506 ms / new-token** |
+
+**但两个边际量不自洽**：若 attention ∝ U·T，则应有 ∂t/∂T = B·U、∂t/∂U = B·T，
+反解出的 B 分别是 `7.87e-6` 与 `3.92e-6` —— **差 2 倍**；把 7 个点套加性模型 `C + a·U + b·U·T`
+最小二乘会得到 **负的线性系数**（−0.85 ms/token，物理上不可能），说明 `U·T` 这种形式被错误设定。
+
+七点重拟合（乘性）：`TTFT = 3.129e-06 · T^0.818 · U^0.664`，RMS 4.5%（四点时是 ≤0.8%）
+⇒ **简单幂律在这个范围内只是"局部可用"，不能再当定律用**。
+
+**结论（重要）**：128K/50% 工作点（T≈130K, U≈65K）的 attention 份额 **无法从时序数据判定**，只能给区间：
+
+| 假设 | 前缀扫描成本 | f | 单桶天花板 1/(1−f) | 达标所需 k |
+|---|---|---|---|---|
+| 前缀成本与 U 无关（下界） | ≈27.6 s | **35%** | 1.54× | 即使免费也不够 |
+| 前缀成本 ∝ U（上界） | ≈66.3 s | **84%** | 6.13× | 3.8× |
+
+区间宽到无法决策 ⇒ **时序扫描的分辨率到头了，下一步必须上 profiler 直接归因**（§11.2）。
+
 ---
 
 ## 6. 已排除的假设（别再重复试）
@@ -273,7 +309,9 @@ TTFT ≈ 6.93e-7 · T^1.11 · U^0.49      （3 点、2 参数，恰好定解）
 > 已排除 chunk/mem/prefill-graph/dp 四个方向。瓶颈机制按 §5.3 改判为"**attention 仍要扫过已缓存的 prefix**"
 > （TTFT ≈ `T^1.104 · U^0.498`，四点拟合，残差 ≤0.8%）。
 > **96K 点已测（49.1 s），确认平滑、无突变**（§5.4）⇒ 没有便宜的加速点，2.64× 只能靠常数因子/算法。
-> 下一步：**§11.2 固定-U 的 T 扫描（量 attention 占比，~45 分钟）→ 按占比挑 2-3 个开关 → profiler 归因**。
+> **固定-U 的 T 扫描已测（§5.5）：前缀扫描比旧拟合便宜得多（固定 U 下 T×2 只涨 1.66×），
+> 且 `U·T` 形式被证伪 ⇒ attention 份额只能夹在 35%~84%，时序扫描分辨率到头。**
+> 下一步：**profiler 直接归因（§11.2）**，再决定打 attention 算法/并行度还是 FFN 侧。
 
 ---
 
@@ -414,39 +452,26 @@ bash _tmp_preflight/diag_run.sh
 这决定了该打 attention 路径（`SGLANG_DSV4_NATIVE_ATTN`、`SHALLOW_FUSED_ROPE_FQ4`、tilelang MHC）
 还是 FFN 路径（`FP8_WO_A_GEMM`、`DEEPGEMM_HC_PRENORM`）。
 
-### 11.2 实验：固定 U、只变 T 的三点扫描（约 45 分钟）
+### 11.2 下一步：profiler 直接归因（时序扫描已到头，见 §5.5）
 
-**关键设计**：让**未命中长度 U 固定 ≈ 30K**，只改**总长 T**（60K → 90K → 120K）。
-如果 TTFT 基本持平 ⇒ 扫 prefix 几乎免费，成本在 U 侧（FFN/MoE）⇒ 打 FFN 路径；
-如果 TTFT 随 T 明显上升 ⇒ 扫 prefix 就是大头 ⇒ 打 attention 路径。
+**为什么不再扫时序**：§5.5 表明 `U·T` 形式不成立、两个边际差 2 倍，attention 份额只能夹在 35%~84%，
+天花板从 1.5× 到 6.1× —— 无法决策。再补时序点（例如 2×2 角落 `SCALE="126000:79 88200:28"`，约 37 分钟）
+只能多给一个交互项，仍然绕不开"时间无法拆桶"的根本问题。
 
-`oneshot_bench.sh` 的 `SCALE` 已支持 `IN_LEN:命中率` 写法，三点一次跑完（同一个 server）：
+**做法**（`/start_profile`、`/stop_profile` 是 HTTP 端点，`http_server.py:1220`，不改 PR 代码）：
 
-```bash
-nohup env DP_SIZE=4 CHUNKED_PREFILL=16384 MEM_FRACTION=0.85 DECODE_GRAPH=1 \
-  DECODE_BS="1 2 4 8 16" WARMUP=4 NUM_PROMPTS=8 CONCURRENCY=1 \
-  SCALE="58800:50 88200:67 117600:75" \
-  bash _tmp_preflight/oneshot_bench.sh > /tmp/run_tsweep.log 2>&1 &
-```
+1. 起 server 时加 `SGLANG_TORCH_PROFILER_DIR=/tmp/prof128k`（env 走 `EXTRA_ENV`）；
+2. `WARMUP=4` 把 55% 前缀灌进缓存（**不要**在 profile 里包含 warmup）；
+3. `POST /start_profile`，body 建议
+   `{"output_dir":"/tmp/prof128k","num_steps":60,"activities":["CPU","NPU"]}`；
+4. 跑 **1 条** 128K/55% 请求：`NUM_PROMPTS=1 OUT_LEN=64 SKIP_FLUSH=1`；
+5. `POST /stop_profile`，然后按 kernel 名归并成 attention / linear / moe / rope / compressor 五桶。
 
-| 点 | 名义 IN_LEN | CACHE% | 预期 T | 预期 U | 模型预测 TTFT |
-|---|---|---|---|---|---|
-| a | 58,800 | 50% | ~60.0K | ~30.0K | 23.0 s |
-| b | 88,200 | 67% | ~90.0K | ~29.7K | 35.8 s |
-| c | 117,600 | 75% | ~120.0K | ~30.0K | 49.5 s |
+要回答的唯一问题：**一次 128K/50% prefill 里，扫 prefix 的 attention 占多少、新 token 的 FFN/MoE 占多少。**
 
-判读（用 **median**，且三点都必须是 HIT% ≈ 名义值，否则本点作废）：
+⚠ 未验证项（第一次跑要先确认）：`activities` 是否接受 `"NPU"`、trace 体积、`profile_by_stage` 语义、trace 落盘路径。
 
-| 实测形态 | 结论 | 下一步 |
-|---|---|---|
-| TTFT 基本持平（三点差 <15%） | 扫 prefix 便宜，成本在 U 侧 | 打 FFN 路径开关：`FP8_WO_A_GEMM`、`DEEPGEMM_HC_PRENORM` |
-| TTFT 明显上升（c/a > 1.6） | 扫 prefix 是大头 | 打 attention 路径：`SGLANG_DSV4_NATIVE_ATTN`、`SHALLOW_FUSED_ROPE_FQ4`、tilelang MHC |
-| 介于两者之间 | 两边都占 | 先打 attention 路径（长上下文更可能是它），再用 profiler 归因 |
-
-⚠ 注意：每点 bench 开始时会 `flush_cache`，然后 `WARMUP=4` 重新灌前缀（覆盖 4 个 DP rank）。
-**c 点的 warmup 本身要 prefill 88K 共享前缀**，单点约 17 分钟，三点合计 ~45 分钟，属正常。
-
-### 11.3 备选/后续：profiler 归因
+### 11.3 备选：2×2 角落点（若 profile 跑不通）
 
 `/start_profile` 与 `/stop_profile` 是 HTTP 端点（`http_server.py:1220`），不需要改 PR 代码，
 `ProfileReq` 支持 `output_dir / num_steps / activities / profile_by_stage`。
