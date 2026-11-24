@@ -460,6 +460,11 @@ bash _tmp_preflight/diag_run.sh
 
 **做法**（`/start_profile`、`/stop_profile` 是 HTTP 端点，`http_server.py:1220`，不改 PR 代码）：
 
+0. ⚠ `/start_profile`、`/stop_profile` 是 **admin_force**（`utils/auth_levels.json:70,72`）：
+   server 必须带 `--admin-api-key <key>`，POST 必须带 `Authorization: Bearer <key>`，否则 403
+   （`This endpoint requires admin API key, but this server was started without one`）。
+   而且**一旦设了 admin key**，`/flush_cache`（admin_optional）也开始要 Bearer，
+   `bench_128k_1k.sh` 的 flush 不带 header → 401 → 它只打一句"失败（继续）"就跳过。
 1. 起 server 时加 `SGLANG_TORCH_PROFILER_DIR=/tmp/prof128k`（env 走 `EXTRA_ENV`）；
 2. `WARMUP=4` 把 55% 前缀灌进缓存（**不要**在 profile 里包含 warmup）；
 3. `POST /start_profile`，body 建议
@@ -831,3 +836,72 @@ tail -f /tmp/prof_run.log
 - 若切步失败（周期检测过不了）：兜底仍能给出**prefill 口径**的桶分布（这本身就是 §14.5 缺的那块），
   再用两次采集（`CACHE_PCT=50` vs `SKIP_FLUSH=0 CACHE_PCT=0`）对比总量做差分。
 - 内存退路：若 128K prefill OOM，按 §14.8 加 `--max-total-tokens 260000`（封池子，TTFT 不变）。
+
+---
+
+## 16. 第一次采集失败复盘（2026-11-24 16:xx）与「冷启动采集」定案
+
+### 16.1 两个失败（都不是环境问题）
+
+| # | 现象 | 根因 |
+|---|---|---|
+| ① | `/start_profile` 返回 `{"error":"This endpoint requires admin API key…"}`，`Profiling starts=0`，最终没有 trace 目录 | `/start_profile` 是 **admin_force**（`auth_levels.json:70`）。server 启动时没带 `--admin-api-key`，脚本 POST 时也没带 Bearer |
+| ② | 预热和采集条都是 **`HIT=100.0%`**，TTFT 1.70s / 1.29s | 预热送的是**与采集条完全相同的 prompt**（`--gsp-num-groups 1 --gsp-prompts-per-group 1`），4 条预热把它**整条 129K** 灌进缓存；采集条于是 100% 命中，**没有 prefill** |
+
+② 是设计错误，比 ① 更危险：即使 ① 修好，采到的会是一条"空 prefill"的 trace，
+而 `analyze_profile.py` 会照常打出一张表 —— 看起来像"attention≈0、Free 很高"，把结论带偏。
+
+顺带修掉一个脚本 bug：`N_START=$(grep -c … || echo 0)` 在 0 命中时输出 `0\n0`，
+导致 `[: 0\n0: integer expression expected`（`grep -c` 命中 0 时已经打印 0 且退出 1）。改成 `|| true`。
+
+### 16.2 定案：采**冷启动**trace，不预热（`WARMUP=0`）
+
+理由：一次冷启动的 129K prefill 会跑 **32 个 chunk**，prefix 从 4K 扫到 131K；
+50% 命中时要跑的那 16 个 chunk，其 prefix 正好是 65K→129K，**完全被这次扫描覆盖**。
+所以一条冷 trace 同时给两样东西：
+
+1. **每 chunk 组成**（attention / FFN / 小算子 / 通信 / aicore%）——看 `--window-from 67584` 那个窗口，
+   就是 50% 工作点的组成；
+2. **斜率** ∂attention/∂prefix——32 个点、跨 4K→131K，比只在 65K→129K 里取 16 点强得多。
+
+而且它**不依赖任何缓存状态**：新起的 server + `WARMUP=0` + `SKIP_FLUSH=1`，命中率必然是 0%。
+之前想采「50% 命中」需要"只预热共享前缀"（`CACHE_PCT=100` + `IN_LEN=SHARED`，让 system prompt
+文本与采集条逐字节一致；gsp 的 system prompt 在 question 之前生成，所以改 `question_len` 不影响它），
+但这条路上还埋着 `/flush_cache` 401、缓存残留、prompt 缓存文件命中（`gen_shared_prefix_*.pkl`）等坑，
+**第一轮不值得为"精确 50%"冒这些风险**。冷 trace 拿到斜率后，50% 工作点的组成可以直接算。
+
+### 16.3 修正后的命令
+
+```bash
+cd /home/a00821909/sglang && git pull origin pr-50205-dsv41-a3-deepep
+
+EXTRA_ENV="HCCL_BUFFSIZE=128 SGLANG_DSPARK_NVLINK_VOCAB_GATHER=0" \
+EXTRA_ARGS="--swa-prefix-tails 16" MAX_PREFILL_TOKENS=8192 \
+DP_SIZE=4 CHUNKED_PREFILL=16384 MEM_FRACTION=0.88 DECODE_GRAPH=1 DECODE_BS="1 2 4" \
+TAG=prof_128k_cold \
+  nohup bash _tmp_preflight/profile_oneshot.sh > /tmp/prof_run.log 2>&1 &
+tail -f /tmp/prof_run.log
+```
+
+脚本现在自己处理：`--admin-api-key`（`ADMIN_KEY`，默认 `sglang-prof-key`）+ POST 带 Bearer；
+`NUM_STEPS` 默认 **34**（32 chunk + 2 decode）；不预热；命中率守卫（冷启动若 >10% 直接判失败、
+不打包）；`/start_profile` 返回体里带 error 就立刻退出。
+
+判据（这次一定要全绿再分析）：
+- `/start_profile → {"success": true, ...}` 且 `Profiling starts=1`
+- `HIT=0.x%`（<10%）
+- `skipped=12`、`rank 目录数 = 4`（一个明显大）
+- `Profiling done`，trace 目录 ~2-3GB
+
+### 16.4 分析（冷 trace 用这一行）
+
+```bash
+PROF=$(ls -dt /tmp/prof_128k_cold_*/ | head -1)
+python3 _tmp_preflight/analyze_prefill_steps.py "$PROF" \
+  --chunk-tokens 4096 --cached-prefix 0 --total-tokens 129093 \
+  --window-from 67584 --ttft-ms 73710
+```
+
+看 **WIN_F_*** 和 **WIN_SLOPE_ATTN**（不要看 `F_*`：那是全 trace，混了冷/热两段）。
+`WIN_WALL_S` 应该接近 bench 的 prefill 时长（50% 命中时约 73s；冷 trace 的窗口只含那 16 个 chunk，
+所以这个数**可以**直接和 73.71s 对照）。若差很多，说明 chunk 边界或 token 数没对上，先别下结论。
