@@ -350,8 +350,16 @@ fi
 # ---------------- 5. 停 profile ----------------
 echo
 echo "[5/7] 停 profile（导出+解析，128K 可能要 1~3 分钟）"
-stage "stop_profile"
-api_post "/stop_profile" "{}" 900
+# num_steps 到点后 profiler 会**自动** stop + 导出（scheduler 里按 forward ct 触发）。
+# 这时再 POST /stop_profile 只会得到 "Profiling is not in progress"（它在 barrier 之前就返回，
+# 不会卡，但日志会很迷惑），所以先看日志再决定要不要发。
+if grep -q "Profiling done" "$SLOG" 2>/dev/null; then
+  echo "  ✓ num_steps 到点已自动停止并导出（跳过 POST /stop_profile）"
+  stage "auto-stopped at num_steps"
+else
+  stage "stop_profile"
+  api_post "/stop_profile" "{}" 900
+fi
 for _ in $(seq 1 60); do
   grep -q "Profiling done" "$SLOG" 2>/dev/null && break
   sleep 5
@@ -396,8 +404,24 @@ if [ "$N_DIRS" -ne "$EXPECT_COLLECT" ]; then
   echo "  [warn] rank 目录数 ${N_DIRS} ≠ 期望 ${EXPECT_COLLECT}（门控没按预期生效？）"
 fi
 
+# 先跑一次按 chunk 的归因，把**诊断信息**也存进证据包。
+# 3 步的 smoke 不足以拟合斜率，但它能告诉我们切步对不对、桶分布合不合理——
+# 这正是 smoke 的价值：拿它把分析器改对，而不是拿 32 步的大 trace 试错。
+ANALYZE=${ANALYZE:-1}
+if [ "$ANALYZE" = "1" ] && [ -f "$HERE/analyze_prefill_steps.py" ]; then
+  python3 "$HERE/analyze_prefill_steps.py" "$PROF_DIR" \
+      --chunk-tokens $((CHUNKED_PREFILL / DP_SIZE)) --cached-prefix 0 \
+      --window-from $((CHUNKED_PREFILL / DP_SIZE * 17)) 2>&1 | tee "$OUT/prefill_steps.txt" | sed 's/^/    /'
+else
+  echo "    （跳过 analyze_prefill_steps.py）"
+fi
+
 python3 "$HERE/collect_profile_bundle.py" "$PROF_DIR" --tag "$TAG" | sed 's/^/    /'
 BUNDLE_DIR="$HERE/profile_bundle/$TAG"
+if [ -f "$OUT/prefill_steps.txt" ]; then
+  cp "$OUT/prefill_steps.txt" "$BUNDLE_DIR/prefill_steps.txt"
+  cp "$OUT/bench.log" "$BUNDLE_DIR/bench.log" 2>/dev/null || true
+fi
 du -sh "$BUNDLE_DIR" 2>/dev/null | sed 's/^/    证据包: /'
 
 INSIGHT_TGZ="/tmp/${TAG}_insight.tgz"
