@@ -312,7 +312,7 @@ def _snap_back(main, idx: int, thr_us: float, lookback: int = 500) -> int:
     return j
 
 
-def segment_by_anchor(main, expected, max_count=256):
+def segment_by_anchor(main, expected, max_count=256, ratio_lo=0.5, ratio_hi=2.0):
     """用一个「每个 forward 恰好出现 N 次」的算子做锚点切步（最稳，smoke 定案）。
 
     为什么要它：真实 trace 里 SparseFlashMla 每个 forward 出现 42 次、duration 从 20us
@@ -329,12 +329,17 @@ def segment_by_anchor(main, expected, max_count=256):
     for i, r in enumerate(main):
         by_name.setdefault(r["name"], []).append(i)
 
+    # 窗口总跨度：一个合格的「每 forward 一次」的锚点必须**铺满整个窗口**。
+    # 只按「次数对 + 间隔均匀」会选到挤在 1ms 内的 3 次调用（smoke 实踩：
+    # aclnnRemainderTensorTensor_FloorModA count=3，间隔 CV=0.10，但三次都在同一毫秒），
+    # 结果切出 3 个 0.2ms 的"步"。
+    span = main[-1]["start"] - main[0]["start"]
     best = None
+    rejected = []
     for nm, idxs in by_name.items():
         c = len(idxs)
         if c < 2 or c > max_count:
             continue
-        per = c // expected if expected and c % expected == 0 else None
         starts = [main[i]["start"] for i in idxs]
         gaps = [b - a for a, b in zip(starts, starts[1:])]
         if not gaps:
@@ -342,17 +347,29 @@ def segment_by_anchor(main, expected, max_count=256):
         mean = sum(gaps) / len(gaps)
         if mean <= 0:
             continue
+        # 均匀度：间隔离散程度
         cv = (sum((g - mean) ** 2 for g in gaps) / len(gaps)) ** 0.5 / mean
         if cv > 0.6:
             continue
-        misfit = 0 if per else abs(c - expected)
-        score = (misfit, cv, -c)
+        # 铺满度：平均间隔应当接近 跨度/次数（≈1 表示均匀铺满整个窗口）
+        ratio = mean / (span / c) if span > 0 else 0.0
+        if not (ratio_lo <= ratio <= ratio_hi):
+            rejected.append((nm, c, ratio))
+            continue
+        per = c // expected if expected and c % expected == 0 else None
+        misfit = 0 if per else abs(c - expected) if expected else 0
+        # 偏好：每 forward 恰好 1 次（per=1）、间隔最均匀
+        score = (misfit, 0 if per == 1 else 1, cv, -c)
         if best is None or score < best[0]:
-            best = (score, nm, idxs, per, cv, c)
+            best = (score, nm, idxs, per, cv, c, ratio)
     if best is None:
-        return None, 0, "主计算流上找不到「每 forward 固定次数」的锚点算子"
+        msg = "主计算流上找不到「每 forward 固定次数」的锚点算子"
+        if rejected:
+            msg += "（%d 个候选因没铺满窗口被否，例如 %s count=%d ratio=%.3f）" % (
+                len(rejected), rejected[0][0][:30], rejected[0][1], rejected[0][2])
+        return None, 0, msg
 
-    _score, nm, idxs, per, cv, c = best
+    _score, nm, idxs, per, cv, c, ratio = best
     if per and per > 1:
         idxs = idxs[::per]
 
@@ -371,8 +388,8 @@ def segment_by_anchor(main, expected, max_count=256):
     else:
         bounds = snapped
         why_snap = ""
-    why = ("锚点=%s count=%d 每forward=%s 间隔CV=%.2f 空档阈值=%.0fms → %d 步%s"
-           % (nm[:36], c, per or "?", cv, thr / 1000.0, len(bounds), why_snap))
+    why = ("锚点=%s count=%d 每forward=%s 间隔CV=%.2f 铺满度=%.2f 空档阈值=%.0fms → %d 步%s"
+           % (nm[:36], c, per or "?", cv, ratio, thr / 1000.0, len(bounds), why_snap))
     return bounds, len(bounds), why
 
 
@@ -513,6 +530,13 @@ def main() -> int:
 
     # 1) 锚点算子（每 forward 固定出现次数）——smoke 实测最稳
     b0, n0, why0 = segment_by_anchor(main_rows, expected)
+    if not b0:
+        # 严格阈值（铺满度 0.5~2）失败时，放宽到 0.15~6 再试一次，避免又多一轮往返
+        b0, n0, why0b = segment_by_anchor(main_rows, expected,
+                                         ratio_lo=0.15, ratio_hi=6.0)
+        if b0:
+            why0 = why0b + "（已放宽铺满度阈值）"
+            print("  [warn] 严格阈值下没有锚点，已放宽重试")
     print("切步[1/3] 锚点算子：%s" % why0)
     if b0 and n0 >= 2 and (not expected or abs(n0 - expected) <= 2):
         bounds, n_steps, method = b0, n0, "anchor"
