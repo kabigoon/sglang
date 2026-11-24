@@ -1,0 +1,55 @@
+发现 4 个 rank 目录，取最有料的一个（其余是空闲 replica）：
+         10.5 MB  node-61-47-19-68_447253_20261124140430132_ascend_pt
+          1.0 MB  node-61-47-19-68_447265_20261124140430132_ascend_pt
+          1.0 MB  node-61-47-19-68_447261_20261124140430132_ascend_pt
+          1.0 MB  node-61-47-19-68_447257_20261124140430132_ascend_pt
+分析：/tmp/demo_ep_late_1124_135951/node-61-47-19-68_447253_20261124140430132_ascend_pt/ASCEND_PROFILER_OUTPUT
+kernel 行数=32597（跳过 dur<=0 的 0 行）
+按 AI 核耗时排前 5 的流（count 仅参考）：
+    stream 34     kernels=32104    AI核耗时=10810.8 ms
+    stream 38     kernels=320      AI核耗时=5.9 ms
+主计算流 = 34（32104 个 kernel）
+切步[1/3] 锚点算子：没有期望步数，跳过锚点法
+切步[2/3] attention-duration：duration 阶跃切步：算子=SparseLightningIndexer，段数=2，每组 kernel 数≈4，imbalance=0.00
+切步：attention-duration → 2 步（第 0 步起点 t=1795529074365.442 ms）
+自检：matmul 的 M 维（每 forward 实际 token 数）中位 = 4096（样本 1260 个）
+
+===== 每 chunk 明细（wall=墙钟，其余=该桶 kernel 耗时之和） =====
+step  T_k(tok)  tokens   wall_ms  attention     matmul        MoE       rope  elementwi       HCCL         其它 aicore%
+0         4096    4096   10300.4     4511.0      517.8       50.3       24.2      992.3      523.4       39.4      49
+1         8192    4096    6361.1     4128.8      112.2       12.3        5.9      224.7       96.5        2.6      66
+
+prefill 墙钟合计 = 16661.5 ms（2 步；主计算流 t0=1795529074365 ms，末尾=1795529091027 ms）
+
+===== 各桶：总量 / 相对墙钟 / 随累计长度的斜率 =====
+桶                   总耗时ms      占墙钟    斜率 ms/1Ktok       截距ms       R²
+attention          8639.8    51.9%              -          -        -
+matmul/linear       629.9     3.8%              -          -        -
+MoE/gating           62.6     0.4%              -          -        -
+rope/norm            30.1     0.2%              -          -        -
+elementwise        1217.0     7.3%              -          -        -
+HCCL/通信             619.9     3.7%              -          -        -
+其它                   41.9     0.3%              -          -        -
+
+===== 归因（prefill 墙钟 = 16.7 s） =====
+  attention 全部            :   51.9%   (斜率 - ms/1K token)
+  其中「随 prefix 线性增长」:    0.0%   ← 这部分才是稀疏/压缩 KV、CP 能吃掉的
+  小算子（elem+rope/norm）  :    7.5%
+  通信                      :    3.7%
+  FFN/MoE（moe+matmul）     :    4.2%
+
+  TTFT 假设 = 73.7 s，目标 30.0 s → 需砍 43.7 s
+  （份额来自本 trace；把份额乘到 bench 的 TTFT 上，才可比）
+    · 砍光 prefix 扫描             → 省    0.0 s （不够）
+    · 砍光 attention(含新token)    → 省   38.2 s （不够）
+    · 砍光小算子                    → 省    5.5 s （不够）
+    · 砍光通信                     → 省    2.7 s （不够）
+    · 砍光 FFN/MoE+matmul        → 省    3.1 s （不够）
+
+[warn] --window-from 69632 没有选中任何 chunk（T_max=8192）
+
+===== 回传块（复制这段）=====
+STEPS=2 METHOD=attention-duration CHUNK=4096 CACHED_PREFIX=0 TOTAL=8192
+PREFILL_WALL_S=16.66
+F_ATTN=0.519 F_PREFIX=0.000 F_SMALL=0.075 F_COMM=0.037 F_MOE_MM=0.042
+===== 回传块结束 =====

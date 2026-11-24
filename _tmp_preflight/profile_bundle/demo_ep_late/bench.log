@@ -1,0 +1,125 @@
+[warn] 名义 IN_LEN=131072 按 overshoot=1.03 折算后为 135004 > 上限 131072，自动改为 127246
+===== [0] 本次压测口径 =====
+  endpoint      : http://127.0.0.1:5684
+  model         : /home/weights/DeepSeek-V4.1-Flash-1017-w8a8
+  input         : 127246  = shared 63623 (50%) + question 63623
+  （实际 token 数约 127246×1.03 ≈ 131063，须 ≤ 服务端上限 0）
+  output        : 8
+  prompts / 并发: 1 / 1   (warmup=0, dp_size=4)
+  SLO           : TTFT < 30000ms, TPOT < 50ms  (按 mean 判定)
+  结果          : /home/dsv4_test/bench_out/v41_128k_1k_cache50_c1_n1_20261124_140237.jsonl
+  日志          : /home/dsv4_test/bench_out/v41_128k_1k_cache50_c1_n1_20261124_140237.log
+
+===== [1] 清缓存 + 健康检查 =====
+  /v1/models OK
+  SKIP_FLUSH=1，跳过 flush（复用已有前缀缓存）
+
+===== [2] 开始压测（前台，原始输出随 tee 打印）=====
+client 命令（复现/登记用）：
+  python3  -m  sglang.benchmark.serving  --backend  sglang  --host  127.0.0.1  --port  5684  --model  /home/weights/DeepSeek-V4.1-Flash-1017-w8a8  --dataset-name  generated-shared-prefix  --gsp-num-groups  1  --gsp-prompts-per-group  1  --gsp-system-prompt-len  63623  --gsp-question-len  63623  --gsp-output-len  8  --num-prompts  1  --max-concurrency  1  --request-rate  inf  --seed  42  --warmup-requests  0  --cache-report  --output-details  --output-file  /home/dsv4_test/bench_out/v41_128k_1k_cache50_c1_n1_20261124_140237.jsonl
+
+/usr/local/python3.12.15/lib/python3.12/site-packages/triton/language/extra/cann/extension/math_ops.py:13: FutureWarning: triton.language.extra.cann.extension.atan2 is deprecated and will be removed in the next release; use triton.language.extra.cann.libdevice.atan2 instead.
+  @_deprecated(replacement="triton.language.extra.cann.libdevice.atan2")
+/usr/local/python3.12.15/lib/python3.12/site-packages/triton/language/extra/cann/extension/math_ops.py:35: FutureWarning: triton.language.extra.cann.extension.isfinited is deprecated and will be removed in the next release; use triton.language.extra.cann.libdevice.isfinited instead.
+  @_deprecated(replacement="triton.language.extra.cann.libdevice.isfinited")
+/usr/local/python3.12.15/lib/python3.12/site-packages/triton/language/extra/cann/extension/math_ops.py:49: FutureWarning: triton.language.extra.cann.extension.finitef is deprecated and will be removed in the next release; use triton.language.extra.cann.libdevice.finitef instead.
+  @_deprecated(replacement="triton.language.extra.cann.libdevice.finitef")
+[transformers] You are using a model of type `deepseek_v41` to instantiate a model of type ``. This may be expected if you are loading a checkpoint that shares a subset of the architecture (e.g., loading a `sam2_video` checkpoint into `Sam2Model`), but is otherwise not supported and can yield errors. Please verify that the checkpoint is compatible with the model you are instantiating.
+benchmark_args=Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=5684, ready_check_timeout_sec=60, dataset_name='generated-shared-prefix', dataset_path='', dataset_offset=0, agentic_max_turns=None, speed_bench_category=None, speed_bench_output_len=512, model='/home/weights/DeepSeek-V4.1-Flash-1017-w8a8', served_model_name=None, tokenizer=None, num_prompts=1, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=1024, random_output_len=1024, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=1, output_file='/home/dsv4_test/bench_out/v41_128k_1k_cache50_c1_n1_20261124_140237.jsonl', output_details=True, goodput=None, print_requests=False, disable_tqdm=False, disable_stream=False, return_logprob=False, top_logprobs_num=0, token_ids_logprob=None, logprob_start_len=-1, return_routed_experts=False, cache_report=True, seed=42, disable_ignore_eos=False, temperature=0.0, top_p=1.0, extra_request_body=None, apply_chat_template=False, profile=False, admin_api_key=None, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_start_step=None, profile_steps=None, profile_num_steps=None, profile_by_stage=False, profile_stages=None, profile_output_dir=None, profile_prefix=None, lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, flush_cache_timeout=60.0, warmup_requests=0, tokenize_prompt=False, gsp_num_groups=1, gsp_prompts_per_group=1, gsp_system_prompt_len=63623, gsp_question_len=63623, gsp_output_len=8, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, gsp_group_distribution='uniform', gsp_zipf_alpha=None, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', fake_prefill=False, tag=None, header=None, rust_client=False, rust_worker_threads=None)
+Waiting up to 60s for http://127.0.0.1:5684/v1/models to become ready...
+Server ready in 0.0s.
+Namespace(backend='sglang', base_url=None, host='127.0.0.1', port=5684, ready_check_timeout_sec=60, dataset_name='generated-shared-prefix', dataset_path='', dataset_offset=0, agentic_max_turns=None, speed_bench_category=None, speed_bench_output_len=512, model='/home/weights/DeepSeek-V4.1-Flash-1017-w8a8', served_model_name=None, tokenizer=None, num_prompts=1, sharegpt_output_len=None, sharegpt_context_len=None, random_input_len=1024, random_output_len=1024, random_range_ratio=0.0, image_count=1, image_resolution='1080p', random_image_count=False, image_format='jpeg', image_content='random', request_rate=inf, use_trace_timestamps=False, max_concurrency=1, output_file='/home/dsv4_test/bench_out/v41_128k_1k_cache50_c1_n1_20261124_140237.jsonl', output_details=True, goodput=None, print_requests=False, disable_tqdm=False, disable_stream=False, return_logprob=False, top_logprobs_num=0, token_ids_logprob=None, logprob_start_len=-1, return_routed_experts=False, cache_report=True, seed=42, disable_ignore_eos=False, temperature=0.0, top_p=1.0, extra_request_body=None, apply_chat_template=False, profile=False, admin_api_key=None, plot_throughput=False, profile_activities=['CPU', 'GPU'], profile_start_step=None, profile_steps=None, profile_num_steps=None, profile_by_stage=False, profile_stages=None, profile_output_dir=None, profile_prefix=None, lora_name=None, lora_request_distribution='uniform', lora_zipf_alpha=1.5, prompt_suffix='', pd_separated=False, profile_prefill_url=None, profile_decode_url=None, flush_cache=False, flush_cache_timeout=60.0, warmup_requests=0, tokenize_prompt=False, gsp_num_groups=1, gsp_prompts_per_group=1, gsp_system_prompt_len=63623, gsp_question_len=63623, gsp_output_len=8, gsp_range_ratio=1.0, gsp_fast_prepare=False, gsp_send_routing_key=False, gsp_num_turns=1, gsp_ordered=False, gsp_group_distribution='uniform', gsp_zipf_alpha=None, mooncake_slowdown_factor=1.0, mooncake_num_rounds=1, mooncake_workload='conversation', fake_prefill=False, tag=None, header=None, rust_client=False, rust_worker_threads=None)
+
+
+WARNING It is recommended to use the `Chat` or `Instruct` model for benchmarking.
+Because when the tokenizer counts the output tokens, if there is gibberish, it might count incorrectly.
+
+
+Loading cached generated input data from /root/.cache/sglang/benchmark/gen_shared_prefix_42_1_1_63623_63623_8_TokenizersBackend.pkl
+Starting warmup with 0 sequences...
+Warmup completed with 0 sequences. Starting main benchmark run...
+  0%|          | 0/1 [00:00<?, ?it/s]100%|██████████| 1/1 [02:38<00:00, 158.13s/it]100%|██████████| 1/1 [02:38<00:00, 158.13s/it]
+
+============ Serving Benchmark Result ============
+Backend:                                 sglang    
+Traffic request rate:                    inf       
+Max request concurrency:                 1         
+Successful requests:                     1         
+Benchmark duration (s):                  158.17    
+Total input tokens:                      130052    
+Total input text tokens:                 130052    
+Total generated tokens:                  8         
+Total generated tokens (retokenized):    8         
+Request throughput (req/s):              0.01      
+Input token throughput (tok/s):          822.23    
+Output token throughput (tok/s):         0.05      
+Peak output token throughput (tok/s):    6.00      
+Peak concurrent requests:                1         
+Total token throughput (tok/s):          822.28    
+Concurrency:                             1.00      
+----------------End-to-End Latency----------------
+Mean E2E Latency (ms):                   158131.96 
+Median E2E Latency (ms):                 158131.96 
+P90 E2E Latency (ms):                    158131.96 
+P95 E2E Latency (ms):                    158131.96 
+P99 E2E Latency (ms):                    158131.96 
+---------------Time to First Token----------------
+Mean TTFT (ms):                          157236.07 
+Median TTFT (ms):                        157236.07 
+P90 TTFT (ms):                           157236.07 
+P95 TTFT (ms):                           157236.07 
+P99 TTFT (ms):                           157236.07 
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          127.98    
+Median TPOT (ms):                        127.98    
+P90 TPOT (ms):                           127.98    
+P95 TPOT (ms):                           127.98    
+P99 TPOT (ms):                           127.98    
+---------------Inter-Token Latency----------------
+Mean ITL (ms):                           149.26    
+Median ITL (ms):                         143.17    
+P90 ITL (ms):                            232.04    
+P95 ITL (ms):                            240.97    
+P99 ITL (ms):                            248.12    
+Max ITL (ms):                            249.91    
+----------------Cache Hit Details-----------------
+Total prompt tokens:                     130052    
+Total cached tokens:                     0         
+Cache hit rate:                          0.0%
+==================================================
+
+===== [3] 结果与 SLO 判定 =====
+请求数            : 1
+服务端上报输入长度 (mean/max): 130052 / 130052   (期望约 127246)
+输出长度 分布      : [8]
+前缀命中率         : 0.0%  (目标 50%)
+   cached/prompt    : 0 / 130052
+
+指标               mean     median        p90        p99        max
+TTFT(ms)     157236.1   157236.1   157236.1   157236.1      157.2
+TPOT(ms)        128.0      128.0      128.0      128.0          -
+ITL(ms)         149.3      143.2      232.0      248.1          -
+E2E(ms)      158132.0   158132.0   158132.0   158132.0          -
+
+吞吐              : output 0.050578365790842815 tok/s | request 0.006322295723855352 req/s | input 822.2272034788363 tok/s
+平均并发          : 0.9997570453026358
+
+完整性            : 通过（非满长 0 条，错误 0 条）
+
+SLO（按 mean 判定）
+  TTFT  157236.1 ms  <=    30000 ms   FAIL
+  TPOT     128.0 ms  <=       50 ms   FAIL
+
+[提示] 实测命中率 0.0% 偏离目标 50%：
+       共享前缀实际占比 = 0.0%，用 CACHE_PCT=50 重跑，或手动调 --gsp-system-prompt-len
+
+===== 回传块 =====
+HIT=0.0% TARGET=50%
+TTFT_mean=157236.0719400458 ms (SLO 30000)
+TPOT_mean=127.98470428346523 ms (SLO 50)
+OUT_TPUT=0.050578365790842815 tok/s  CONC=0.9997570453026358  COMPLETE=True
+===== 回传块结束 =====
+
+结果文件: /home/dsv4_test/bench_out/v41_128k_1k_cache50_c1_n1_20261124_140237.jsonl
+日志文件: /home/dsv4_test/bench_out/v41_128k_1k_cache50_c1_n1_20261124_140237.log
+（退出码 0：0=完整性通过；1=完整性失败；3=SLO 未达标且 STRICT=1）

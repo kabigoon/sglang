@@ -1,0 +1,4 @@
+Stream ID,kernels,total_us,pct_of_all,top_core,top_ops(us)
+34,32104,10858260.0,96.59%,MIX_AIC,SparseLightningIndexer=8004696; aclnnBatchMatMul_BatchMatMulNd_BatchMatMulV2=377574; LightningIndexerV2=331300; aclnnInplaceCopy_CastAiCore_Cast=297447
+N/A,173,377033.6,3.35%,COMMUNICATION,hcom_allReduce__503_1_1=15618; hcom_allReduce__503_6_1=15297; hcom_allReduce__503_8_1=14722; hcom_allReduce__503_3_1=14186
+38,320,5916.5,0.05%,AI_VECTOR_CORE,aclnnInplaceCopy_TensorMoveAiCore_TensorMove=5916

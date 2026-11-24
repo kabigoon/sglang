@@ -1,0 +1,6 @@
+generated_at = 2026-11-24T14:05:34+00:00
+host = node-61-47-19-68
+git_head = 91812a634b
+source_rank_dir = /tmp/demo_ep_late_1124_135951/node-61-47-19-68_447253_20261124140430132_ascend_pt
+command = /home/a00821909/sglang/_tmp_preflight/collect_profile_bundle.py /tmp/demo_ep_late_1124_135951 --tag demo_ep_late
+bundle_bytes = 63449
