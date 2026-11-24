@@ -1,0 +1,13 @@
+Stream ID,kernels,total_us,pct_of_all,top_core,top_ops(us)
+43,15438,291036.1,55.02%,AI_VECTOR_CORE,aclnnReduceSum_ReduceSumOpAiCore_ReduceSum=39841; aclnnBatchMatMul_BatchMatMulNd_BatchMatMulV2=35065; aclnnDiv_RealDivAiCore_RealDiv=31760; aclnnMatmul_MatMulCommon_MatMulV2=28242
+N/A,312,83774.3,15.84%,COMMUNICATION,hcom_allReduce__503_0_1=15154; hcom_allReduce__503_3_1=14918; hcom_allReduce__503_31_1=14707; hcom_allReduce__503_1_1=779
+80,14816,69376.8,13.12%,AI_VECTOR_CORE,aclnnReduceSum_ReduceSumOpAiCore_ReduceSum=11236; aclnnGroupedMatmulWeightNz_GroupedMatmul_GroupedMatmul=7442; aclnnDiv_RealDivAiCore_RealDiv=7277; aclnnMatmul_MatMulCommon_MatMulV2=5217
+96,82,25638.1,4.85%,AI_CPU,allreduceAicpuKernel=25638
+76,85,25132.4,4.75%,AI_CPU,allreduceAicpuKernel=15863; allgatherAicpuKernel=9270
+73,81,13005.9,2.46%,AI_CPU,allreduceAicpuKernel=7023; reduce_scatterAicpuKernel=5865; allgatherAicpuKernel=119
+92,41,9548.3,1.81%,AI_CPU,allreduceAicpuKernel=9364; allgatherAicpuKernel=185
+72,1103,6379.8,1.21%,AI_VECTOR_CORE,aclnnMatmul_MatMulCommon_MatMulV2=1359; aclnnReduceSum_ReduceSumOpAiCore_ReduceSum=787; aclnnDiv_RealDivAiCore_RealDiv=509; aclnnGroupedMatmulWeightNz_GroupedMatmul_GroupedMatmul=462
+70,11,1723.2,0.33%,AI_CPU,allreduceAicpuKernel=656; allgatherAicpuKernel=564; reduce_scatterAicpuKernel=503
+66,6,1507.4,0.29%,AI_CPU,allreduceAicpuKernel=857; allgatherAicpuKernel=650
+36,57,1380.3,0.26%,AI_CPU,aclnnIndexPutImpl_IndexPut_IndexPut=754; alloc_extend_kernel=310; aclnnIndex_IndexAiCore_Index=82; aclnnInplaceZero_ZerosLikeAiCore_ZerosLike=36
+34,12,421.5,0.08%,AI_CPU,aclnnIndexPutImpl_IndexPut_IndexPut=377; aclnnIndexPutImpl_IndexCheck_IndexCheck=10; alloc_extend_kernel=10; aclnnIndex_IndexAiCore_Index=8
