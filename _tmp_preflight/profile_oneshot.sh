@@ -292,46 +292,74 @@ else
   stage "warmup skipped (cold)"
 fi
 
-# ---------------- 3. 开 profile ----------------
+# ---------------- 3/4. 先后台发请求，等真正开始 prefill 再开 profile ----------------
+# ⚠ 血泪教训（2026-11-24 prof_smoke3）：/start_profile 之后的前几个 forward 是
+#   ready 之后的 dummy 步（实测 20 token / seq_len 616），它们会把 num_steps 吃光，
+#   而真正的 prefill 要到 ~50 秒后才开始（客户端生成 prompt 很慢）。
+#   结果：trace 里一个 prefill kernel 都没有，但表看起来"有数"。
+#   现在改成：后台发请求 → 盯 server.log 等 "Prefill batch" → 立刻 /start_profile。
 echo
-echo "[3/7] 开 profile（num_steps=${NUM_STEPS}，activities=[CPU,GPU]，with_stack=false）"
-stage "start_profile num_steps=$NUM_STEPS"
+echo "[3/7] 后台发 1 条 128K 请求，等它真正开始 prefill 后再开 profile"
+stage "launch bench in background"
+nohup env WARMUP=0 SKIP_FLUSH=1 NUM_PROMPTS=1 CONCURRENCY=1 DP_SIZE="$DP_SIZE" \
+    CACHE_PCT="$CACHE_PCT" OUT_LEN="$OUT_LEN" ${IN_LEN:+IN_LEN="$IN_LEN"} \
+    bash "$HERE/bench_128k_1k.sh" > "$OUT/bench.log" 2>&1 &
+BENCH_PID=$!
+echo "    bench pid=${BENCH_PID}，日志：$OUT/bench.log"
+
+PREFILL_WAIT=${PREFILL_WAIT:-600}
+waited=0
+until grep -q "Prefill batch" "$SLOG" 2>/dev/null; do
+  if ! kill -0 "$BENCH_PID" 2>/dev/null; then
+    echo "  [FAIL] bench 已退出但日志里没有 'Prefill batch'（请求可能根本没到 server）"
+    tail -20 "$OUT/bench.log"; stage "FAIL no prefill batch"; cleanup; exit 1
+  fi
+  sleep 1; waited=$((waited + 1))
+  if [ $((waited % 30)) -eq 0 ]; then
+    echo "    [${waited}s] 等请求到达…（客户端此时在 CPU 上生成 129K prompt，通常 50~90s）"
+  fi
+  if [ "$waited" -ge "$PREFILL_WAIT" ]; then
+    echo "  [FAIL] ${PREFILL_WAIT}s 内没等到 prefill"; tail -20 "$SLOG"; stage "FAIL prefill timeout"; cleanup; exit 1
+  fi
+done
+N_PREFILL=$(grep -c "Prefill batch" "$SLOG" 2>/dev/null || true)
+echo "  ✓ 检测到 prefill 开始（等了 ${waited}s，日志里已有 ${N_PREFILL:-0} 条 Prefill batch）"
+
+echo
+echo "[4/7] 开 profile（num_steps=${NUM_STEPS}，activities=[CPU,GPU]）"
+stage "start_profile num_steps=$NUM_STEPS after ${waited}s"
 SP_RESP=$(api_post "/start_profile" "{\"output_dir\":\"${PROF_DIR}\",\"num_steps\":${NUM_STEPS},\"activities\":[\"CPU\",\"GPU\"],\"with_stack\":false}" 60)
 echo "    /start_profile → ${SP_RESP}"
 case "$SP_RESP" in
   *error*|*Error*)
     echo "  [FAIL] /start_profile 被拒（多半是 admin-api-key 鉴权）。"
-    echo "         /start_profile 是 admin_force：server 要带 --admin-api-key，POST 要带 Bearer。"
-    stage "FAIL start_profile rejected"; cleanup; exit 1 ;;
+    stage "FAIL start_profile rejected"; kill -9 "$BENCH_PID" 2>/dev/null; cleanup; exit 1 ;;
 esac
 sleep 2
-# grep -c 命中 0 次时会「打印 0 + 退出码 1」，所以只能 `|| true`，不能再 `|| echo 0`（会出现 0\n0）
 N_START=$(grep -c "Profiling starts" "$SLOG" 2>/dev/null || true); N_START=${N_START:-0}
 N_SKIP=$(grep -c "NPU profiling skipped" "$SLOG" 2>/dev/null || true); N_SKIP=${N_SKIP:-0}
 echo "    日志里 Profiling starts=${N_START}（期望 ${TP_SIZE}：这行打在门控之前），skipped=${N_SKIP}（期望 ${EXPECT_SKIP}）"
 if [ "${N_START:-0}" -eq 0 ]; then
-  echo "  [FAIL] /start_profile 没有生效（日志里没有 'Profiling starts'）"; stage "FAIL start_profile"; exit 1
-fi
-if [ "${N_SKIP:-0}" -ne "$EXPECT_SKIP" ]; then
-  echo "  [warn] skipped 数不对：拿到 ${N_SKIP}，期望 ${EXPECT_SKIP}（门控或 attn_tp 推导有问题）"
+  echo "  [FAIL] /start_profile 没有生效"; stage "FAIL start_profile"; kill -9 "$BENCH_PID" 2>/dev/null; cleanup; exit 1
 fi
 grep "NPU profiler config" "$SLOG" | head -1 | sed 's/^/    /'
 
-# ---------------- 4. 发采集请求 ----------------
+# ---------------- 4.5 等请求跑完 ----------------
 echo
-if [ "$WARMUP" -gt 0 ]; then
-  echo "[4/7] 发 1 条 128K 请求（SKIP_FLUSH=1：复用预热好的前缀缓存；期望命中 ${CACHE_PCT}%）"
-else
-  echo "[4/7] 发 1 条 128K **冷**请求（新 server 空缓存；期望命中 0%，32 个 chunk，TTFT≈110s）"
-fi
-stage "profiled request (1 prompt, out_len=$OUT_LEN)"
-if ! run_with_heartbeat "采集" "$OUT/bench.log" \
-    env WARMUP=0 SKIP_FLUSH=1 NUM_PROMPTS=1 CONCURRENCY=1 DP_SIZE="$DP_SIZE" \
-        CACHE_PCT="$CACHE_PCT" OUT_LEN="$OUT_LEN" ${IN_LEN:+IN_LEN="$IN_LEN"} \
-        bash "$HERE/bench_128k_1k.sh"; then
-  echo "  [WARN] 采集请求返回非 0（可能是 num_steps 提前触发的正常现象），继续看 stop 结果"
-fi
+echo "[4.5/7] 等采集请求跑完（prefill 106s 级 + decode；每 30s 心跳）"
+stage "wait bench"
+el=0
+while kill -0 "$BENCH_PID" 2>/dev/null; do
+  sleep 5; el=$((el + 5))
+  if [ $((el % 30)) -eq 0 ]; then
+    echo "    [${el}s] 请求仍在跑…（server 最近的 prefill/decode 行：$(grep -E "Prefill batch|Decode batch" "$SLOG" 2>/dev/null | tail -1 | cut -c1-90)）"
+  fi
+done
+wait "$BENCH_PID" 2>/dev/null; RC=$?
+echo "    请求结束：${el}s rc=${RC}"
 grep -hE "^HIT=|^TTFT_|^OUT_TPUT=" "$OUT/bench.log" | tail -3 | sed 's/^/    /'
+N_PREFILL=$(grep -c "Prefill batch" "$SLOG" 2>/dev/null || true)
+echo "    server 侧 Prefill batch 行数 = ${N_PREFILL:-0}（129K/4096 ≈ 32 条，可用来核对 chunk 数）"
 
 # 命中率守卫：冷启动就该是 0% 左右；若接近 100% 说明缓存里已有整条 prompt，
 # 这一轮的 trace 里没有 prefill —— 直接判失败，别浪费导出和后续分析。
@@ -353,7 +381,7 @@ fi
 
 # ---------------- 5. 停 profile ----------------
 echo
-echo "[5/7] 停 profile（导出+解析，128K 可能要 1~3 分钟）"
+echo "[5/7] 等 profiler 导出（num_steps 到点会自动停；128K 可能要 3~10 分钟）"
 # num_steps 到点后 profiler 会**自动** stop + 导出（scheduler 里按 forward ct 触发）。
 # 这时再 POST /stop_profile 只会得到 "Profiling is not in progress"（它在 barrier 之前就返回，
 # 不会卡，但日志会很迷惑），所以先看日志再决定要不要发。
@@ -364,9 +392,15 @@ else
   stage "stop_profile"
   api_post "/stop_profile" "{}" 900
 fi
-for _ in $(seq 1 60); do
+# 32 步 / ~33GB 的导出可能要 10~30 分钟，原来只等 5 分钟会读到半成品
+EXPORT_WAIT_MIN=${EXPORT_WAIT_MIN:-30}
+export_waited=0
+while [ "$export_waited" -lt $((EXPORT_WAIT_MIN * 60)) ]; do
   grep -q "Profiling done" "$SLOG" 2>/dev/null && break
-  sleep 5
+  sleep 5; export_waited=$((export_waited + 5))
+  if [ $((export_waited % 60)) -eq 0 ]; then
+    echo "    [导出 ${export_waited}s] $(du -sh "$PROF_DIR" 2>/dev/null | cut -f1)  日志末行: $(tail -1 "$SLOG" 2>/dev/null | cut -c1-70)"
+  fi
 done
 if grep -q "Profiling done" "$SLOG" 2>/dev/null; then
   echo "  ✓ Profiling done"

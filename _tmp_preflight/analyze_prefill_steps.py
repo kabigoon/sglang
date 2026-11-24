@@ -51,6 +51,7 @@ CMAP = {
     "core": ("Accelerator Core",),
     "model": ("Model ID",),
     "aicore": ("aicore_time(us)",),
+    "shapes": ("Input Shapes",),
 }
 
 
@@ -124,8 +125,18 @@ def read_kernels(path: str) -> tuple[list[dict], dict]:
             except (ValueError, IndexError):
                 skip_nodur += 1
                 continue
+            name_s = (r[idx["name"]] or "").strip()
+            m_tok = None
+            if "shapes" in idx and ("matmul" in name_s.lower() or "mm" == name_s.lower()):
+                sh = (r[idx["shapes"]] or "").strip().strip('"')
+                head = sh.split(";")[0].split(",")[0].strip()
+                try:
+                    m_tok = int(float(head))
+                except ValueError:
+                    m_tok = None
             rows.append({
-                "name": (r[idx["name"]] or "").strip(),
+                "m": m_tok,
+                "name": name_s,
                 "stream": (r[idx["stream"]] or "?").strip(),
                 "start": start,
                 "dur": dur,
@@ -572,6 +583,23 @@ def main() -> int:
 
     print("切步：%s → %d 步（第 0 步起点 t=%.3f ms）" % (
         method, n_steps, main_rows[bounds[0]]["start"] / 1000.0))
+
+    # ---- 自检：每个 forward 到底处理了多少 token ----
+    # 血泪教训（prof_smoke3）：trace 里的 forward 是 ready 后的 dummy 步（M=20、seq_len=616），
+    # 不是 129K 请求的 prefill chunk；表照样打得出来，但全是无意义的。
+    ms = [r["m"] for r in main_rows if r.get("m")]
+    if ms:
+        ms.sort()
+        mmed = ms[len(ms) // 2]
+        print("自检：matmul 的 M 维（每 forward 实际 token 数）中位 = %d（样本 %d 个）" % (mmed, len(ms)))
+        if mmed < 256:
+            print("  [FAIL] 这个窗口里每个 forward 只有 %d 个 token —— 几乎肯定是"
+                  " ready 之后的 dummy 步，不是请求的 prefill。" % mmed)
+            print("         说明 /start_profile 开得太早（smoke 实测差了 53 秒：客户端生成 prompt 很慢）。")
+            print("         修法：先发请求、等 server.log 出现 'Prefill batch' 再开 profile（脚本已改）。")
+            return 2
+    else:
+        print("自检：读不到 Input Shapes，跳过 token 数校验")
 
     # 与理论步数对账：129,093 / 4096 ≈ 32
     if args.total_tokens and args.chunk_tokens:
