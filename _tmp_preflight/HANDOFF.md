@@ -551,3 +551,45 @@ git push origin feat/dsv41-a3-trace
 - 不要在脚本运行期间 `git pull`（bash 边读边执行，改文件会读到错位内容）。
 - jsonl 字段是 `<统计量>_<指标>_ms`（`mean_ttft_ms` / `median_ttft_ms`），抽数出 nan 先查这个。
 - 表格抽错不要重跑：`bash _tmp_preflight/resummarize.sh <bench 日志>` 秒级重算。
+
+---
+
+## 12. DeepEP / EP16 在 PR #50205 head 上的启用记录（2026-11-24）
+
+动机：同事配置在 **80K/0% 命中**下 TTFT=24.0s，我们旧栈同口径模型预测 51.5s（**2.15×**，有效 prefill 速率 3.33 vs 1.17 K tok/s）。
+他把 MoE 从 TP16+allreduce 换成 **EP16 + DeepEP all-to-all**，所以优先复现这个。
+
+新分支 `pr-50205-dsv41-a3-deepep`（基座 = upstream `pull/50205/head`）关键差异：`deep_ep 1.0.0+cann.9.2.0.b237` 已在镜像里，
+且新代码 **不再使用 `torch.ops.custom.*`**（改用 `sgl_kernel_npu.operators.*`），所以 **不需要装 custom-ops**。
+
+### 12.1 一路上踩掉的 6 个坑（按出现顺序）
+
+| # | 报错 | 根因 | 处置 |
+|---|---|---|---|
+| 1 | `argparse` usage dump | 新代 CLI 改了：`--enable-dp-attention --dp-size` → **`--attn-dp-size`**；`--max-running-requests`、`--reasoning-parser` 变成 `no_cli` | 启动器按代际探测自动选参数 |
+| 2 | `NameError: pynvml` in `vocab_gather → _nvlink_lease` | DSpark 的 vocab gather 探测走 NVLink/CUDA 路径（NPU 无 NVML） | `SGLANG_DSPARK_NVLINK_VOCAB_GATHER=False`（日志应显示 `NcclVocabGather`） |
+| 3 | `EI0019` 端口 60000-2 被占 | Linux `ip_local_port_range` 是 32768-60999，把 DeepEP 的默认基址包进去了 | `HCCL_IF_BASE_PORT=61000` |
+| 4 | `EZ1008 MoeLowLatencyDispatchV2: tiling failed` + `HCCL_BUFFSIZE is too SMALL (need 544MB, have 128MB)` | 启动器硬编码 `HCCL_BUFFSIZE=128` | 提到 ≥544，默认改 `640` |
+| 5 | `EZ1008 MoeLowLatencyCombineV2: need 1024MB` | **combine 的需求是 dispatch 的 2×** | 见下：降 maxBs 而不是继续加缓冲 |
+| 6 | `EL0019` 分配 1073741856B 失败 | `HCCL_BUFFSIZE=1024` 会为**每个通信域**各开一份，8.7GB 可用不够 | 不要给 1024；降低 maxBs |
+
+### 12.2 关键规律与推荐组合
+
+**需求 ≈ 8MB × `SGLANG_DEEPEP_NUM_MAX_DISPATCH_TOKENS_PER_RANK`**（该参数只影响 low-latency/decode 的缓冲，
+prefill 走 normal 模式，用 `Buffer.get_dispatch_config()` 的 hint，不受它影响）：
+
+```bash
+EXTRA_ENV="HCCL_BUFFSIZE=512 SGLANG_DEEPEP_NUM_MAX_DISPATCH_TOKENS_PER_RANK=32 \
+           HCCL_IF_BASE_PORT=61000 SGLANG_DSPARK_NVLINK_VOCAB_GATHER=False \
+           HCCL_OP_EXPANSION_MODE=HOST" \
+EXTRA_ARGS="--moe-a2a-backend deepep --deepep-mode auto --disable-overlap-schedule" \
+DP_SIZE=8 CHUNKED_PREFILL=32768 MEM_FRACTION=0.85 DECODE_GRAPH=1 \
+  bash _tmp_preflight/run_dsv41_w4a8.sh
+```
+
+若后续要更大 decode 批次，`maxBs` 与 `HCCL_BUFFSIZE` 要**一起**加（8MB/单位）。
+
+### 12.3 还没验证的
+- EP16 对 prefill TTFT 的实际收益（这是整件事的目标）
+- `--deepep-mode normal` 在新镜像上是否可用（可以作为不给 decode 开 low-latency 的退路）
+- 同事的 `SGLANG_NPU_DSV41_A3_DISPATCH_FFN_W4A8` 私有算子在 24s 里占多少
