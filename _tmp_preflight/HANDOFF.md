@@ -71,6 +71,7 @@ DP_SIZE=8 CHUNKED_PREFILL=32768 MEM_FRACTION=0.85 DECODE_GRAPH=1 \
 | `DP_SIZE` | `--enable-dp-attention --dp-size N`；组内 `attn_tp = 16/N` |
 | `CHUNKED_PREFILL` | **全局值**，sglang 会 `/attn_dp_size`。要每 rank 4096，全局必须写 `4096×DP_SIZE`。忘乘会变成 512/rank（254 个 chunk） |
 | `MAX_RUNNING` | 全局值，同样被除（16/8=2 每 rank） |
+| `MAX_PREFILL_TOKENS` | **不是全局值**：不按 attn_dp 除，每个 DP rank 各拿一份（`tp_worker.py:579` 原样传 `get_schedule().max_prefill_tokens`；全代码库没有一处按 attn_dp 除它）。它的含义是「该 rank 一次 forward 能塞多少新 token」，chunk=4096/rank 时 8192 ⇒ 每 rank 每轮最多拼 2 条请求 |
 | `MEM_FRACTION` | 权重+KV 预算。**开 DSpark 时必须 >0.817**，否则 `ValueError: Loaded weights leave no GPU memory`。0.85 时池子 ≈500K token |
 | `DECODE_GRAPH` | `1` 默认。**dp≠8 时必须配 `DECODE_BS="1 2 4 8 16"`**，否则 `AssertionError: capture_bs=[]`（见 §7.3） |
 | `PREFILL_GRAPH=1` | **别开**：`KeyError: 'block_tables'`，DSV4.1 的 prefill 路径不支持图 |
