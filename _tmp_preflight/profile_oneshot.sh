@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # profile_oneshot.sh —— 一条命令跑完「采集 128K prefill 的 profiling」全流程：
 #
-#   起 server（带 rank0-only + simplify）→ 等 ready → 预热共享前缀（WARMUP 条）
-#   → /start_profile → 只发 1 条 128K 请求 → /stop_profile（含导出解析）
+#   起 server（带 DP_REPLICA + simplify）→ 等 ready →（默认跳过预热）
+#   → /start_profile → 只发 1 条 128K **冷**请求（32 个 chunk）→ /stop_profile（含导出解析）
 #   → 生成两样东西：
 #       ① git 用的小证据包  _tmp_preflight/profile_bundle/<TAG>/   （几十 KB，可 push）
 #       ② Insight 用的压缩包 /tmp/<TAG>_insight.tgz                 （拷到 Windows 解压后喂 Insight）
@@ -32,7 +32,8 @@
 #   dp>1 时**不要**用 RANK0_ONLY=1：C=1 的请求由 round-robin 分到任意 replica，
 #   tp_rank 0 很可能整轮 0 token，trace 会显示「attention≈0、Free 很高」而误判方向。
 #
-# 预期耗时：起 server ~5min + 预热 8 条 ~10min + 采集请求 ~90s + 导出解析 ~2min ≈ 18 分钟
+# 预期耗时（冷启动）：起 server ~5min + 采集请求 ~110s + 导出解析 2~5min ≈ 12~15 分钟
+# 产物：/tmp/<TAG>_<ts>（trace，2~3GB）+ _tmp_preflight/profile_bundle/<TAG>（几十 KB）+ /tmp/<TAG>_insight.tgz
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 SEG=$(cd "$HERE/.." && pwd)
@@ -283,7 +284,11 @@ grep "NPU profiler config" "$SLOG" | head -1 | sed 's/^/    /'
 
 # ---------------- 4. 发采集请求 ----------------
 echo
-echo "[4/7] 发 1 条 128K/50% 请求（SKIP_FLUSH=1：复用刚灌好的前缀缓存）"
+if [ "$WARMUP" -gt 0 ]; then
+  echo "[4/7] 发 1 条 128K 请求（SKIP_FLUSH=1：复用预热好的前缀缓存；期望命中 ${CACHE_PCT}%）"
+else
+  echo "[4/7] 发 1 条 128K **冷**请求（新 server 空缓存；期望命中 0%，32 个 chunk，TTFT≈110s）"
+fi
 stage "profiled request (1 prompt, out_len=$OUT_LEN)"
 if ! run_with_heartbeat "采集" "$OUT/bench.log" \
     env WARMUP=0 SKIP_FLUSH=1 NUM_PROMPTS=1 CONCURRENCY=1 DP_SIZE="$DP_SIZE" \
