@@ -51,6 +51,7 @@ CMAP = {
     "core": ("Accelerator Core",),
     "model": ("Model ID",),
     "aicore": ("aicore_time(us)",),
+    "shapes": ("Input Shapes",),
 }
 
 
@@ -124,8 +125,18 @@ def read_kernels(path: str) -> tuple[list[dict], dict]:
             except (ValueError, IndexError):
                 skip_nodur += 1
                 continue
+            name_s = (r[idx["name"]] or "").strip()
+            m_tok = None
+            if "shapes" in idx and ("matmul" in name_s.lower() or "mm" == name_s.lower()):
+                sh = (r[idx["shapes"]] or "").strip().strip('"')
+                head = sh.split(";")[0].split(",")[0].strip()
+                try:
+                    m_tok = int(float(head))
+                except ValueError:
+                    m_tok = None
             rows.append({
-                "name": (r[idx["name"]] or "").strip(),
+                "m": m_tok,
+                "name": name_s,
                 "stream": (r[idx["stream"]] or "?").strip(),
                 "start": start,
                 "dur": dur,
@@ -143,20 +154,29 @@ def read_kernels(path: str) -> tuple[list[dict], dict]:
 
 # ---------------------------------------------------------------- 找主计算流
 def pick_main_stream(rows: list[dict]) -> tuple[str, list[dict]]:
+    """主计算流 = **AI 核上耗时最多**的流。
+
+    smoke 实测（prof_smoke3）踩过两个坑：
+      · 按「kernel 数最多」选 → 选中 stream 76（29,632 个微秒级 vector kernel，仅 127ms），
+        真正的主力是 stream 43（15,725 个 kernel，1239ms）；
+      · 按「总耗时最多」选而不排除 AI_CPU → stream 96 的 allreduceAicpuKernel 有 1187ms，
+        几乎追平 43，但它是通信调度，不是计算。
+    所以只统计 core 不是 AI_CPU / COMMUNICATION 的 kernel 时长。
+    """
     per = defaultdict(lambda: [0, 0.0])
     for r in rows:
         d = per[r["stream"]]
         d[0] += 1
-        d[1] += r["dur"]
-    # 主计算流 = kernel 数最多（不是耗时最多）：HCCL 的 N/A 流常常耗时也很高，
-    # 但它是通信流，用它切步会把并行流的时间算进步长。
+        core = (r.get("core") or "").upper()
+        if "CPU" not in core and "COMM" not in core:
+            d[1] += r["dur"]
     cands = [(sid, n, us) for sid, (n, us) in per.items() if sid != "N/A"]
     if not cands:
         cands = [(sid, n, us) for sid, (n, us) in per.items()]
-    cands.sort(key=lambda kv: -kv[1])
-    print("按 kernel 数排前 5 的流：")
+    cands.sort(key=lambda kv: -kv[2])
+    print("按 AI 核耗时排前 5 的流（count 仅参考）：")
     for sid, n, us in cands[:5]:
-        print("    stream %-6s kernels=%-8d total=%.1f ms" % (sid, n, us / 1000.0))
+        print("    stream %-6s kernels=%-8d AI核耗时=%.1f ms" % (sid, n, us / 1000.0))
     sid = cands[0][0]
     return sid, sorted([r for r in rows if r["stream"] == sid], key=lambda r: r["start"])
 
@@ -285,6 +305,103 @@ def segment_by_attention_duration(rows, main, tol=0.015):
     why = ("duration 阶跃切步：算子=%s，段数=%d，每组 kernel 数≈%d，imbalance=%.2f"
            % (nm[:40], n_steps, len(groups[0]), imbal))
     return bounds, n_steps, why
+
+
+def _snap_back(main, idx: int, thr_us: float, lookback: int = 500) -> int:
+    """把一个下标往前挪到「它所在的那段连续 kernel」的开头。
+
+    chunk 边界处有明显空档（smoke 实测：chunk 内相邻 kernel 间隔 ~10ms，
+    跨 chunk ~512ms），所以从锚点往回走到第一个大空档即可。
+    """
+    j = idx
+    lo = max(0, idx - lookback)
+    while j > lo:
+        gap = main[j]["start"] - (main[j - 1]["start"] + main[j - 1]["dur"])
+        if gap >= thr_us:
+            break
+        j -= 1
+    return j
+
+
+def segment_by_anchor(main, expected, max_count=256, ratio_lo=0.5, ratio_hi=2.0):
+    """用一个「每个 forward 恰好出现 N 次」的算子做锚点切步（最稳，smoke 定案）。
+
+    为什么要它：真实 trace 里 SparseFlashMla 每个 forward 出现 42 次、duration 从 20us
+    到 3728us（SWA 层饱和、全注意力层随 prefix 涨），**同一 forward 内就跨两个数量级**，
+    所以无论是「按名字找周期」还是「按 duration 阶跃」都切不出来。
+    而 `_expand_index_page_table_kernel` 这类算子每个 forward 只出现一次
+    （smoke 实测 count=3 / 3 forward），用它当 chunk 标记最干净。
+    """
+    if expected and expected >= 2:
+        pass
+    else:
+        return None, 0, "没有期望步数，跳过锚点法"
+    by_name = {}
+    for i, r in enumerate(main):
+        by_name.setdefault(r["name"], []).append(i)
+
+    # 窗口总跨度：一个合格的「每 forward 一次」的锚点必须**铺满整个窗口**。
+    # 只按「次数对 + 间隔均匀」会选到挤在 1ms 内的 3 次调用（smoke 实踩：
+    # aclnnRemainderTensorTensor_FloorModA count=3，间隔 CV=0.10，但三次都在同一毫秒），
+    # 结果切出 3 个 0.2ms 的"步"。
+    span = main[-1]["start"] - main[0]["start"]
+    best = None
+    rejected = []
+    for nm, idxs in by_name.items():
+        c = len(idxs)
+        if c < 2 or c > max_count:
+            continue
+        starts = [main[i]["start"] for i in idxs]
+        gaps = [b - a for a, b in zip(starts, starts[1:])]
+        if not gaps:
+            continue
+        mean = sum(gaps) / len(gaps)
+        if mean <= 0:
+            continue
+        # 均匀度：间隔离散程度
+        cv = (sum((g - mean) ** 2 for g in gaps) / len(gaps)) ** 0.5 / mean
+        if cv > 0.6:
+            continue
+        # 铺满度：平均间隔应当接近 跨度/次数（≈1 表示均匀铺满整个窗口）
+        ratio = mean / (span / c) if span > 0 else 0.0
+        if not (ratio_lo <= ratio <= ratio_hi):
+            rejected.append((nm, c, ratio))
+            continue
+        per = c // expected if expected and c % expected == 0 else None
+        misfit = 0 if per else abs(c - expected) if expected else 0
+        # 偏好：每 forward 恰好 1 次（per=1）、间隔最均匀
+        score = (misfit, 0 if per == 1 else 1, cv, -c)
+        if best is None or score < best[0]:
+            best = (score, nm, idxs, per, cv, c, ratio)
+    if best is None:
+        msg = "主计算流上找不到「每 forward 固定次数」的锚点算子"
+        if rejected:
+            msg += "（%d 个候选因没铺满窗口被否，例如 %s count=%d ratio=%.3f）" % (
+                len(rejected), rejected[0][0][:30], rejected[0][1], rejected[0][2])
+        return None, 0, msg
+
+    _score, nm, idxs, per, cv, c, ratio = best
+    if per and per > 1:
+        idxs = idxs[::per]
+
+    # 空档阈值：主计算流相邻 kernel 间隔的中位数 × 20（smoke：~10ms ⇒ 阈值 200ms）
+    gaps = [main[i]["start"] - (main[i - 1]["start"] + main[i - 1]["dur"])
+            for i in range(1, len(main))]
+    pos = sorted(g for g in gaps if g > 0)
+    med = pos[len(pos) // 2] if pos else 0.0
+    thr = max(20_000.0, 10 * med)          # us
+    # 回看窗口最多半个 chunk，避免越过上一个 chunk 的边界
+    lookback = max(20, int(len(main) / max(len(idxs), 1) / 2))
+    snapped = sorted({_snap_back(main, i, thr, lookback) for i in idxs})
+    if len(snapped) != len(idxs):          # 吸附把边界合并了 ⇒ 放弃吸附，用原始锚点
+        bounds = sorted(set(idxs))
+        why_snap = "（吸附合并了边界，已放弃吸附）"
+    else:
+        bounds = snapped
+        why_snap = ""
+    why = ("锚点=%s count=%d 每forward=%s 间隔CV=%.2f 铺满度=%.2f 空档阈值=%.0fms → %d 步%s"
+           % (nm[:36], c, per or "?", cv, ratio, thr / 1000.0, len(bounds), why_snap))
+    return bounds, len(bounds), why
 
 
 def segment_by_model(main: list[dict]) -> int:
@@ -418,38 +535,71 @@ def main() -> int:
     n_steps = 0
     method = ""
 
-    # 1) attention duration 阶跃：与模型结构、与 num_steps 都无关，3 步也能切
-    b1, n1, why1 = segment_by_attention_duration(rows, main_rows, tol=args.seg_tol)
-    print("切步[1/3] attention-duration：%s" % why1)
-    if b1 and n1 >= 2:
-        bounds, n_steps, method = b1, n1, "attention-duration"
-    else:
-        # 2) Model ID（若 torch_npu 按 forward 递增填了它）
-        n_model = segment_by_model(main_rows)
-        if n_model >= 2:
-            groups = defaultdict(list)
-            for i, r in enumerate(main_rows):
-                groups[r["model"]].append(i)
-            bounds = [min(v) for _k, v in sorted(groups.items())]
-            n_steps = len(bounds)
-            method = "Model ID"
-            print("切步[2/3] Model ID：%d 步" % n_steps)
+    # 期望 prefill 步数：由 token 数与 chunk 数算出（smoke/full 都适用）
+    expected = -(-args.total_tokens // args.chunk_tokens) if (
+        args.total_tokens and args.chunk_tokens) else 0
+
+    # 1) 锚点算子（每 forward 固定出现次数）——smoke 实测最稳
+    b0, n0, why0 = segment_by_anchor(main_rows, expected)
+    if not b0:
+        # 严格阈值（铺满度 0.5~2）失败时，放宽到 0.15~6 再试一次，避免又多一轮往返
+        b0, n0, why0b = segment_by_anchor(main_rows, expected,
+                                         ratio_lo=0.15, ratio_hi=6.0)
+        if b0:
+            why0 = why0b + "（已放宽铺满度阈值）"
+            print("  [warn] 严格阈值下没有锚点，已放宽重试")
+    print("切步[1/3] 锚点算子：%s" % why0)
+    if b0 and n0 >= 2 and (not expected or abs(n0 - expected) <= 2):
+        bounds, n_steps, method = b0, n0, "anchor"
+    elif True:
+        b1, n1, why1 = segment_by_attention_duration(rows, main_rows, tol=args.seg_tol)
+        print("切步[2/3] attention-duration：%s" % why1)
+        if b1 and n1 >= 2 and (not expected or abs(n1 - expected) <= 2):
+            bounds, n_steps, method = b1, n1, "attention-duration"
         else:
-            # 3) kernel 名序列的周期性（真实模型里每层算子序列可能相同 → 会锁到「一层」
-            #    的周期，把步数放大 num_layers 倍，所以只当最后退路）
-            ids = _encode([r["name"] for r in main_rows])
-            L, Lgood, why3 = detect_period(ids)
-            print("切步[2/3] Model ID：不可用（取值种类 <2）")
-            print("切步[3/3] 周期检测：%s" % why3)
-            if not L:
-                print("\n[FAIL] 三种切步法都失败，只能出总量表（见下）。")
-                return _aggregate_only(rows, main_sid, args)
-            bounds, n_steps = build_steps(main_rows, L, Lgood)
-            method = "周期检测(L=%d)" % L
-            print("  [warn] 用的是退路方法：若步数≈num_layers×chunk数，说明锁到了「一层」的周期")
+            # 3) Model ID（smoke 实测：只有 3 个取值，其中 4294967295=0xFFFFFFFF 是哨兵，不可用）
+            n_model = segment_by_model(main_rows)
+            if n_model >= 2:
+                groups = defaultdict(list)
+                for i, r in enumerate(main_rows):
+                    groups[r["model"]].append(i)
+                bounds = [min(v) for _k, v in sorted(groups.items())]
+                n_steps = len(bounds)
+                method = "Model ID"
+                print("切步[3/3] Model ID：%d 步" % n_steps)
+            else:
+                # 4) kernel 名序列的周期性（真实模型里每层算子序列通常相同 → 会锁到「一层」
+                #    的周期，把步数放大 num_layers 倍，所以只当最后退路）
+                ids = _encode([r["name"] for r in main_rows])
+                L, Lgood, why4 = detect_period(ids)
+                print("切步[3/3] Model ID：不可用（smoke 实测只有 3 个取值，含 0xFFFFFFFF 哨兵）")
+                print("切步[4/4] 周期检测：%s" % why4)
+                if not L:
+                    print("\n[FAIL] 四种切步法都失败，只能出总量表（见下）。")
+                    return _aggregate_only(rows, main_sid, args)
+                bounds, n_steps = build_steps(main_rows, L, Lgood)
+                method = "周期检测(L=%d)" % L
+                print("  [warn] 退路方法：若步数≈num_layers×chunk数，说明锁到了「一层」的周期")
 
     print("切步：%s → %d 步（第 0 步起点 t=%.3f ms）" % (
         method, n_steps, main_rows[bounds[0]]["start"] / 1000.0))
+
+    # ---- 自检：每个 forward 到底处理了多少 token ----
+    # 血泪教训（prof_smoke3）：trace 里的 forward 是 ready 后的 dummy 步（M=20、seq_len=616），
+    # 不是 129K 请求的 prefill chunk；表照样打得出来，但全是无意义的。
+    ms = [r["m"] for r in main_rows if r.get("m")]
+    if ms:
+        ms.sort()
+        mmed = ms[len(ms) // 2]
+        print("自检：matmul 的 M 维（每 forward 实际 token 数）中位 = %d（样本 %d 个）" % (mmed, len(ms)))
+        if mmed < 256:
+            print("  [FAIL] 这个窗口里每个 forward 只有 %d 个 token —— 几乎肯定是"
+                  " ready 之后的 dummy 步，不是请求的 prefill。" % mmed)
+            print("         说明 /start_profile 开得太早（smoke 实测差了 53 秒：客户端生成 prompt 很慢）。")
+            print("         修法：先发请求、等 server.log 出现 'Prefill batch' 再开 profile（脚本已改）。")
+            return 2
+    else:
+        print("自检：读不到 Input Shapes，跳过 token 数校验")
 
     # 与理论步数对账：129,093 / 4096 ≈ 32
     if args.total_tokens and args.chunk_tokens:

@@ -960,3 +960,124 @@ tail -f /tmp/prof_smoke3.log
 "not in progress"，不会卡）。
 
 验收通过后再跑全量（`NUM_STEPS` 不传即默认 34，`MAKE_TGZ` 建议留 0）。
+
+---
+
+## 18. smoke 结果（2026-11-24，3 步 / prof_smoke3）——验收通过，但暴露两个必须修的分析器 bug
+
+### 18.1 实测数字（推翻了两条文档里的旧估计）
+
+| 项 | 实测 | 旧估计 | 说明 |
+|---|---|---|---|
+| trace 体积 | **3.1 GB / 3 步 / 4 rank ≈ 258 MB/step/rank** | 133 MB/step/rank（§11.2.1） | 差 2×，且旧公式没乘 rank 数 ⇒ 全量 **≈32 GB**（不是 1~4GB） |
+| 压缩比 | 3.1GB → **326 MB（≈10:1）** | — | 全量 tgz ≈ 3.4GB |
+| 每步 kernel 行数 | 48,650 行 / 3 步（该 rank 全部 stream） | — | 32 步 ≈ 52 万行，分析器读得动 |
+| TTFT（3 步采集） | **148 s**（冷启动 0% 命中） | 110 s | 导出 3.1GB 与 prefill 并行 + msprof 开销，慢 35%，不影响归因 |
+
+### 18.2 **意外发现：4 个 replica 的 rank 都不是空闲**
+
+4 个目录是 1021MB / 692MB / 692MB / 692MB（kernel_details 15MB vs 11MB ×3）。
+说明 **FFN/MoE 仍是 TP16（全 16 die 参与）**，只有 owner replica 额外做 attention。
+
+⇒ 两个后果：
+1. 体积要按 **4 个 rank** 算，不能按"1 个大 + 3 个空"算；
+2. **非 owner 的 rank 天然就是「只有 FFN、没有 attention」的对照组**：同一 chunk 上
+   `wall(owner) − wall(non-owner)` 直接给出 attention 的成本，比斜率拟合更硬。
+   全量采集时**不要**改成 RANK0_ONLY，4 个目录要留着。
+
+### 18.3 分析器的两个 bug（smoke 抓到的，已修）
+
+| bug | 表现 | 修法 |
+|---|---|---|
+| 主计算流按「kernel 数最多」选 | 选中 stream 76（29,632 个 kernel，但只占 126.9 ms），真正主力是 stream 43（15,725 个 kernel，1238.7 ms）⇒ `wall=0.74s`、`HCCL 占 126.8%`、`砍光通信省 93.5s` 全是垃圾 | 改按**总耗时最多**选，且排除 `N/A` 通信流 |
+| attention 算子名挑到辅助 kernel | 选中 `aclnnSparseFlashMlaMetadata_SparseFlashM`（3 个、微秒级） | 排除名字含 `metadata/helper/shape` 的，并按"分段数 + 中位 duration + 配平"打分 |
+
+### 18.4 顺带修（本轮）
+
+- tgz **只压 busiest 的 rank 目录**（Insight 一次只开一个 `*_ascend_pt`）⇒ 体积 /4；
+- 体积估算公式改成 `步数 × 258MB × 采集 rank 数`，并打印 GB 与压缩比；
+- `Profiling starts=16（期望 1）` 那句期望改对：这行日志打在**门控之前**，正常就是 TP_SIZE 条
+  （16 条 starts + 12 条 skipped = 4 个采集 rank）；§11.2.1 里"1 条 starts + 15 条 skipped"的判据是错的。
+
+---
+
+## 19. smoke 第二轮：**采到的是 dummy 步**（2026-11-24，已修）
+
+### 19.1 症状与根因
+
+`prof_smoke3` 的 trace 里，每个 forward 的 **matmul M 维只有 20**、`SparseFlashMla` 的
+**seq_len 只有 616**。换句话说：那是 ready 之后的前置步（dummy/warmup），**不是 129K 请求的
+prefill chunk**（真 chunk 的 M 应该是 4096）。
+
+对照 server.log 的时间线，根因一目了然：
+
+| 事件 | 时间 |
+|---|---|
+| `/start_profile` | 12:05:23 |
+| 被采到的 3 个 dummy 步 | 12:05:23 ~ 12:05:35 |
+| **请求真正开始 prefill** | **12:06:16（晚了 53 秒！）** |
+| prefill 结束（32 chunk） | 12:08:02 |
+
+客户端生成 129K 的 prompt 是纯 CPU 活，要 50~90 秒；`num_steps=3` 在这之前就被 dummy 步吃光了。
+
+**教训（和鉴权、100% 命中同一类）**：采集管道坏了的时候，产出的表**照样有数**，只是全无意义。
+所以每次都要有一票否决的自检。
+
+### 19.2 修法（两条，缺一不可）
+
+1. **日志触发**：先后台发请求，盯 `server.log` 等第一条 `Prefill batch, #new-seq: 1, #new-token: 4096, …`
+   出现，再 `POST /start_profile`。实测客户端要 50~90s 才把请求送到，所以这一步必须等。
+2. **token 数自检**：分析器从 `kernel_input_shapes` 读 matmul 的 M 维，中位数 < 256 直接判失败
+   （exit 2）并打印"这几乎肯定是 dummy 步"。这样这类失败不可能再静默通过。
+
+顺带：导出等待从 5 分钟提到 30 分钟（32 步 / ~33GB 的导出可能 10~30 分钟，原来会读到半成品）。
+
+### 19.3 **顺带白捡的关键数据：server.log 里已有每 chunk 的耗时曲线**
+
+`Prefill batch` 每行都有时间戳和 `input throughput`，相邻两行之差就是**单个 chunk 的墙钟**：
+
+| chunk | 1 | 2-5 | 10 | 15 | 20 | 25 | 28 | 32 |
+|---|---|---|---|---|---|---|---|---|
+| 秒 | **1** | 2 | 3 | 3~4 | 4~5 | 5 | 5~6 | **6** |
+| tok/s | 2976 | ~2000 | 1313 | 1008 | 891 | 816 | 775 | 767 |
+
+**每 chunk 从 1s 涨到 6s（6×），prefix 从 4K 涨到 129K（32×）⇒ 单 chunk 成本 ≈ T^0.52。**
+
+这条推论比 profiler 还直接：
+
+> 若每 chunk 成本是平的（都按第 1 个 chunk 的 1s），32 个 chunk 只要 **32 秒** —— 正好是 SLO。
+> **2.46× 的缺口 ≈ "最后一个 chunk 比第一个慢 6 倍"。**
+
+所以问题收敛成一句话：**什么随 prefix 增长而增长，让后段 chunk 慢 6 倍？**
+（attention 扫 prefix / 通信量随 KV 涨 / 小算子随长度涨 —— profiler 就是来分这三桶的。）
+
+⚠ 注意：这条曲线混合了"每 chunk 的固定成本"和"随 T 增长的成本"，`T^0.52` 只是单点拟合，
+不要当成定律；它的价值是给出了 **6× 这个量级**和"扁平化即可达标"这个判据。
+
+---
+
+## 20. 三种采集模式（按"要不要人眼看"分，别混用）
+
+| 模式 | 旋钮 | 体积（实测/估算） | 用途 |
+|---|---|---|---|
+| **A. 归因**（本轮用的） | `SIMPLIFY=1 WITH_STACK=0 TRIGGER_AFTER=1` | 258 MB/step/rank（smoke 实测） | 给脚本算桶分布/斜率；**不需要** flow 连线 |
+| **B. host→算子连线**（人看） | `SIMPLIFY=0` | ×3 ⇒ ~0.8 GB/step/rank | Insight 里能看到 host op → task → kernel 的流动箭头 |
+| **C. 调用栈**（人看） | 再加 `WITH_STACK=1` | ×3~5（估） | 能看到"哪个 Python 函数发的这个算子" |
+
+B/C 都是**给人看的**，脚本的归因完全不需要；而且**不要为了它们采全部 32 个 chunk**——
+只采后段几个就行（最贵的正是后段）：
+
+```bash
+# 只采第 25~28 个 chunk（prefix 已到 ~100K~115K），带 flow 连线 + 调用栈
+EXTRA_ENV="HCCL_BUFFSIZE=128 SGLANG_DSPARK_NVLINK_VOCAB_GATHER=0" \
+EXTRA_ARGS="--swa-prefix-tails 16" MAX_PREFILL_TOKENS=8192 \
+DP_SIZE=4 CHUNKED_PREFILL=16384 MEM_FRACTION=0.88 DECODE_GRAPH=1 DECODE_BS="1 2 4" \
+NUM_STEPS=4 TRIGGER_AFTER=25 SIMPLIFY=0 WITH_STACK=1 MAKE_TGZ=1 TAG=flow_late \
+  bash _tmp_preflight/profile_oneshot.sh
+```
+
+`TRIGGER_AFTER=N` 的含义：等到第 N 条 `Prefill batch` 之后再 `POST /start_profile`
+（默认 1 = 从第一个 chunk 开始；25 = 跳过前 24 个）。
+
+⚠ 两点：① B/C 模式下导出会明显变慢（flow 事件量最大）；② `with_stack` 在 NPU 上的
+完整性没有验证过，第一次建议 `NUM_STEPS=2` 先试，确认 Insight 里真能看到调用栈再放大。

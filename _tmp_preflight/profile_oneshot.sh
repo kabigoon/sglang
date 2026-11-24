@@ -70,6 +70,11 @@ PROF_LEVEL=${PROF_LEVEL:-}
 PROF_NO_AIC=${PROF_NO_AIC:-0}
 # 生成 Insight 用的 tgz（2-4GB，只为人眼看时间线）。默认关：它会把峰值磁盘占用翻倍。
 MAKE_TGZ=${MAKE_TGZ:-0}
+# with_stack=1：记录 host 侧调用栈（"哪个函数发的这个算子"）。体积明显变大，默认关。
+WITH_STACK=${WITH_STACK:-0}
+# TRIGGER_AFTER=N：等到第 N 条 "Prefill batch" 之后再开 profile。
+# 默认 1（从第一个 chunk 开始）。要只看**后段**（prefix 最长、最贵的 chunk）就设成 25~29。
+TRIGGER_AFTER=${TRIGGER_AFTER:-1}
 # 采集前的最小可用磁盘（GB），不够就早失败，别跑到一半写满盘
 DISK_NEED_GB=${DISK_NEED_GB:-5}
 TAG=${TAG:-prof_128k}
@@ -94,18 +99,24 @@ echo "===== profiling 采集（128K prefill 单请求）====="
 echo "  脚本版本: $(git -C "$SEG" rev-parse --short HEAD 2>/dev/null || echo 未知)"
 echo "  dp=${DP_SIZE}  chunk=${CHUNKED_PREFILL}(全局)/$((CHUNKED_PREFILL / DP_SIZE))(每rank)  mem=${MEM_FRACTION}"
 echo "  cache=${CACHE_PCT}%  warmup=${WARMUP}(0=冷启动)  out_len=${OUT_LEN}  num_steps=${NUM_STEPS}  admin_key=${ADMIN_KEY}"
-echo "  门控: dp_replica=${DP_REPLICA} rank0_only=${RANK0_ONLY} simplify=${SIMPLIFY}（体积控制）"
+echo "  门控: dp_replica=${DP_REPLICA} rank0_only=${RANK0_ONLY} simplify=${SIMPLIFY} with_stack=${WITH_STACK}（体积控制）"
+echo "  触发: 第 ${TRIGGER_AFTER} 条 Prefill batch 之后开 profile（1=从第一个 chunk 开始）"
 echo "  外部 env: ${EXTRA_ENV:-（无）}"
 [ -n "$EXTRA_ARGS" ] && echo "  extra args: ${EXTRA_ARGS}"
 echo "  trace 目录: ${PROF_DIR}"
-# 体积预估：基准 133 MB/step/rank（Level1+PipeUtilization+simplify=off，HANDOFF §11.2.1）
-BASE_MB=$(( NUM_STEPS * 133 ))
-EST_HI=$BASE_MB; EST_LO=$BASE_MB
-if [ "$SIMPLIFY" = "1" ]; then EST_HI=$(( EST_HI / 3 )); EST_LO=$(( EST_LO / 5 )); fi
-if [ "$PROF_LEVEL" = "0" ]; then EST_HI=$(( EST_HI / 2 )); EST_LO=$(( EST_LO / 2 )); fi
-if [ "$PROF_NO_AIC" = "1" ]; then EST_HI=$(( EST_HI / 2 )); EST_LO=$(( EST_LO / 2 )); fi
-echo "  预计体积  : ${EST_LO}~${EST_HI} MB（${NUM_STEPS} step × 1 个采集 rank；另加 3 个空闲 replica 目录，很小）"
-echo "  可压缩手段: PROF_LEVEL=0（/2，丢 pipe 明细）、PROF_NO_AIC=1（/2，丢 aic 比率）、MAKE_TGZ=0（默认，不生成 tgz）"
+# 体积预估：smoke 实测 258 MB/step/rank（**simplify 已开**，Level1+pipe），
+# 再乘「采集 rank 数」和步数。注意 4 个 replica 的 rank 都在干活（FFN 是 TP16 全 die 参与），
+# 所以它们不是"空闲目录"，每个都有真实体积。
+NCOLL=1; [ "$DP_REPLICA" = "1" ] && NCOLL=$DP_SIZE
+BASE_MB=$(( NUM_STEPS * 258 * NCOLL ))
+[ "$SIMPLIFY" != "1" ] && BASE_MB=$(( BASE_MB * 3 ))
+[ "$PROF_LEVEL" = "0" ] && BASE_MB=$(( BASE_MB / 2 ))
+[ "$PROF_NO_AIC" = "1" ] && BASE_MB=$(( BASE_MB / 2 ))
+[ "$WITH_STACK" = "1" ] && BASE_MB=$(( BASE_MB * 3 ))   # 调用栈按经验 2~5x，这里取 3
+EST_LO=$(( BASE_MB * 8 / 10 )); EST_HI=$(( BASE_MB * 12 / 10 ))
+echo "  预计体积  : $(awk -v a=$EST_LO -v b=$EST_HI 'BEGIN{printf "%.1f~%.1f GB", a/1024, b/1024}')（${NUM_STEPS} step × ${NCOLL} 个采集 rank）"
+echo "  压缩比    : csv/json 文本约 10:1（smoke：3.1GB → 326MB），需要 Insight 时再 MAKE_TGZ=1"
+echo "  可压缩手段: PROF_LEVEL=0（/2，丢 pipe 明细）、PROF_NO_AIC=1（/2，丢 aic 比率）"
 AVAIL_KB=$(df -Pk "$(dirname "$PROF_DIR")" 2>/dev/null | awk 'NR==2{print $4}')
 if [ -n "${AVAIL_KB:-}" ]; then
   AVAIL_GB=$(( AVAIL_KB / 1024 / 1024 ))
@@ -288,46 +299,75 @@ else
   stage "warmup skipped (cold)"
 fi
 
-# ---------------- 3. 开 profile ----------------
+# ---------------- 3/4. 先后台发请求，等真正开始 prefill 再开 profile ----------------
+# ⚠ 血泪教训（2026-11-24 prof_smoke3）：/start_profile 之后的前几个 forward 是
+#   ready 之后的 dummy 步（实测 20 token / seq_len 616），它们会把 num_steps 吃光，
+#   而真正的 prefill 要到 ~50 秒后才开始（客户端生成 prompt 很慢）。
+#   结果：trace 里一个 prefill kernel 都没有，但表看起来"有数"。
+#   现在改成：后台发请求 → 盯 server.log 等 "Prefill batch" → 立刻 /start_profile。
 echo
-echo "[3/7] 开 profile（num_steps=${NUM_STEPS}，activities=[CPU,GPU]，with_stack=false）"
-stage "start_profile num_steps=$NUM_STEPS"
-SP_RESP=$(api_post "/start_profile" "{\"output_dir\":\"${PROF_DIR}\",\"num_steps\":${NUM_STEPS},\"activities\":[\"CPU\",\"GPU\"],\"with_stack\":false}" 60)
+echo "[3/7] 后台发 1 条 128K 请求，等它真正开始 prefill 后再开 profile"
+stage "launch bench in background"
+nohup env WARMUP=0 SKIP_FLUSH=1 NUM_PROMPTS=1 CONCURRENCY=1 DP_SIZE="$DP_SIZE" \
+    CACHE_PCT="$CACHE_PCT" OUT_LEN="$OUT_LEN" ${IN_LEN:+IN_LEN="$IN_LEN"} \
+    bash "$HERE/bench_128k_1k.sh" > "$OUT/bench.log" 2>&1 &
+BENCH_PID=$!
+echo "    bench pid=${BENCH_PID}，日志：$OUT/bench.log"
+
+PREFILL_WAIT=${PREFILL_WAIT:-600}
+waited=0
+until [ "$(grep -c "Prefill batch" "$SLOG" 2>/dev/null || true)" -ge "${TRIGGER_AFTER:-1}" ]; do
+  if ! kill -0 "$BENCH_PID" 2>/dev/null; then
+    echo "  [FAIL] bench 已退出但日志里没有 'Prefill batch'（请求可能根本没到 server）"
+    tail -20 "$OUT/bench.log"; stage "FAIL no prefill batch"; cleanup; exit 1
+  fi
+  sleep 1; waited=$((waited + 1))
+  if [ $((waited % 30)) -eq 0 ]; then
+    echo "    [${waited}s] 等请求到达…（客户端此时在 CPU 上生成 129K prompt，通常 50~90s）"
+  fi
+  if [ "$waited" -ge "$PREFILL_WAIT" ]; then
+    echo "  [FAIL] ${PREFILL_WAIT}s 内没等到 prefill"; tail -20 "$SLOG"; stage "FAIL prefill timeout"; cleanup; exit 1
+  fi
+done
+N_PREFILL=$(grep -c "Prefill batch" "$SLOG" 2>/dev/null || true)
+echo "  ✓ 检测到 prefill 开始（等了 ${waited}s，日志里已有 ${N_PREFILL:-0} 条 Prefill batch）"
+
+echo
+echo "[4/7] 开 profile（num_steps=${NUM_STEPS}，activities=[CPU,GPU]）"
+stage "start_profile num_steps=$NUM_STEPS after ${waited}s"
+if [ "$WITH_STACK" = "1" ]; then WS=true; else WS=false; fi
+SP_RESP=$(api_post "/start_profile" "{\"output_dir\":\"${PROF_DIR}\",\"num_steps\":${NUM_STEPS},\"activities\":[\"CPU\",\"GPU\"],\"with_stack\":${WS}}" 60)
 echo "    /start_profile → ${SP_RESP}"
 case "$SP_RESP" in
   *error*|*Error*)
     echo "  [FAIL] /start_profile 被拒（多半是 admin-api-key 鉴权）。"
-    echo "         /start_profile 是 admin_force：server 要带 --admin-api-key，POST 要带 Bearer。"
-    stage "FAIL start_profile rejected"; cleanup; exit 1 ;;
+    stage "FAIL start_profile rejected"; kill -9 "$BENCH_PID" 2>/dev/null; cleanup; exit 1 ;;
 esac
 sleep 2
-# grep -c 命中 0 次时会「打印 0 + 退出码 1」，所以只能 `|| true`，不能再 `|| echo 0`（会出现 0\n0）
 N_START=$(grep -c "Profiling starts" "$SLOG" 2>/dev/null || true); N_START=${N_START:-0}
 N_SKIP=$(grep -c "NPU profiling skipped" "$SLOG" 2>/dev/null || true); N_SKIP=${N_SKIP:-0}
-echo "    日志里 Profiling starts=${N_START}（期望 1），skipped=${N_SKIP}（期望 ${EXPECT_SKIP}）"
+echo "    日志里 Profiling starts=${N_START}（期望 ${TP_SIZE}：这行打在门控之前），skipped=${N_SKIP}（期望 ${EXPECT_SKIP}）"
 if [ "${N_START:-0}" -eq 0 ]; then
-  echo "  [FAIL] /start_profile 没有生效（日志里没有 'Profiling starts'）"; stage "FAIL start_profile"; exit 1
-fi
-if [ "${N_SKIP:-0}" -ne "$EXPECT_SKIP" ]; then
-  echo "  [warn] skipped 数不对：拿到 ${N_SKIP}，期望 ${EXPECT_SKIP}（门控或 attn_tp 推导有问题）"
+  echo "  [FAIL] /start_profile 没有生效"; stage "FAIL start_profile"; kill -9 "$BENCH_PID" 2>/dev/null; cleanup; exit 1
 fi
 grep "NPU profiler config" "$SLOG" | head -1 | sed 's/^/    /'
 
-# ---------------- 4. 发采集请求 ----------------
+# ---------------- 4.5 等请求跑完 ----------------
 echo
-if [ "$WARMUP" -gt 0 ]; then
-  echo "[4/7] 发 1 条 128K 请求（SKIP_FLUSH=1：复用预热好的前缀缓存；期望命中 ${CACHE_PCT}%）"
-else
-  echo "[4/7] 发 1 条 128K **冷**请求（新 server 空缓存；期望命中 0%，32 个 chunk，TTFT≈110s）"
-fi
-stage "profiled request (1 prompt, out_len=$OUT_LEN)"
-if ! run_with_heartbeat "采集" "$OUT/bench.log" \
-    env WARMUP=0 SKIP_FLUSH=1 NUM_PROMPTS=1 CONCURRENCY=1 DP_SIZE="$DP_SIZE" \
-        CACHE_PCT="$CACHE_PCT" OUT_LEN="$OUT_LEN" ${IN_LEN:+IN_LEN="$IN_LEN"} \
-        bash "$HERE/bench_128k_1k.sh"; then
-  echo "  [WARN] 采集请求返回非 0（可能是 num_steps 提前触发的正常现象），继续看 stop 结果"
-fi
+echo "[4.5/7] 等采集请求跑完（prefill 106s 级 + decode；每 30s 心跳）"
+stage "wait bench"
+el=0
+while kill -0 "$BENCH_PID" 2>/dev/null; do
+  sleep 5; el=$((el + 5))
+  if [ $((el % 30)) -eq 0 ]; then
+    echo "    [${el}s] 请求仍在跑…（server 最近的 prefill/decode 行：$(grep -E "Prefill batch|Decode batch" "$SLOG" 2>/dev/null | tail -1 | cut -c1-90)）"
+  fi
+done
+wait "$BENCH_PID" 2>/dev/null; RC=$?
+echo "    请求结束：${el}s rc=${RC}"
 grep -hE "^HIT=|^TTFT_|^OUT_TPUT=" "$OUT/bench.log" | tail -3 | sed 's/^/    /'
+N_PREFILL=$(grep -c "Prefill batch" "$SLOG" 2>/dev/null || true)
+echo "    server 侧 Prefill batch 行数 = ${N_PREFILL:-0}（129K/4096 ≈ 32 条，可用来核对 chunk 数）"
 
 # 命中率守卫：冷启动就该是 0% 左右；若接近 100% 说明缓存里已有整条 prompt，
 # 这一轮的 trace 里没有 prefill —— 直接判失败，别浪费导出和后续分析。
@@ -349,7 +389,7 @@ fi
 
 # ---------------- 5. 停 profile ----------------
 echo
-echo "[5/7] 停 profile（导出+解析，128K 可能要 1~3 分钟）"
+echo "[5/7] 等 profiler 导出（num_steps 到点会自动停；128K 可能要 3~10 分钟）"
 # num_steps 到点后 profiler 会**自动** stop + 导出（scheduler 里按 forward ct 触发）。
 # 这时再 POST /stop_profile 只会得到 "Profiling is not in progress"（它在 barrier 之前就返回，
 # 不会卡，但日志会很迷惑），所以先看日志再决定要不要发。
@@ -360,9 +400,15 @@ else
   stage "stop_profile"
   api_post "/stop_profile" "{}" 900
 fi
-for _ in $(seq 1 60); do
+# 32 步 / ~33GB 的导出可能要 10~30 分钟，原来只等 5 分钟会读到半成品
+EXPORT_WAIT_MIN=${EXPORT_WAIT_MIN:-30}
+export_waited=0
+while [ "$export_waited" -lt $((EXPORT_WAIT_MIN * 60)) ]; do
   grep -q "Profiling done" "$SLOG" 2>/dev/null && break
-  sleep 5
+  sleep 5; export_waited=$((export_waited + 5))
+  if [ $((export_waited % 60)) -eq 0 ]; then
+    echo "    [导出 ${export_waited}s] $(du -sh "$PROF_DIR" 2>/dev/null | cut -f1)  日志末行: $(tail -1 "$SLOG" 2>/dev/null | cut -c1-70)"
+  fi
 done
 if grep -q "Profiling done" "$SLOG" 2>/dev/null; then
   echo "  ✓ Profiling done"
@@ -426,8 +472,22 @@ du -sh "$BUNDLE_DIR" 2>/dev/null | sed 's/^/    证据包: /'
 
 INSIGHT_TGZ="/tmp/${TAG}_insight.tgz"
 if [ "$MAKE_TGZ" = "1" ]; then
-  tar czf "$INSIGHT_TGZ" -C "$(dirname "$PROF_DIR")" "$(basename "$PROF_DIR")" 2>/dev/null
-  echo "    Insight 包: ${INSIGHT_TGZ}  ($(du -h "$INSIGHT_TGZ" 2>/dev/null | cut -f1))"
+  # 只压「最有料」的那个 rank 目录：MindStudio Insight 一次只开一个 *_ascend_pt，
+  # 把 4 个都压进去是 4 倍体积（3 个还是空闲 replica 的）。
+  BEST_RANK=""
+  BEST_KB=0
+  for d in "$PROF_DIR"/*_ascend_pt; do
+    [ -d "$d" ] || continue
+    kb=$(du -sk "$d" 2>/dev/null | cut -f1)
+    [ "${kb:-0}" -gt "$BEST_KB" ] && { BEST_KB=$kb; BEST_RANK=$d; }
+  done
+  if [ -n "$BEST_RANK" ]; then
+    tar czf "$INSIGHT_TGZ" -C "$(dirname "$BEST_RANK")" "$(basename "$BEST_RANK")" 2>/dev/null
+    echo "    Insight 包: ${INSIGHT_TGZ}  ($(du -h "$INSIGHT_TGZ" 2>/dev/null | cut -f1)，只含 $(basename "$BEST_RANK"))"
+    echo "    解压后把这个目录交给 Insight：$(basename "$BEST_RANK")"
+  else
+    echo "    [warn] 找不到 *_ascend_pt 目录，跳过 tgz"
+  fi
 else
   echo "    Insight 包: 跳过（MAKE_TGZ=0；要看时间线就 MAKE_TGZ=1，它会占额外 2~4GB）"
 fi
