@@ -50,6 +50,35 @@ elif _is_mps:
 logger = logging.getLogger(__name__)
 
 
+# --- NPU profiling 体积/力度旋钮（env 门控，默认全关；仅本分支，不属于 PR）---
+def _prof_simplify() -> bool:
+    return os.getenv("SGLANG_NPU_PROFILE_SIMPLIFY", "0") == "1"
+
+
+def _prof_level():
+    lvl = os.getenv("SGLANG_NPU_PROFILE_LEVEL", "").strip()
+    if lvl in ("0", "1", "2"):
+        return getattr(
+            torch_npu.profiler.ProfilerLevel, "Level" + lvl,
+            torch_npu.profiler.ProfilerLevel.Level1,
+        )
+    return torch_npu.profiler.ProfilerLevel.Level1
+
+
+def _prof_aic_metrics():
+    if os.getenv("SGLANG_NPU_PROFILE_NO_AIC", "0") == "1":
+        return getattr(torch_npu.profiler.AiCMetrics, "AiCoreNone",
+                       torch_npu.profiler.AiCMetrics.PipeUtilization)
+    return torch_npu.profiler.AiCMetrics.PipeUtilization
+
+
+def _prof_rank0_only() -> bool:
+    """True = 本 rank 跳过采集（只让 tp_rank 0 采）。"""
+    if os.getenv("SGLANG_NPU_PROFILE_RANK0_ONLY", "0") != "1":
+        return False
+    return get_parallel().tp_rank != 0
+
+
 @dataclass(kw_only=True)
 class SchedulerProfilerManager:
     get_forward_ct: Callable[[], int]
@@ -59,6 +88,8 @@ class SchedulerProfilerManager:
 
     def __post_init__(self) -> None:
         self.dp_tp_cpu_group = get_dp_tp_group().cpu_group
+        # rank0-only 采集时，被跳过的 rank 记为 gated：不采数据，但仍参与 barrier
+        self._gated_out = False
         if envs.SGLANG_PROFILE_V2.get():
             self._profile_manager = ProfileManager(
                 cpu_group=self.dp_tp_cpu_group,
@@ -174,10 +205,21 @@ class SchedulerProfilerManager:
             self._apply_detailed_annotations(self.detailed_annotations)
             return self._profile_manager.manual_start()
 
+        if self._gated_out:
+            return ProfileReqOutput(success=True, message="Succeeded (skipped: rank0-only)")
+
         stage_str = f" for {stage.name}" if stage else ""
         logger.info(
             f"Profiling starts{stage_str}. Traces will be saved to: {self.torch_profiler_output_dir} (with profile id: {self.profile_id})",
         )
+        if _is_npu:
+            logger.info(
+                "NPU profiler config: simplify=%s level=%s aic=%s rank0_only=%s",
+                _prof_simplify(),
+                os.getenv("SGLANG_NPU_PROFILE_LEVEL", "default(1)"),
+                "none" if os.getenv("SGLANG_NPU_PROFILE_NO_AIC", "0") == "1" else "pipe_utilization",
+                os.getenv("SGLANG_NPU_PROFILE_RANK0_ONLY", "0"),
+            )
 
         activities = self.profiler_activities
         with_stack = self.torch_profiler_with_stack
@@ -235,6 +277,19 @@ class SchedulerProfilerManager:
             self.rpd_profiler.rangePush("", "rpd profile range", "")
             self.profile_in_progress = True
         elif torchprof_activities:
+            if _prof_rank0_only():
+                # 记账已经完成，所以被跳过的 rank 会和采集 rank 在同一个 forward 自动 stop
+                self._gated_out = True
+                self.profile_in_progress = True
+                logger.info(
+                    "NPU profiling skipped on this rank "
+                    "(SGLANG_NPU_PROFILE_RANK0_ONLY=1, tp_rank=%d)",
+                    get_parallel().tp_rank,
+                )
+                self._apply_detailed_annotations(self.detailed_annotations)
+                return ProfileReqOutput(
+                    success=True, message="Succeeded (skipped: rank0-only)"
+                )
             self.torch_profiler = torch.profiler.profile(
                 activities=torchprof_activities,
                 with_stack=with_stack if with_stack is not None else True,
@@ -251,12 +306,12 @@ class SchedulerProfilerManager:
                     if not _is_npu
                     else torch_npu.profiler._ExperimentalConfig(
                         export_type=torch_npu.profiler.ExportType.Text,
-                        profiler_level=torch_npu.profiler.ProfilerLevel.Level1,
+                        profiler_level=_prof_level(),
                         msprof_tx=False,
-                        aic_metrics=torch_npu.profiler.AiCMetrics.PipeUtilization,
+                        aic_metrics=_prof_aic_metrics(),
                         l2_cache=False,
                         op_attr=False,
-                        data_simplification=False,
+                        data_simplification=_prof_simplify(),
                         record_op_args=False,
                         gc_detect_threshold=None,
                     )
@@ -327,6 +382,14 @@ class SchedulerProfilerManager:
                 success=False,
                 message="Profiling is not in progress. Call /start_profile first.",
             )
+
+        if self._gated_out:
+            # 采集 rank 会在 torch_profiler.stop() 之后 barrier 一次，这里对称等待
+            logger.info("Stop profiling (skipped rank, matching barrier)...")
+            torch.distributed.barrier(self.dp_tp_cpu_group)
+            self._gated_out = False
+            self.profile_in_progress = False
+            return ProfileReqOutput(success=True, message="Succeeded (skipped: rank0-only)")
 
         self.torch_profiler_output_dir.mkdir(parents=True, exist_ok=True)
 

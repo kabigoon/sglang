@@ -593,3 +593,34 @@ DP_SIZE=8 CHUNKED_PREFILL=32768 MEM_FRACTION=0.85 DECODE_GRAPH=1 \
 - EP16 对 prefill TTFT 的实际收益（这是整件事的目标）
 - `--deepep-mode normal` 在新镜像上是否可用（可以作为不给 decode 开 low-latency 的退路）
 - 同事的 `SGLANG_NPU_DSV41_A3_DISPATCH_FFN_W4A8` 私有算子在 24s 里占多少
+
+---
+
+## 13. 新代码树（PR #50205 head）128K 基线 —— 已测（2026-11-24）
+
+分支 `pr-50205-dsv41-a3-deepep`，新镜像（`deep_ep 1.0.0+cann.9.2.0.b237`，**不需要装 custom-ops**）。
+配置：`dp=4`（`--attn-dp-size 4`，attn_tp=4）、`chunk 16384`(4096/rank)、`mem 0.88`、decode graph on、
+**不开 EP**、`MAX_PREFILL_TOKENS=8192`、`--swa-prefix-tails 16`、`SGLANG_DSPARK_NVLINK_VOCAB_GATHER=0`。
+
+| 项 | 新树实测 | 旧树对照 | 判定 |
+|---|---|---|---|
+| 实际输入 | 129,093 token | 129,099 | 同口径 |
+| 命中率 | **49.18%**（目标 50%） | 55.03% | 新树这次更接近 50% |
+| **TTFT median** | **73.71 s**（mean 74.43，p90 75.68） | **74.87 s** @55% | 见下 |
+| TPOT | **32.15 ms**（median 32.9） | 32.8 ms | 基本不变 ✅ 达标 |
+| Max ITL | 173 ms | — | 无尖峰 |
+| KV 池 | 978,560 token/rank | 500,608（dp=8 口径） | 宽裕 |
+
+**换算成同口径**：旧树四点模型对 (T=129,093, U=65,605) 的预测是 **79.2 s**，新树实测 **73.71 s**
+⇒ **新树比旧树行为快 7.4%**。但距离 30 s 目标仍需 **2.46×**。
+
+有效 prefill 速率：新树 0.890 K tok/s，旧树 0.776 K tok/s，**同事 80K/0% 达 3.333 K tok/s**。
+
+**结论**：换新代码树只值 7%，不解决问题；参数/配置这条路（chunk、mem、dp、EP、chunk 上限…）到目前为止累计也只值个位数百分比。
+2.46× 必须来自算子级或算法级改动。
+
+### 13.1 反面教材：dp=4 + C=4 不能用作基线
+`NUM_PROMPTS=4 CONCURRENCY=4` 实测 TTFT median **90.0 s**、`TPOT mean 57.6 ms`（超 SLO）、
+**`Max ITL = 92,247 ms`** —— 4 条 130K prefill 在 `MAX_PREFILL_TOKENS=8192` 下互相抢，decode 被饿死。
+另外该轮 median 被一条"几乎 100% 命中"的样本污染（mean 69.3 < median 90.0，反推那条只有 2.4 s）。
+⇒ **基线一律 C=1**；要快可以 `SKIP_FLUSH=1 WARMUP=0 NUM_PROMPTS=3`（约 5 分钟出数）。
