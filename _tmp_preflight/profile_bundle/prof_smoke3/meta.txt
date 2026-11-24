@@ -1,0 +1,6 @@
+generated_at = 2026-11-24T12:08:28+00:00
+host = node-61-47-19-68
+git_head = f1c6620c0c
+source_rank_dir = /tmp/prof_smoke3_1124_120020/node-61-47-19-68_311805_20261124120523307_ascend_pt
+command = /home/a00821909/sglang/_tmp_preflight/collect_profile_bundle.py /tmp/prof_smoke3_1124_120020 --tag prof_smoke3
+bundle_bytes = 73713

@@ -1,3 +1,7 @@
 zips/
 *.zip
 *.whl
+
+# 证据包里的 csv/log 是主要证据（根 .gitignore 有 *.csv / *.log），这里显式放行
+!*.csv
+!*.log
