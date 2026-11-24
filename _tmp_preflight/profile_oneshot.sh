@@ -61,6 +61,17 @@ RANK0_ONLY=${RANK0_ONLY:-0}
 #   RANK0_ONLY=1        只采 tp_rank 0（只在 DP_SIZE=1 时等价于"采到请求的那个 rank"）
 DP_REPLICA=${DP_REPLICA:-1}
 SIMPLIFY=${SIMPLIFY:-1}
+# 体积旋钮（按「压缩力度」从弱到强）：
+#   PROF_LEVEL=0     ProfilerLevel.Level0：只留算子级时间线，丢掉 AICore/AIV 的 pipe 明细
+#   PROF_NO_AIC=1    不采 AICore PMU（aic_mac/mte/vec 比率全丢）
+# ⚠ 这两个会让我们看不到「这个 kernel 是算力受限还是带宽受限」。默认都不用，
+#   只有在磁盘实在不够时才降级（先 PROF_LEVEL=0，再 PROF_NO_AIC=1）。
+PROF_LEVEL=${PROF_LEVEL:-}
+PROF_NO_AIC=${PROF_NO_AIC:-0}
+# 生成 Insight 用的 tgz（2-4GB，只为人眼看时间线）。默认关：它会把峰值磁盘占用翻倍。
+MAKE_TGZ=${MAKE_TGZ:-0}
+# 采集前的最小可用磁盘（GB），不够就早失败，别跑到一半写满盘
+DISK_NEED_GB=${DISK_NEED_GB:-5}
 TAG=${TAG:-prof_128k}
 # /start_profile 与 /stop_profile 是 admin_force（utils/auth_levels.json:70,72）：
 # server 必须带 --admin-api-key，POST 必须带 Authorization: Bearer <key>，否则 403。
@@ -87,6 +98,24 @@ echo "  门控: dp_replica=${DP_REPLICA} rank0_only=${RANK0_ONLY} simplify=${SIM
 echo "  外部 env: ${EXTRA_ENV:-（无）}"
 [ -n "$EXTRA_ARGS" ] && echo "  extra args: ${EXTRA_ARGS}"
 echo "  trace 目录: ${PROF_DIR}"
+# 体积预估：基准 133 MB/step/rank（Level1+PipeUtilization+simplify=off，HANDOFF §11.2.1）
+BASE_MB=$(( NUM_STEPS * 133 ))
+EST_HI=$BASE_MB; EST_LO=$BASE_MB
+if [ "$SIMPLIFY" = "1" ]; then EST_HI=$(( EST_HI / 3 )); EST_LO=$(( EST_LO / 5 )); fi
+if [ "$PROF_LEVEL" = "0" ]; then EST_HI=$(( EST_HI / 2 )); EST_LO=$(( EST_LO / 2 )); fi
+if [ "$PROF_NO_AIC" = "1" ]; then EST_HI=$(( EST_HI / 2 )); EST_LO=$(( EST_LO / 2 )); fi
+echo "  预计体积  : ${EST_LO}~${EST_HI} MB（${NUM_STEPS} step × 1 个采集 rank；另加 3 个空闲 replica 目录，很小）"
+echo "  可压缩手段: PROF_LEVEL=0（/2，丢 pipe 明细）、PROF_NO_AIC=1（/2，丢 aic 比率）、MAKE_TGZ=0（默认，不生成 tgz）"
+AVAIL_KB=$(df -Pk "$(dirname "$PROF_DIR")" 2>/dev/null | awk 'NR==2{print $4}')
+if [ -n "${AVAIL_KB:-}" ]; then
+  AVAIL_GB=$(( AVAIL_KB / 1024 / 1024 ))
+  echo "  可用磁盘  : ${AVAIL_GB} GB（$(dirname "$PROF_DIR")，要求 ≥ ${DISK_NEED_GB} GB）"
+  if [ "$AVAIL_GB" -lt "$DISK_NEED_GB" ]; then
+    echo "  [FAIL] 磁盘不够（${AVAIL_GB} < ${DISK_NEED_GB} GB）。三个选择："
+    echo "         ① PROF_DIR=<更大分区>/prof_128k  ② PROF_LEVEL=0  ③ PROF_NO_AIC=1"
+    exit 1
+  fi
+fi
 echo "  工作目录  : ${OUT}"
 echo "  证据包 TAG: ${TAG}"
 echo
@@ -169,6 +198,8 @@ PROF_ENV=""
 [ "$DP_REPLICA" = "1" ] && PROF_ENV="SGLANG_NPU_PROFILE_DP_REPLICA=1"
 [ "$RANK0_ONLY" = "1" ] && PROF_ENV="${PROF_ENV:+$PROF_ENV }SGLANG_NPU_PROFILE_RANK0_ONLY=1"
 [ "$SIMPLIFY" = "1" ]   && PROF_ENV="${PROF_ENV:+$PROF_ENV }SGLANG_NPU_PROFILE_SIMPLIFY=1"
+[ -n "$PROF_LEVEL" ]    && PROF_ENV="${PROF_ENV:+$PROF_ENV }SGLANG_NPU_PROFILE_LEVEL=${PROF_LEVEL}"
+[ "$PROF_NO_AIC" = "1" ] && PROF_ENV="${PROF_ENV:+$PROF_ENV }SGLANG_NPU_PROFILE_NO_AIC=1"
 
 # ⚠ 调用方传进来的 EXTRA_ENV 必须与 profiling 旋钮**合并**，不能二选一。
 #   本脚本此前只把自己的 PROF_ENV 传给启动器，完全丢弃调用方的 EXTRA_ENV ⇒
@@ -370,8 +401,12 @@ BUNDLE_DIR="$HERE/profile_bundle/$TAG"
 du -sh "$BUNDLE_DIR" 2>/dev/null | sed 's/^/    证据包: /'
 
 INSIGHT_TGZ="/tmp/${TAG}_insight.tgz"
-tar czf "$INSIGHT_TGZ" -C "$(dirname "$PROF_DIR")" "$(basename "$PROF_DIR")" 2>/dev/null
-echo "    Insight 包: ${INSIGHT_TGZ}  ($(du -h "$INSIGHT_TGZ" 2>/dev/null | cut -f1))"
+if [ "$MAKE_TGZ" = "1" ]; then
+  tar czf "$INSIGHT_TGZ" -C "$(dirname "$PROF_DIR")" "$(basename "$PROF_DIR")" 2>/dev/null
+  echo "    Insight 包: ${INSIGHT_TGZ}  ($(du -h "$INSIGHT_TGZ" 2>/dev/null | cut -f1))"
+else
+  echo "    Insight 包: 跳过（MAKE_TGZ=0；要看时间线就 MAKE_TGZ=1，它会占额外 2~4GB）"
+fi
 stage "collected bundle=$(du -sh "$BUNDLE_DIR" 2>/dev/null | cut -f1) tgz=$(du -h "$INSIGHT_TGZ" 2>/dev/null | cut -f1)"
 
 # ---------------- 7. 汇总 ----------------
