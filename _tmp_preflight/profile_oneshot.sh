@@ -98,14 +98,18 @@ echo "  门控: dp_replica=${DP_REPLICA} rank0_only=${RANK0_ONLY} simplify=${SIM
 echo "  外部 env: ${EXTRA_ENV:-（无）}"
 [ -n "$EXTRA_ARGS" ] && echo "  extra args: ${EXTRA_ARGS}"
 echo "  trace 目录: ${PROF_DIR}"
-# 体积预估：基准 133 MB/step/rank（Level1+PipeUtilization+simplify=off，HANDOFF §11.2.1）
-BASE_MB=$(( NUM_STEPS * 133 ))
-EST_HI=$BASE_MB; EST_LO=$BASE_MB
-if [ "$SIMPLIFY" = "1" ]; then EST_HI=$(( EST_HI / 3 )); EST_LO=$(( EST_LO / 5 )); fi
-if [ "$PROF_LEVEL" = "0" ]; then EST_HI=$(( EST_HI / 2 )); EST_LO=$(( EST_LO / 2 )); fi
-if [ "$PROF_NO_AIC" = "1" ]; then EST_HI=$(( EST_HI / 2 )); EST_LO=$(( EST_LO / 2 )); fi
-echo "  预计体积  : ${EST_LO}~${EST_HI} MB（${NUM_STEPS} step × 1 个采集 rank；另加 3 个空闲 replica 目录，很小）"
-echo "  可压缩手段: PROF_LEVEL=0（/2，丢 pipe 明细）、PROF_NO_AIC=1（/2，丢 aic 比率）、MAKE_TGZ=0（默认，不生成 tgz）"
+# 体积预估：smoke 实测 258 MB/step/rank（**simplify 已开**，Level1+pipe），
+# 再乘「采集 rank 数」和步数。注意 4 个 replica 的 rank 都在干活（FFN 是 TP16 全 die 参与），
+# 所以它们不是"空闲目录"，每个都有真实体积。
+NCOLL=1; [ "$DP_REPLICA" = "1" ] && NCOLL=$DP_SIZE
+BASE_MB=$(( NUM_STEPS * 258 * NCOLL ))
+[ "$SIMPLIFY" != "1" ] && BASE_MB=$(( BASE_MB * 3 ))
+[ "$PROF_LEVEL" = "0" ] && BASE_MB=$(( BASE_MB / 2 ))
+[ "$PROF_NO_AIC" = "1" ] && BASE_MB=$(( BASE_MB / 2 ))
+EST_LO=$(( BASE_MB * 8 / 10 )); EST_HI=$(( BASE_MB * 12 / 10 ))
+echo "  预计体积  : $(awk -v a=$EST_LO -v b=$EST_HI 'BEGIN{printf "%.1f~%.1f GB", a/1024, b/1024}')（${NUM_STEPS} step × ${NCOLL} 个采集 rank）"
+echo "  压缩比    : csv/json 文本约 10:1（smoke：3.1GB → 326MB），需要 Insight 时再 MAKE_TGZ=1"
+echo "  可压缩手段: PROF_LEVEL=0（/2，丢 pipe 明细）、PROF_NO_AIC=1（/2，丢 aic 比率）"
 AVAIL_KB=$(df -Pk "$(dirname "$PROF_DIR")" 2>/dev/null | awk 'NR==2{print $4}')
 if [ -n "${AVAIL_KB:-}" ]; then
   AVAIL_GB=$(( AVAIL_KB / 1024 / 1024 ))
@@ -304,7 +308,7 @@ sleep 2
 # grep -c 命中 0 次时会「打印 0 + 退出码 1」，所以只能 `|| true`，不能再 `|| echo 0`（会出现 0\n0）
 N_START=$(grep -c "Profiling starts" "$SLOG" 2>/dev/null || true); N_START=${N_START:-0}
 N_SKIP=$(grep -c "NPU profiling skipped" "$SLOG" 2>/dev/null || true); N_SKIP=${N_SKIP:-0}
-echo "    日志里 Profiling starts=${N_START}（期望 1），skipped=${N_SKIP}（期望 ${EXPECT_SKIP}）"
+echo "    日志里 Profiling starts=${N_START}（期望 ${TP_SIZE}：这行打在门控之前），skipped=${N_SKIP}（期望 ${EXPECT_SKIP}）"
 if [ "${N_START:-0}" -eq 0 ]; then
   echo "  [FAIL] /start_profile 没有生效（日志里没有 'Profiling starts'）"; stage "FAIL start_profile"; exit 1
 fi
@@ -426,8 +430,22 @@ du -sh "$BUNDLE_DIR" 2>/dev/null | sed 's/^/    证据包: /'
 
 INSIGHT_TGZ="/tmp/${TAG}_insight.tgz"
 if [ "$MAKE_TGZ" = "1" ]; then
-  tar czf "$INSIGHT_TGZ" -C "$(dirname "$PROF_DIR")" "$(basename "$PROF_DIR")" 2>/dev/null
-  echo "    Insight 包: ${INSIGHT_TGZ}  ($(du -h "$INSIGHT_TGZ" 2>/dev/null | cut -f1))"
+  # 只压「最有料」的那个 rank 目录：MindStudio Insight 一次只开一个 *_ascend_pt，
+  # 把 4 个都压进去是 4 倍体积（3 个还是空闲 replica 的）。
+  BEST_RANK=""
+  BEST_KB=0
+  for d in "$PROF_DIR"/*_ascend_pt; do
+    [ -d "$d" ] || continue
+    kb=$(du -sk "$d" 2>/dev/null | cut -f1)
+    [ "${kb:-0}" -gt "$BEST_KB" ] && { BEST_KB=$kb; BEST_RANK=$d; }
+  done
+  if [ -n "$BEST_RANK" ]; then
+    tar czf "$INSIGHT_TGZ" -C "$(dirname "$BEST_RANK")" "$(basename "$BEST_RANK")" 2>/dev/null
+    echo "    Insight 包: ${INSIGHT_TGZ}  ($(du -h "$INSIGHT_TGZ" 2>/dev/null | cut -f1)，只含 $(basename "$BEST_RANK"))"
+    echo "    解压后把这个目录交给 Insight：$(basename "$BEST_RANK")"
+  else
+    echo "    [warn] 找不到 *_ascend_pt 目录，跳过 tgz"
+  fi
 else
   echo "    Insight 包: 跳过（MAKE_TGZ=0；要看时间线就 MAKE_TGZ=1，它会占额外 2~4GB）"
 fi

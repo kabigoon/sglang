@@ -960,3 +960,41 @@ tail -f /tmp/prof_smoke3.log
 "not in progress"，不会卡）。
 
 验收通过后再跑全量（`NUM_STEPS` 不传即默认 34，`MAKE_TGZ` 建议留 0）。
+
+---
+
+## 18. smoke 结果（2026-11-24，3 步 / prof_smoke3）——验收通过，但暴露两个必须修的分析器 bug
+
+### 18.1 实测数字（推翻了两条文档里的旧估计）
+
+| 项 | 实测 | 旧估计 | 说明 |
+|---|---|---|---|
+| trace 体积 | **3.1 GB / 3 步 / 4 rank ≈ 258 MB/step/rank** | 133 MB/step/rank（§11.2.1） | 差 2×，且旧公式没乘 rank 数 ⇒ 全量 **≈32 GB**（不是 1~4GB） |
+| 压缩比 | 3.1GB → **326 MB（≈10:1）** | — | 全量 tgz ≈ 3.4GB |
+| 每步 kernel 行数 | 48,650 行 / 3 步（该 rank 全部 stream） | — | 32 步 ≈ 52 万行，分析器读得动 |
+| TTFT（3 步采集） | **148 s**（冷启动 0% 命中） | 110 s | 导出 3.1GB 与 prefill 并行 + msprof 开销，慢 35%，不影响归因 |
+
+### 18.2 **意外发现：4 个 replica 的 rank 都不是空闲**
+
+4 个目录是 1021MB / 692MB / 692MB / 692MB（kernel_details 15MB vs 11MB ×3）。
+说明 **FFN/MoE 仍是 TP16（全 16 die 参与）**，只有 owner replica 额外做 attention。
+
+⇒ 两个后果：
+1. 体积要按 **4 个 rank** 算，不能按"1 个大 + 3 个空"算；
+2. **非 owner 的 rank 天然就是「只有 FFN、没有 attention」的对照组**：同一 chunk 上
+   `wall(owner) − wall(non-owner)` 直接给出 attention 的成本，比斜率拟合更硬。
+   全量采集时**不要**改成 RANK0_ONLY，4 个目录要留着。
+
+### 18.3 分析器的两个 bug（smoke 抓到的，已修）
+
+| bug | 表现 | 修法 |
+|---|---|---|
+| 主计算流按「kernel 数最多」选 | 选中 stream 76（29,632 个 kernel，但只占 126.9 ms），真正主力是 stream 43（15,725 个 kernel，1238.7 ms）⇒ `wall=0.74s`、`HCCL 占 126.8%`、`砍光通信省 93.5s` 全是垃圾 | 改按**总耗时最多**选，且排除 `N/A` 通信流 |
+| attention 算子名挑到辅助 kernel | 选中 `aclnnSparseFlashMlaMetadata_SparseFlashM`（3 个、微秒级） | 排除名字含 `metadata/helper/shape` 的，并按"分段数 + 中位 duration + 配平"打分 |
+
+### 18.4 顺带修（本轮）
+
+- tgz **只压 busiest 的 rank 目录**（Insight 一次只开一个 `*_ascend_pt`）⇒ 体积 /4；
+- 体积估算公式改成 `步数 × 258MB × 采集 rank 数`，并打印 GB 与压缩比；
+- `Profiling starts=16（期望 1）` 那句期望改对：这行日志打在**门控之前**，正常就是 TP_SIZE 条
+  （16 条 starts + 12 条 skipped = 4 个采集 rank）；§11.2.1 里"1 条 starts + 15 条 skipped"的判据是错的。
