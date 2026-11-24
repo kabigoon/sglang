@@ -1081,3 +1081,72 @@ NUM_STEPS=4 TRIGGER_AFTER=25 SIMPLIFY=0 WITH_STACK=1 MAKE_TGZ=1 TAG=flow_late \
 
 ⚠ 两点：① B/C 模式下导出会明显变慢（flow 事件量最大）；② `with_stack` 在 NPU 上的
 完整性没有验证过，第一次建议 `NUM_STEPS=2` 先试，确认 Insight 里真能看到调用栈再放大。
+
+---
+
+## 21. 全量 trace 的归因结果（prof_128k_cold）——**2.46× 定位到 attention 的序列并行缺失**
+
+### 21.1 管道自校验
+
+| 来源 | 数值 |
+|---|---|
+| profiler 每 chunk 墙钟求和（T≥69632 的 16 个 chunk） | **73.5 s** |
+| bench 实测 50% 命中 TTFT | **73.71 s** |
+
+差 0.3% ⇒ 切步与归因可信。（`NUM_STEPS=36`、`TRIGGER_AFTER=1`、`SIMPLIFY=1`、`DP_REPLICA=1`）
+
+### 21.2 归因（窗口 = T≥69632 的 16 个 chunk = 50% 工作点）
+
+| 桶 | 窗口总耗时 | 斜率 | R² | 判读 |
+|---|---|---|---|---|
+| attention | 54.9 s | **33.8 ms/1K** | 0.966 | 线性增长 |
+| HCCL/通信 | 73.0 s | **33.4 ms/1K** | 0.955 | 线性增长，**与 attention 同斜率** |
+| elementwise | 9.6 s | ~0 | 0.14 | 常数 |
+| matmul+MoE | 6.7 s | ~0 | ~0.09 | 常数 |
+
+attention 54.9 + HCCL 73.0 = 127.9 s ≫ 墙钟 73.5 s ⇒ 两者大幅重叠，且
+**通信里很大一部分是在等 owner replica 的 attention**。
+"若 prefix 扫描免费"的天花板 = **2.90×**，正好覆盖所需的 2.46×。
+
+### 21.3 attention 内部：90% 是 **indexer**，不是 MLA kernel
+
+| 算子 | 次数 | 总耗时 | 平均 | 占比（占全部算子时间） |
+|---|---|---|---|---|
+| `allreduceAicpuKernel` | 4256 | **107.8 s** | 25.3 ms | **49.7%** |
+| `SparseLightningIndexer` | 144 | **67.0 s** | **465 ms**（max 1017 ms） | **30.9%** |
+| `SparseFlashMla` | 1452 | 4.7 s | 3.2 ms | 2.2% |
+| Cast/Add/ReduceSum/Mul | 3.2万~13.7万 | 12.9 s | 极短 | 6% |
+
+⇒ attention 桶 74.3 s 里 `SparseLightningIndexer` 占 67 s（90%），MLA 只占 6%。
+
+### 21.4 机制：MLA 的 latent KV 与 indexer 都**无法按 head 切**
+
+- `--attn-dp-size 4` ⇒ `attn_tp=4`，注意力在 **4 个 die** 上按 head 切；
+- MLA 的 K/V 压成**所有 head 共享的 latent** ⇒ 按 head 切**不减少 KV 读取**；
+- `SparseLightningIndexer` 的代价 ≈ (query 块数 × prefix 块数)，**与 head 数无关** ⇒ 4 个 die 各扫一遍全 prefix，做 4 份相同工作。
+- 反证：`attn_tp` 4→2（dp4→dp8）若 indexer 可切，单 rank 应翻倍变慢；实测 dp8 反而略好（67.9 vs 73.7）⇒ indexer 与 die 数无关。
+
+### 21.5 结论与下一步
+
+**2.46× 不是算子问题，是"一个请求的 attention 只用了 1/4 的 die，且切的是 head 而不是序列"。**
+树里已有 prefill CP：`--enable-prefill-cp --cp-strategy zigzag`（zigzag 为 NPU 专用；
+`validate_deepseek_v4_cp` 会设 `attn_cp_size = tp/attn_dp`，只作用于 prefill ⇒ TPOT 不变）。
+
+下一轮单变量实验：
+```bash
+EXTRA_ARGS="--swa-prefix-tails 16 --enable-prefill-cp --cp-strategy zigzag"   # 其余不变
+```
+预期 73.5 s → 30~40 s；必须同时跑 GSM8K 验精度，并留意日志里
+`Disabling SGLANG_OPT_FLASHMLA_SPARSE_PREFILL because DeepSeekV4 CP is enabled`（可能抵消部分收益）。
+
+### 21.6 给同事看的 demo 采集（小体积）
+
+实测体积：**owner 237 MB/chunk、非 owner 112 MB/chunk**（32 chunk 时 owner 7.6GB）。
+Insight 单目录建议 ≤1.5GB ⇒ **NUM_STEPS ≤ 5**。
+
+| 采集 | 命令关键参数 | 体积（owner） | 用来展示 |
+|---|---|---|---|
+| late | `TRIGGER_AFTER=28 NUM_STEPS=3 MAKE_TGZ=1 TAG=demo_late` | ~710 MB | burst 5.4s、indexer ~1ms、allreduce 长块 |
+| early | `TRIGGER_AFTER=1 NUM_STEPS=3 MAKE_TGZ=1 TAG=demo_early` | ~710 MB | burst 1.4s、indexer 几十 us |
+
+对照要点：同一采集里的**非 owner 目录**没有任何 indexer/MLA 块 ⇒ "12 个 die 在等"的直接证据。

@@ -108,14 +108,17 @@ echo "  trace 目录: ${PROF_DIR}"
 # 再乘「采集 rank 数」和步数。注意 4 个 replica 的 rank 都在干活（FFN 是 TP16 全 die 参与），
 # 所以它们不是"空闲目录"，每个都有真实体积。
 NCOLL=1; [ "$DP_REPLICA" = "1" ] && NCOLL=$DP_SIZE
-BASE_MB=$(( NUM_STEPS * 258 * NCOLL ))
+# 实测（prof_128k_cold，32 chunk）：owner 237 MB/chunk + 3 个非 owner 各 112 MB/chunk
+# ⇒ 每 chunk 四个目录合计 ≈ 573 MB。旧公式按 258×NCOLL 高估约 1.8 倍。
+BASE_MB=$(( NUM_STEPS * 573 ))
+[ "$NCOLL" -lt "$DP_SIZE" ] && BASE_MB=$(( NUM_STEPS * 237 ))
 [ "$SIMPLIFY" != "1" ] && BASE_MB=$(( BASE_MB * 3 ))
 [ "$PROF_LEVEL" = "0" ] && BASE_MB=$(( BASE_MB / 2 ))
 [ "$PROF_NO_AIC" = "1" ] && BASE_MB=$(( BASE_MB / 2 ))
 [ "$WITH_STACK" = "1" ] && BASE_MB=$(( BASE_MB * 3 ))   # 调用栈按经验 2~5x，这里取 3
 EST_LO=$(( BASE_MB * 8 / 10 )); EST_HI=$(( BASE_MB * 12 / 10 ))
 echo "  预计体积  : $(awk -v a=$EST_LO -v b=$EST_HI 'BEGIN{printf "%.1f~%.1f GB", a/1024, b/1024}')（${NUM_STEPS} step × ${NCOLL} 个采集 rank）"
-echo "  压缩比    : csv/json 文本约 10:1（smoke：3.1GB → 326MB），需要 Insight 时再 MAKE_TGZ=1"
+echo "  压缩比    : csv/json 文本约 10:1；Insight 单目录建议 ≤1.5GB ⇒ NUM_STEPS ≤ 5（owner 237MB/chunk）"
 echo "  可压缩手段: PROF_LEVEL=0（/2，丢 pipe 明细）、PROF_NO_AIC=1（/2，丢 aic 比率）"
 AVAIL_KB=$(df -Pk "$(dirname "$PROF_DIR")" 2>/dev/null | awk 'NR==2{print $4}')
 if [ -n "${AVAIL_KB:-}" ]; then
