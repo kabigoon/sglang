@@ -12,11 +12,14 @@
 #   nohup bash _tmp_preflight/profile_oneshot.sh > /tmp/prof_run.log 2>&1 &
 #   tail -f /tmp/prof_run.log
 #
-# 常用覆盖：
-#   DP_SIZE=4 CHUNKED_PREFILL=16384 MEM_FRACTION=0.88 DECODE_BS="1 2 4" NUM_STEPS=20 \
+# 常用覆盖（**默认就是冷启动采集**：不预热、一次 32 个 chunk，NUM_STEPS=34）：
+#   DP_SIZE=4 CHUNKED_PREFILL=16384 MEM_FRACTION=0.88 DECODE_BS="1 2 4" \
 #     EXTRA_ENV="HCCL_BUFFSIZE=128 SGLANG_DSPARK_NVLINK_VOCAB_GATHER=0" \
-#     EXTRA_ARGS="--swa-prefix-tails 16" MAX_PREFILL_TOKENS=8192 TAG=prof_128k \
+#     EXTRA_ARGS="--swa-prefix-tails 16" MAX_PREFILL_TOKENS=8192 TAG=prof_128k_cold \
 #     nohup bash _tmp_preflight/profile_oneshot.sh > /tmp/prof_run.log 2>&1 &
+#
+# /start_profile 需要 admin 鉴权：脚本会自己给启动器补 --admin-api-key（ADMIN_KEY 可覆盖），
+# 并在 POST 时带 Authorization: Bearer。没有这个会是 403（HANDOFF §15.6）。
 #   IN_LEN=98304 TAG=prof_96k ...            # 换个上下文长度
 #   KEEP_SERVER=1 ...                        # 采完保留 server
 #   HB=30 ...                                # 心跳间隔秒
@@ -42,9 +45,13 @@ DECODE_GRAPH=${DECODE_GRAPH:-1}
 DECODE_BS=${DECODE_BS:-}
 CACHE_PCT=${CACHE_PCT:-50}
 OUT_LEN=${OUT_LEN:-8}                    # 输出越短，trace 里 decode 越少
-WARMUP=${WARMUP:-$DP_SIZE}               # 前缀缓存按 rank 分区，必须覆盖所有 rank
+# 默认 0 = **冷启动采集**（不预热），理由见 HANDOFF §15.6：
+# 原来默认"预热 4 条再采"是错的——warmup 送的是**同一个 prompt**，把它整条灌进缓存后，
+# 采集请求 100% 命中、TTFT 1.3s、根本没有 prefill（2026-11-24 实测踩到）。
+# 冷启动一次跑 32 个 chunk（prefix 4K→131K），组成和斜率都能拿到，且不依赖缓存状态。
+WARMUP=${WARMUP:-0}
 IN_LEN=${IN_LEN:-}                       # 空=bench 自己推导（128K 自动适配）
-NUM_STEPS=${NUM_STEPS:-20}               # prefill chunk 数 + 少量 decode（U=65.6K/4096 ⇒ 17 chunk）
+NUM_STEPS=${NUM_STEPS:-34}               # 冷启动 32 chunk(129K/4096) + 2 decode；50% 命中变体只需 20
 RANK0_ONLY=${RANK0_ONLY:-0}
 # rank 门控（重要）：
 #   DP_REPLICA=1（默认）每个 attention-DP replica 采一个 rank（tp_rank % attn_tp == 0）。
@@ -54,6 +61,9 @@ RANK0_ONLY=${RANK0_ONLY:-0}
 DP_REPLICA=${DP_REPLICA:-1}
 SIMPLIFY=${SIMPLIFY:-1}
 TAG=${TAG:-prof_128k}
+# /start_profile 与 /stop_profile 是 admin_force（utils/auth_levels.json:70,72）：
+# server 必须带 --admin-api-key，POST 必须带 Authorization: Bearer <key>，否则 403。
+ADMIN_KEY=${ADMIN_KEY:-sglang-prof-key}
 HB=${HB:-30}
 KEEP_SERVER=${KEEP_SERVER:-0}
 TP_SIZE=${TP_SIZE:-16}
@@ -71,7 +81,7 @@ stage() { printf '%s | %s\n' "$(date '+%F %T')" "$*" >> "$STAGE" 2>/dev/null || 
 echo "===== profiling 采集（128K prefill 单请求）====="
 echo "  脚本版本: $(git -C "$SEG" rev-parse --short HEAD 2>/dev/null || echo 未知)"
 echo "  dp=${DP_SIZE}  chunk=${CHUNKED_PREFILL}(全局)/$((CHUNKED_PREFILL / DP_SIZE))(每rank)  mem=${MEM_FRACTION}"
-echo "  cache=${CACHE_PCT}%  warmup=${WARMUP}  out_len=${OUT_LEN}  num_steps=${NUM_STEPS}"
+echo "  cache=${CACHE_PCT}%  warmup=${WARMUP}(0=冷启动)  out_len=${OUT_LEN}  num_steps=${NUM_STEPS}  admin_key=${ADMIN_KEY}"
 echo "  门控: dp_replica=${DP_REPLICA} rank0_only=${RANK0_ONLY} simplify=${SIMPLIFY}（体积控制）"
 echo "  外部 env: ${EXTRA_ENV:-（无）}"
 [ -n "$EXTRA_ARGS" ] && echo "  extra args: ${EXTRA_ARGS}"
@@ -83,9 +93,13 @@ echo
 if [ "${DRY_RUN:-0}" = "1" ]; then
   echo "[DRY] 会依次执行："
   echo "  1) 起 server: DP_SIZE=$DP_SIZE CHUNKED_PREFILL=$CHUNKED_PREFILL MEM_FRACTION=$MEM_FRACTION DECODE_GRAPH=$DECODE_GRAPH MAX_PREFILL_TOKENS=${MAX_PREFILL_TOKENS:-131072} EXTRA_ENV=[SGLANG_NPU_PROFILE_DP_REPLICA=$DP_REPLICA SGLANG_NPU_PROFILE_SIMPLIFY=$SIMPLIFY ${EXTRA_ENV:-}] EXTRA_ARGS=[${EXTRA_ARGS:-}]"
-  echo "  2) 预热: WARMUP=$WARMUP NUM_PROMPTS=1 CACHE_PCT=$CACHE_PCT OUT_LEN=$OUT_LEN bench_128k_1k.sh"
-  echo "  3) POST /start_profile {output_dir:$PROF_DIR, num_steps:$NUM_STEPS, activities:[CPU,GPU], with_stack:false}"
-  echo "  4) 采集: WARMUP=0 SKIP_FLUSH=1 NUM_PROMPTS=1 CACHE_PCT=$CACHE_PCT OUT_LEN=$OUT_LEN bench_128k_1k.sh"
+  if [ "$WARMUP" -gt 0 ]; then
+    echo "  2) 预热: WARMUP=$WARMUP NUM_PROMPTS=1 CACHE_PCT=$CACHE_PCT OUT_LEN=$OUT_LEN bench_128k_1k.sh"
+  else
+    echo "  2) 跳过预热（WARMUP=0，冷启动）"
+  fi
+  echo "  3) POST /start_profile {output_dir:$PROF_DIR, num_steps:$NUM_STEPS, activities:[CPU,GPU], with_stack:false}  + Bearer ${ADMIN_KEY}"
+  echo "  4) 采集: WARMUP=0 SKIP_FLUSH=1 NUM_PROMPTS=1 CACHE_PCT=$CACHE_PCT OUT_LEN=$OUT_LEN bench_128k_1k.sh（冷启动⇒命中应≈0%）"
   echo "  5) POST /stop_profile"
   echo "  6) collect_profile_bundle.py $PROF_DIR --tag $TAG"
   echo "  7) tar czf /tmp/${TAG}_insight.tgz -C $(dirname "$PROF_DIR") $(basename "$PROF_DIR")"
@@ -118,13 +132,16 @@ PY
 }
 
 api_post() {  # $1=path $2=json $3=timeout
-  python3 - "$1" "$2" "${3:-120}" <<'PY'
-import http.client, json, sys
-path, body, tmo = sys.argv[1], sys.argv[2], int(sys.argv[3])
+  python3 - "$1" "$2" "${3:-120}" "$ADMIN_KEY" <<'PYAPI'
+import http.client, sys
+path, body, tmo, key = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4]
+hdr = {"Content-Type": "application/json"}
+if key:
+    hdr["Authorization"] = "Bearer " + key
 c = http.client.HTTPConnection("127.0.0.1", 5684, timeout=tmo)
-c.request("POST", path, body.encode() or b"{}", {"Content-Type": "application/json"})
-print(c.getresponse().read().decode().strip()[:200])
-PY
+c.request("POST", path, body.encode() or b"{}", hdr)
+print(c.getresponse().read().decode().strip()[:300])
+PYAPI
 }
 
 # 后台跑 + 心跳（输出进日志，屏幕每 HB 秒一行）
@@ -177,7 +194,7 @@ stage "launch server dp=$DP_SIZE chunk=$CHUNKED_PREFILL mem=$MEM_FRACTION graph=
     MAX_PREFILL_TOKENS="${MAX_PREFILL_TOKENS:-131072}" \
     ${DECODE_BS:+DECODE_BS="$DECODE_BS"} \
     ${FULL_ENV:+EXTRA_ENV="$FULL_ENV"} \
-    ${EXTRA_ARGS:+EXTRA_ARGS="$EXTRA_ARGS"} \
+    EXTRA_ARGS="--admin-api-key ${ADMIN_KEY}${EXTRA_ARGS:+ $EXTRA_ARGS}" \
     bash "$HERE/run_dsv41_w4a8.sh" ) > "$SLOG" 2>&1 &
 LAUNCH_PID=$!
 disown "$LAUNCH_PID" 2>/dev/null || true
@@ -219,26 +236,42 @@ if [ "$KNOBS_OK" != "1" ]; then
 fi
 echo "    ✓ EXTRA_ENV 全部 ${#FULL_ENV} 字符已落到 server（逐项 grep 命中）"
 
-# ---------------- 2. 预热共享前缀 ----------------
+# ---------------- 2. 预热（可选，默认跳过） ----------------
 echo
-echo "[2/7] 预热：${WARMUP} 条（覆盖 ${DP_SIZE} 个 DP rank，让前缀进缓存）"
-stage "warmup ${WARMUP} requests"
-if ! run_with_heartbeat "预热" "$OUT/warmup.log" \
-    env WARMUP="$WARMUP" NUM_PROMPTS=1 CONCURRENCY=1 DP_SIZE="$DP_SIZE" \
-        CACHE_PCT="$CACHE_PCT" OUT_LEN="$OUT_LEN" ${IN_LEN:+IN_LEN="$IN_LEN"} \
-        bash "$HERE/bench_128k_1k.sh"; then
-  echo "  [FAIL] 预热失败，日志：$OUT/warmup.log"; tail -30 "$OUT/warmup.log"; stage "FAIL warmup"; exit 1
+if [ "$WARMUP" -gt 0 ]; then
+  echo "[2/7] 预热：${WARMUP} 条（CACHE_PCT=${CACHE_PCT}）"
+  echo "      ⚠ 注意：本脚本的预热送的是**与采集条相同的 prompt**，它会把整条 prompt 灌进缓存，"
+  echo "        采集条随即变成 100% 命中、没有 prefill。要采「50% 命中」必须让预热只灌**共享前缀**"
+  echo "        （CACHE_PCT=100 + IN_LEN=SHARED），见 HANDOFF §15.6；默认走冷启动。"
+  stage "warmup ${WARMUP} requests"
+  if ! run_with_heartbeat "预热" "$OUT/warmup.log" \
+      env WARMUP="$WARMUP" NUM_PROMPTS=1 CONCURRENCY=1 DP_SIZE="$DP_SIZE" \
+          CACHE_PCT="$CACHE_PCT" OUT_LEN="$OUT_LEN" ${IN_LEN:+IN_LEN="$IN_LEN"} \
+          bash "$HERE/bench_128k_1k.sh"; then
+    echo "  [FAIL] 预热失败，日志：$OUT/warmup.log"; tail -30 "$OUT/warmup.log"; stage "FAIL warmup"; exit 1
+  fi
+  grep -hE "^HIT=|^TTFT_" "$OUT/warmup.log" | tail -2 | sed 's/^/    /'
+else
+  echo "[2/7] 跳过预热（WARMUP=0）：冷启动，采集条的命中率应为 0%，一次跑满 32 个 chunk"
+  stage "warmup skipped (cold)"
 fi
-grep -hE "^HIT=|^TTFT_" "$OUT/warmup.log" | tail -2 | sed 's/^/    /'
 
 # ---------------- 3. 开 profile ----------------
 echo
 echo "[3/7] 开 profile（num_steps=${NUM_STEPS}，activities=[CPU,GPU]，with_stack=false）"
 stage "start_profile num_steps=$NUM_STEPS"
-api_post "/start_profile" "{\"output_dir\":\"${PROF_DIR}\",\"num_steps\":${NUM_STEPS},\"activities\":[\"CPU\",\"GPU\"],\"with_stack\":false}" 60
+SP_RESP=$(api_post "/start_profile" "{\"output_dir\":\"${PROF_DIR}\",\"num_steps\":${NUM_STEPS},\"activities\":[\"CPU\",\"GPU\"],\"with_stack\":false}" 60)
+echo "    /start_profile → ${SP_RESP}"
+case "$SP_RESP" in
+  *error*|*Error*)
+    echo "  [FAIL] /start_profile 被拒（多半是 admin-api-key 鉴权）。"
+    echo "         /start_profile 是 admin_force：server 要带 --admin-api-key，POST 要带 Bearer。"
+    stage "FAIL start_profile rejected"; cleanup; exit 1 ;;
+esac
 sleep 2
-N_START=$(grep -c "Profiling starts" "$SLOG" 2>/dev/null || echo 0)
-N_SKIP=$(grep -c "NPU profiling skipped" "$SLOG" 2>/dev/null || echo 0)
+# grep -c 命中 0 次时会「打印 0 + 退出码 1」，所以只能 `|| true`，不能再 `|| echo 0`（会出现 0\n0）
+N_START=$(grep -c "Profiling starts" "$SLOG" 2>/dev/null || true); N_START=${N_START:-0}
+N_SKIP=$(grep -c "NPU profiling skipped" "$SLOG" 2>/dev/null || true); N_SKIP=${N_SKIP:-0}
 echo "    日志里 Profiling starts=${N_START}（期望 1），skipped=${N_SKIP}（期望 ${EXPECT_SKIP}）"
 if [ "${N_START:-0}" -eq 0 ]; then
   echo "  [FAIL] /start_profile 没有生效（日志里没有 'Profiling starts'）"; stage "FAIL start_profile"; exit 1
@@ -259,6 +292,24 @@ if ! run_with_heartbeat "采集" "$OUT/bench.log" \
   echo "  [WARN] 采集请求返回非 0（可能是 num_steps 提前触发的正常现象），继续看 stop 结果"
 fi
 grep -hE "^HIT=|^TTFT_|^OUT_TPUT=" "$OUT/bench.log" | tail -3 | sed 's/^/    /'
+
+# 命中率守卫：冷启动就该是 0% 左右；若接近 100% 说明缓存里已有整条 prompt，
+# 这一轮的 trace 里没有 prefill —— 直接判失败，别浪费导出和后续分析。
+HIT_VAL=$(grep -hoE '^HIT=[0-9.]+' "$OUT/bench.log" 2>/dev/null | tail -1 | cut -d= -f2)
+if [ -z "${HIT_VAL:-}" ]; then
+  echo "  [warn] 没从 bench 日志里读到 HIT，跳过命中率守卫"
+else
+  if [ "$WARMUP" -gt 0 ]; then HIT_LO=35; HIT_HI=65; else HIT_LO=0; HIT_HI=10; fi
+  echo "    命中率守卫：实测 ${HIT_VAL}%（本轮期望 ${HIT_LO}~${HIT_HI}%）"
+  if awk "BEGIN{exit !(${HIT_VAL} >= ${HIT_LO} && ${HIT_VAL} <= ${HIT_HI})}"; then
+    :
+  else
+    echo "  [FAIL] 命中率 ${HIT_VAL}% 不在 ${HIT_LO}~${HIT_HI}% 内：这一轮的 trace 里 prefill 成分不对"
+    echo "         冷启动却高命中 ⇒ 缓存没清干净（注意：设了 --admin-api-key 之后 /flush_cache 也要 Bearer，"
+    echo "         bench 的 flush 会 401 而被跳过）。请确认是**新起的 server**，或手动加 header flush。"
+    stage "FAIL hit out of band ${HIT_VAL}"; PACKAGE=0
+  fi
+fi
 
 # ---------------- 5. 停 profile ----------------
 echo
@@ -281,6 +332,16 @@ fi
 echo
 echo "[6/7] 收包：① git 证据包  ② Insight 压缩包"
 stage "collect bundle"
+if [ "${PACKAGE:-1}" = "0" ]; then
+  echo "  [skip] 命中率不合格（见上），不打包；trace 仍保留在 ${PROF_DIR} 供排查"
+  stage "skip packaging"
+  echo
+  echo "===== 完成（未打包）====="
+  echo "trace 目录 : ${PROF_DIR}"
+  [ "$KEEP_SERVER" = "1" ] || { cleanup; sleep 2; }
+  trap - EXIT INT TERM
+  exit 3
+fi
 if [ ! -d "$PROF_DIR" ]; then
   echo "  [FAIL] trace 目录不存在：${PROF_DIR}"; tail -40 "$SLOG"; stage "FAIL no trace dir"; exit 1
 fi

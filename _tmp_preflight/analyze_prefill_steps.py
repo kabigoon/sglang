@@ -17,8 +17,9 @@
 
 用法：
   python3 _tmp_preflight/analyze_prefill_steps.py /tmp/prof_128k
-  python3 _tmp_preflight/analyze_prefill_steps.py /tmp/prof_128k --chunk-tokens 4096 \\
-      --cached-prefix 63488 --total-tokens 65605 --csv steps.csv
+  # 冷启动 trace（prefix 4K→131K，32 chunk）：工作点窗口按 T_k>=65536 取 16 个 chunk
+  python3 _tmp_preflight/analyze_prefill_steps.py /tmp/prof_128k_cold --chunk-tokens 4096 \\
+      --cached-prefix 0 --total-tokens 129093 --window-from 65536 --csv steps.csv
 
 `--cached-prefix`（本次命中进 cache 的前缀）与 `--total-tokens`（未命中的 token 数）
 只影响 x 轴的绝对位置和「prefix 部分」的归因；斜率（ms/1K token）与两者无关。
@@ -286,6 +287,24 @@ def fit_slope(xs, ys):
     return float(coef[0]), float(coef[1]), r2
 
 
+def window_stats(steps, cum, lo: int) -> dict:
+    """工作点窗口：只统计 T_k>=lo 的 chunk，返回组成份额与斜率归因。"""
+    idx = [k for k in range(len(steps)) if cum[k] >= lo]
+    if not idx:
+        return {}
+    wall = sum(steps[k]["wall"] for k in idx) or 1.0
+    tot = {b: sum(steps[k]["pk"].get(b, 0.0) for k in idx) for b in BUCKET_ORDER}
+    xs = [cum[k] for k in idx]
+    ys = [steps[k]["pk"].get("attention", 0.0) for k in idx]
+    slope, _icept, r2 = fit_slope(xs, ys)
+    f_prefix = (slope * sum(xs) / wall) if slope is not None else 0.0
+    return {
+        "n": len(idx), "wall": wall, "tot": tot, "t0": cum[idx[0]], "t1": cum[idx[-1]],
+        "f": {b: tot[b] / wall for b in BUCKET_ORDER},
+        "f_prefix": f_prefix, "slope": slope, "r2": r2,
+    }
+
+
 def fmt_ms(us: float) -> str:
     return "%.1f" % (us / 1000.0)
 
@@ -299,6 +318,9 @@ def main() -> int:
     ap.add_argument("--cached-prefix", type=int, default=0, help="第 0 个 chunk 之前已命中缓存的前缀长度")
     ap.add_argument("--total-tokens", type=int, default=0, help="未命中的总 token 数（0=按步数×chunk 估）")
     ap.add_argument("--csv", default=None, help="把每步明细写成 CSV（体积很小，可进证据包）")
+    ap.add_argument("--window-from", type=int, default=0,
+                    help="再报一个「工作点窗口」的组成：只统计累计长度 T_k>=该值的 chunk"
+                         "（冷启动 trace 里用 65536 就正好是 50%% 命中的那 16 个 chunk）")
     ap.add_argument("--ttft-ms", type=float, default=73710.0,
                     help="bench 实测的 TTFT（用来把份额换算成秒；默认 73.71s = 新树基线）")
     ap.add_argument("--target-ms", type=float, default=30000.0, help="TTFT 目标（默认 30s）")
@@ -435,6 +457,28 @@ def main() -> int:
         print("    · %-24s → 省 %6.1f s %s" % (label, save / 1000.0,
                                              "✅ 够了" if save >= need_ms else "（不够）"))
 
+    # ---- 工作点窗口（冷启动 trace 推导「50% 命中时的那 16 个 chunk」）----
+    win = {}
+    if args.window_from > 0:
+        win = window_stats(steps, cum, args.window_from)
+        if not win:
+            print("\n[warn] --window-from %d 没有选中任何 chunk（T_max=%d）"
+                  % (args.window_from, cum[-1]))
+        else:
+            print("\n===== 工作点窗口：T_k >= %d（%d 个 chunk，T %d→%d）=====" % (
+                args.window_from, win["n"], win["t0"], win["t1"]))
+            print("  窗口墙钟合计 = %.1f s   ← 与 bench 的 TTFT 对照（50%% 命中基线 73.71s）"
+                  % (win["wall"] / 1e6))
+            print("%-14s %10s %8s" % ("桶", "总耗时ms", "占窗口"))
+            for b in BUCKET_ORDER:
+                if win["tot"][b] > 0:
+                    print("%-14s %10s %7.1f%%" % (b, fmt_ms(win["tot"][b]), 100 * win["f"][b]))
+            print("  attention 随 prefix 增长部分 = %.1f%%（斜率 %s ms/1K token，R²=%s）" % (
+                100 * win["f_prefix"],
+                "%.3f" % win["slope"] if win["slope"] is not None else "-",
+                ("%.3f" % win["r2"]) if win["r2"] is not None and win["r2"] == win["r2"] else "-"))
+            print("  ⇒ 用这一列去判 2.46× 押哪条路（不要用全 trace 的列，它混了冷/热两段）")
+
     # ---- 回传块 ----
     print("\n===== 回传块（复制这段）=====")
     print("STEPS=%d METHOD=%s CHUNK=%d CACHED_PREFIX=%d TOTAL=%d" % (
@@ -447,6 +491,16 @@ def main() -> int:
         if v and v[0] is not None:
             print("SLOPE_%s=%.3f_ms_per_1K R2=%s TOTAL_S=%.2f" % (
                 LABEL[b], v[0], ("%.3f" % v[2]) if v[2] == v[2] else "-", v[3] / 1e6))
+    if win:
+        print("WIN_FROM=%d WIN_N=%d WIN_T=%d..%d WIN_WALL_S=%.2f" % (
+            args.window_from, win["n"], win["t0"], win["t1"], win["wall"] / 1e6))
+        print("WIN_F_ATTN=%.3f WIN_F_PREFIX=%.3f WIN_F_SMALL=%.3f WIN_F_COMM=%.3f WIN_F_MOE_MM=%.3f"
+              % (win["f"]["attention"], win["f_prefix"],
+                 win["f"]["elementwise"] + win["f"]["rope/norm"], win["f"]["HCCL/通信"],
+                 win["f"]["MoE/gating"] + win["f"]["matmul/linear"]))
+        print("WIN_SLOPE_ATTN=%s_ms_per_1K R2=%s" % (
+            "%.3f" % win["slope"] if win["slope"] is not None else "-",
+            ("%.3f" % win["r2"]) if win["r2"] is not None and win["r2"] == win["r2"] else "-"))
     print("===== 回传块结束 =====")
 
     # ---- CSV ----
