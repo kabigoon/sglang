@@ -1053,3 +1053,31 @@ prefill chunk**（真 chunk 的 M 应该是 4096）。
 
 ⚠ 注意：这条曲线混合了"每 chunk 的固定成本"和"随 T 增长的成本"，`T^0.52` 只是单点拟合，
 不要当成定律；它的价值是给出了 **6× 这个量级**和"扁平化即可达标"这个判据。
+
+---
+
+## 20. 三种采集模式（按"要不要人眼看"分，别混用）
+
+| 模式 | 旋钮 | 体积（实测/估算） | 用途 |
+|---|---|---|---|
+| **A. 归因**（本轮用的） | `SIMPLIFY=1 WITH_STACK=0 TRIGGER_AFTER=1` | 258 MB/step/rank（smoke 实测） | 给脚本算桶分布/斜率；**不需要** flow 连线 |
+| **B. host→算子连线**（人看） | `SIMPLIFY=0` | ×3 ⇒ ~0.8 GB/step/rank | Insight 里能看到 host op → task → kernel 的流动箭头 |
+| **C. 调用栈**（人看） | 再加 `WITH_STACK=1` | ×3~5（估） | 能看到"哪个 Python 函数发的这个算子" |
+
+B/C 都是**给人看的**，脚本的归因完全不需要；而且**不要为了它们采全部 32 个 chunk**——
+只采后段几个就行（最贵的正是后段）：
+
+```bash
+# 只采第 25~28 个 chunk（prefix 已到 ~100K~115K），带 flow 连线 + 调用栈
+EXTRA_ENV="HCCL_BUFFSIZE=128 SGLANG_DSPARK_NVLINK_VOCAB_GATHER=0" \
+EXTRA_ARGS="--swa-prefix-tails 16" MAX_PREFILL_TOKENS=8192 \
+DP_SIZE=4 CHUNKED_PREFILL=16384 MEM_FRACTION=0.88 DECODE_GRAPH=1 DECODE_BS="1 2 4" \
+NUM_STEPS=4 TRIGGER_AFTER=25 SIMPLIFY=0 WITH_STACK=1 MAKE_TGZ=1 TAG=flow_late \
+  bash _tmp_preflight/profile_oneshot.sh
+```
+
+`TRIGGER_AFTER=N` 的含义：等到第 N 条 `Prefill batch` 之后再 `POST /start_profile`
+（默认 1 = 从第一个 chunk 开始；25 = 跳过前 24 个）。
+
+⚠ 两点：① B/C 模式下导出会明显变慢（flow 事件量最大）；② `with_stack` 在 NPU 上的
+完整性没有验证过，第一次建议 `NUM_STEPS=2` 先试，确认 Insight 里真能看到调用栈再放大。

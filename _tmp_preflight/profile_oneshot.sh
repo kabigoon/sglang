@@ -70,6 +70,11 @@ PROF_LEVEL=${PROF_LEVEL:-}
 PROF_NO_AIC=${PROF_NO_AIC:-0}
 # 生成 Insight 用的 tgz（2-4GB，只为人眼看时间线）。默认关：它会把峰值磁盘占用翻倍。
 MAKE_TGZ=${MAKE_TGZ:-0}
+# with_stack=1：记录 host 侧调用栈（"哪个函数发的这个算子"）。体积明显变大，默认关。
+WITH_STACK=${WITH_STACK:-0}
+# TRIGGER_AFTER=N：等到第 N 条 "Prefill batch" 之后再开 profile。
+# 默认 1（从第一个 chunk 开始）。要只看**后段**（prefix 最长、最贵的 chunk）就设成 25~29。
+TRIGGER_AFTER=${TRIGGER_AFTER:-1}
 # 采集前的最小可用磁盘（GB），不够就早失败，别跑到一半写满盘
 DISK_NEED_GB=${DISK_NEED_GB:-5}
 TAG=${TAG:-prof_128k}
@@ -94,7 +99,8 @@ echo "===== profiling 采集（128K prefill 单请求）====="
 echo "  脚本版本: $(git -C "$SEG" rev-parse --short HEAD 2>/dev/null || echo 未知)"
 echo "  dp=${DP_SIZE}  chunk=${CHUNKED_PREFILL}(全局)/$((CHUNKED_PREFILL / DP_SIZE))(每rank)  mem=${MEM_FRACTION}"
 echo "  cache=${CACHE_PCT}%  warmup=${WARMUP}(0=冷启动)  out_len=${OUT_LEN}  num_steps=${NUM_STEPS}  admin_key=${ADMIN_KEY}"
-echo "  门控: dp_replica=${DP_REPLICA} rank0_only=${RANK0_ONLY} simplify=${SIMPLIFY}（体积控制）"
+echo "  门控: dp_replica=${DP_REPLICA} rank0_only=${RANK0_ONLY} simplify=${SIMPLIFY} with_stack=${WITH_STACK}（体积控制）"
+echo "  触发: 第 ${TRIGGER_AFTER} 条 Prefill batch 之后开 profile（1=从第一个 chunk 开始）"
 echo "  外部 env: ${EXTRA_ENV:-（无）}"
 [ -n "$EXTRA_ARGS" ] && echo "  extra args: ${EXTRA_ARGS}"
 echo "  trace 目录: ${PROF_DIR}"
@@ -106,6 +112,7 @@ BASE_MB=$(( NUM_STEPS * 258 * NCOLL ))
 [ "$SIMPLIFY" != "1" ] && BASE_MB=$(( BASE_MB * 3 ))
 [ "$PROF_LEVEL" = "0" ] && BASE_MB=$(( BASE_MB / 2 ))
 [ "$PROF_NO_AIC" = "1" ] && BASE_MB=$(( BASE_MB / 2 ))
+[ "$WITH_STACK" = "1" ] && BASE_MB=$(( BASE_MB * 3 ))   # 调用栈按经验 2~5x，这里取 3
 EST_LO=$(( BASE_MB * 8 / 10 )); EST_HI=$(( BASE_MB * 12 / 10 ))
 echo "  预计体积  : $(awk -v a=$EST_LO -v b=$EST_HI 'BEGIN{printf "%.1f~%.1f GB", a/1024, b/1024}')（${NUM_STEPS} step × ${NCOLL} 个采集 rank）"
 echo "  压缩比    : csv/json 文本约 10:1（smoke：3.1GB → 326MB），需要 Insight 时再 MAKE_TGZ=1"
@@ -309,7 +316,7 @@ echo "    bench pid=${BENCH_PID}，日志：$OUT/bench.log"
 
 PREFILL_WAIT=${PREFILL_WAIT:-600}
 waited=0
-until grep -q "Prefill batch" "$SLOG" 2>/dev/null; do
+until [ "$(grep -c "Prefill batch" "$SLOG" 2>/dev/null || true)" -ge "${TRIGGER_AFTER:-1}" ]; do
   if ! kill -0 "$BENCH_PID" 2>/dev/null; then
     echo "  [FAIL] bench 已退出但日志里没有 'Prefill batch'（请求可能根本没到 server）"
     tail -20 "$OUT/bench.log"; stage "FAIL no prefill batch"; cleanup; exit 1
@@ -328,7 +335,8 @@ echo "  ✓ 检测到 prefill 开始（等了 ${waited}s，日志里已有 ${N_P
 echo
 echo "[4/7] 开 profile（num_steps=${NUM_STEPS}，activities=[CPU,GPU]）"
 stage "start_profile num_steps=$NUM_STEPS after ${waited}s"
-SP_RESP=$(api_post "/start_profile" "{\"output_dir\":\"${PROF_DIR}\",\"num_steps\":${NUM_STEPS},\"activities\":[\"CPU\",\"GPU\"],\"with_stack\":false}" 60)
+if [ "$WITH_STACK" = "1" ]; then WS=true; else WS=false; fi
+SP_RESP=$(api_post "/start_profile" "{\"output_dir\":\"${PROF_DIR}\",\"num_steps\":${NUM_STEPS},\"activities\":[\"CPU\",\"GPU\"],\"with_stack\":${WS}}" 60)
 echo "    /start_profile → ${SP_RESP}"
 case "$SP_RESP" in
   *error*|*Error*)
