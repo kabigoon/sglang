@@ -41,6 +41,12 @@ DP_SIZE=${DP_SIZE:-8}
 # 想要每 rank 4096，就要写 32768（DP=8）。
 CHUNKED_PREFILL=${CHUNKED_PREFILL:-4096}
 MAX_RUNNING=${MAX_RUNNING:-16}
+# 每个 DP rank **各自**一次 forward 的新 token 预算（⚠ 不按 attn_dp 除，也没有"全局共享"这回事：
+# 每个 scheduler 进程各拿一份，见 tp_worker.py get_worker_info 原样传 get_schedule().max_prefill_tokens）。
+# 它限制的是"这一轮 forward 能拼进几条请求的 chunk"：chunk=4096/rank 时 8192 ⇒ 每 rank 每轮最多 2 条。
+# 并发高时必须调小，否则调度器会把多条请求的多个 chunk 拼进一次 prefill，激活显存按倍数涨
+# （实测 C=4 时整机 HBM 打满、server 卡死）。同事那条 4k/2k 脚本用的是 8192。
+MAX_PREFILL_TOKENS=${MAX_PREFILL_TOKENS:-131072}
 # ⚠ 这个值决定"权重+KV 池"的总预算，剩下的才是 prefill 激活的余量。
 #   池子 4.19M token 对 C≤16 都过剩；prefill 大 chunk 反而需要几 GB 激活内存。
 #   128K + chunk 4096 建议 0.85；仍 OOM 再降到 0.80。
@@ -68,7 +74,23 @@ case "$VARIANT" in
   *) echo "VARIANT 只能是 w4a8 或 w8a8"; exit 2 ;;
 esac
 export MODEL_PATH=${MODEL_PATH:-$DEFAULT_W}
-[ -d "$MODEL_PATH" ] || { echo "权重目录不存在: $MODEL_PATH"; exit 2; }
+# 同事那套镜像的权重挂在 /mnt/paas/weights 下，自动兜底（也可显式 MODEL_PATH=... 覆盖）
+if [ ! -d "$MODEL_PATH" ]; then
+  ALT="/mnt/paas/weights/$(basename "$MODEL_PATH")"
+  if [ -d "$ALT" ]; then
+    echo "[info] 权重不在 ${MODEL_PATH}，自动改用 ${ALT}"
+    MODEL_PATH="$ALT"
+  fi
+fi
+[ -d "$MODEL_PATH" ] || { echo "权重目录不存在: ${MODEL_PATH}（可用 MODEL_PATH=... 指定）"; exit 2; }
+
+# ---- 代码代际探测：新版把 attention 分组改名为 --attn-dp-size，且部分参数变成 no_cli ----
+REPO_DIR=$(cd "$(dirname "$0")/.." && pwd)
+if grep -rqs "^    attn_dp_size:" "$REPO_DIR/python/sglang/srt/arg_groups/fields/parallel.py" 2>/dev/null; then
+  NEW_CLI=1
+else
+  NEW_CLI=0
+fi
 
 echo "==================== 启动配置 ===================="
 echo "  VARIANT        : $VARIANT"
@@ -91,6 +113,7 @@ echo "  prefill graph  : $PREFILL_GRAPH (1=开)"
 echo "  decode graph   : $DECODE_GRAPH (1=保留, 0=关闭)  bs=[$DECODE_BS]"
 [ -n "$EXTRA_ENV" ] && echo "  extra env      : $EXTRA_ENV"
 [ -n "$EXTRA_ARGS" ] && echo "  extra args     : $EXTRA_ARGS"
+echo "  max prefill tok: ${MAX_PREFILL_TOKENS}"
 echo "  chunked prefill: $CHUNKED_PREFILL (全局) -> $((CHUNKED_PREFILL / DP_SIZE)) 每 DP rank"
 echo "  max running    : $MAX_RUNNING (全局) -> $((MAX_RUNNING / DP_SIZE)) 每 DP rank"
 echo "=================================================="
@@ -148,7 +171,14 @@ export INF_NAN_MODE_FORCE_DISABLE=1
 export SGLANG_DEFAULT_THINKING=1
 export SGLANG_DSV4_REASONING_EFFORT=max
 
-export HCCL_BUFFSIZE=128
+# DeepEP low-latency 算子按 maxBs(=SGLANG_DEEPEP_NUM_MAX_DISPATCH_TOKENS_PER_RANK, 默认 128)
+# 预留 RDMA 窗口：实测 NEEDED=544MB，而 128MB 会在 tiling 阶段报
+#   "[ERROR][MoeLowLatencyDispatchV2] HCCL_BUFFSIZE is too SMALL"
+# 需求与 maxBs 成正比：实测 544MB。但 HCCL 会为**每个通信域**各开一份，
+# 给 1024 会在 decode 图捕获阶段 OOM（EL0019: failed to allocate 1073741856 bytes）。
+# 折中默认 640（>544 留余量，又不至于把 8.7GB 可用显存吃光）。
+# 可用外层 HCCL_BUFFSIZE=... 或 EXTRA_ENV 覆盖；再紧就降到 576。
+export HCCL_BUFFSIZE=${HCCL_BUFFSIZE:-640}
 export HCCL_SOCKET_IFNAME=lo
 export GLOO_SOCKET_IFNAME=lo
 
@@ -189,10 +219,28 @@ export SGLANG_RAGGED_VERIFY_MODE=static
 for kv in $EXTRA_ENV; do export "$kv"; done
 
 # 组装可选参数
-if [ "$OVERRIDE_STYLE" = "legacy" ]; then
+if [ "$NEW_CLI" = "1" ]; then
+  # 新代：只抹掉 quantization_config，不覆盖 architectures（让 checkpoint config 自己决定）
+  JSON_OVERRIDE='{"quantization_config": null}'
+elif [ "$OVERRIDE_STYLE" = "legacy" ]; then
   JSON_OVERRIDE="{\"architectures\": [\"$ARCH_OVERRIDE\"], \"quantization_config\": null}"
 else
   JSON_OVERRIDE="{\"architectures\": [\"$ARCH_OVERRIDE\"]}"
+fi
+
+# ---- 并行/CLI 参数按代码代际组装 ----
+PARALLEL_ARGS=()
+EXTRA_OLD_ARGS=()
+if [ "$NEW_CLI" = "1" ]; then
+  # 新版：--attn-dp-size 就是"TP 组内的 attention DP 组数"，FFN 仍是 TP；
+  #       enable_dp_attention 由 attn_dp_size>1 自动推导，不再有该 CLI；
+  #       --max-running-requests / --reasoning-parser 在新版是 no_cli，不能从命令行传
+  PARALLEL_ARGS=(--attn-dp-size "$DP_SIZE")
+  echo "  [info] 新代 CLI：--attn-dp-size ${DP_SIZE}（等价老的 --enable-dp-attention --dp-size）"
+else
+  PARALLEL_ARGS=(--enable-dp-attention --dp-size "$DP_SIZE")
+  EXTRA_OLD_ARGS=(--max-running-requests "$MAX_RUNNING" --reasoning-parser deepseek-v4)
+  echo "  [info] 老代 CLI：--enable-dp-attention --dp-size $DP_SIZE + max-running + reasoning-parser"
 fi
 
 DGRAPH_ARGS=()
@@ -243,15 +291,14 @@ python3 -m sglang.launch_server --model-path ${MODEL_PATH} \
     --watchdog-timeout 9000 \
     --host 0.0.0.0 --port ${PORT} \
     --mem-fraction-static ${MEM_FRACTION} \
-    --max-running-requests ${MAX_RUNNING} \
     --chunked-prefill-size ${CHUNKED_PREFILL} \
-    --max-prefill-tokens 131072 \
+    --max-prefill-tokens ${MAX_PREFILL_TOKENS} \
     --kv-cache-dtype auto \
     --enable-dp-lm-head \
     ${DGRAPH_ARGS[@]+"${DGRAPH_ARGS[@]}"} \
     --cuda-graph-bs-decode ${DECODE_BS} \
-    --enable-dp-attention --dp-size ${DP_SIZE} \
-    --reasoning-parser deepseek-v4 \
+    ${PARALLEL_ARGS[@]+"${PARALLEL_ARGS[@]}"} \
+    ${EXTRA_OLD_ARGS[@]+"${EXTRA_OLD_ARGS[@]}"} \
     --language-model-only \
     --json-model-override-args "${JSON_OVERRIDE}" \
     ${PGRAPH_ARGS[@]+"${PGRAPH_ARGS[@]}"} \
