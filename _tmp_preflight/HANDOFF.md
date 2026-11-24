@@ -1182,3 +1182,51 @@ PREFILL_RE='Prefill batch.*#new-token: [0-9]{4,}'
 ```
 
 真 chunk 是 4096（4 位数），dummy 是个位数/两位数 ⇒ 不会再误触发。
+
+---
+
+## 23. **结论在 EP（deepep）下依然成立，而且是"部署无关"的**（prof_128k_deepep，2026-11-24）
+
+配置：`--moe-a2a-backend deepep --deepep-mode auto --disable-overlap-schedule
+--max-total-tokens 260000`，`HCCL_BUFFSIZE=640`、`HCCL_IF_BASE_PORT=61000`、
+`maxBs=32`、`MAX_PREFILL_TOKENS=8192`；其余与 no-EP 基线相同（dp4/C=1/冷启动/`NUM_STEPS=36`）。
+
+### 23.1 同一批算子，两种部署几乎一字不差
+
+| 算子 | no-EP | EP |
+|---|---|---|
+| `SparseLightningIndexer` | **67.0 s**（144 次，465 ms/次） | **67.1 s**（140 次，479 ms/次） |
+| `SparseFlashMla` | 4.7 s（1452） | 4.4 s（1415） |
+| `BatchMatMulV2` | 6.0 s（4356） | 5.6 s（4245） |
+| Cast / Add / ReduceSum | 4.6 / 3.0 / 2.8 s | 4.5 / 2.7 / 2.6 s |
+| **`allreduceAicpuKernel`** | **107.8 s（49.7%）** | **0（完全消失）** |
+| `CamMoeCombineNormal`（新） | — | 3.8 s（1200） |
+
+（次数差 ~4% = 采到 30 个 chunk vs 32 个，不是变化）
+
+### 23.2 关键推断：no-EP 的 107.8 s all-reduce 是**在等**，不是工作量
+
+- 换成 all-to-all 之后那 107.8 s 消失，但**窗口墙钟 73.5 s → 73.9 s 没变**；
+- ⇒ 它当年就与 attention 重叠/被掩盖，不在关键路径上；
+- ⇒ 也解释了 §12 的"EP 对 prefill 是负收益"：它优化的是**不在关键路径**的通信。
+
+EP 下桶求和 69.6 s ≈ 墙钟 73.9 s（overlap 基本消失），归因变成干净的加性分解：
+**attention 68% + 小算子 11.5% + 通信 7.8% + matmul/MoE 6.4%**。
+
+### 23.3 前缀扫描的增量成本与部署无关
+
+用中间干净的第 3~27 步算增量：`(4255.9−996.9)/24 = 135.8 ms/chunk = 33.2 ms/1K`，
+与 no-EP 的 **33.8 ms/1K** 一致。窗口 73.9 s 里约 **45 s 随 prefix 线性增长** ⇒
+砍掉它 → **~29 s**，正好达标（天花板 ≈2.56×，所需 2.46×）。
+
+⚠ 回传块里的 `WIN_SLOPE_ATTN=27.169 R²=0.854` 被首尾异常步污染，别引用；用 33.2。
+
+### 23.4 两个采集侧的坑（已修）
+
+1. **`/stop_profile` 在 EP 下长时间不回包**：4 个 rank 的导出在 13:35:41 就完成了
+   （`analyse.done` 都在），HTTP 响应却一直没回来，脚本空等 20 分钟。
+   ⇒ 现在：`/stop_profile` 只等 120 s；**导出完成判据改为「每个采集 rank 的
+   `ASCEND_PROFILER_OUTPUT/analyse.done` 都就位」**，不再依赖 HTTP 返回或日志字符串。
+2. **导出等待缺存活检查**：上一轮 OOM 崩溃后脚本仍空等 30 分钟。
+   ⇒ 现在：bench 失败且 server 不在时立即 FAIL（并抓 `OutOfMemoryError`/`Scheduler hit an exception`）；
+   导出循环里每 5 s 检查 server 存活，消失即退出。

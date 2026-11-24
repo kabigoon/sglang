@@ -183,8 +183,11 @@ hdr = {"Content-Type": "application/json"}
 if key:
     hdr["Authorization"] = "Bearer " + key
 c = http.client.HTTPConnection("127.0.0.1", 5684, timeout=tmo)
-c.request("POST", path, body.encode() or b"{}", hdr)
-print(c.getresponse().read().decode().strip()[:300])
+try:
+    c.request("POST", path, body.encode() or b"{}", hdr)
+    print(c.getresponse().read().decode().strip()[:300])
+except Exception as e:            # 连不上/超时都不要吐 traceback
+    print("ERR:%s" % type(e).__name__)
 PYAPI
 }
 
@@ -375,6 +378,13 @@ grep -hE "^HIT=|^TTFT_|^OUT_TPUT=" "$OUT/bench.log" | tail -3 | sed 's/^/    /'
 N_PREFILL=$(grep -cE "$PREFILL_RE" "$SLOG" 2>/dev/null || true)
 echo "    server 侧「大 Prefill batch」行数 = ${N_PREFILL:-0}（129K/4096 ≈ 32 条，可核对 chunk 数）"
 
+# 守卫：请求失败 + server 已不在 ⇒ 立刻判失败，不要进 30 分钟的导出等待
+if [ "$RC" -ne 0 ] && ! pgrep -f "sglang.launch_server" >/dev/null 2>&1; then
+  echo "  [FAIL] bench 失败且 server 已不在，以下是日志里的崩溃线索："
+  grep -nE "OutOfMemoryError|Scheduler hit an exception|Killed|EZ1008|EL0019" "$SLOG" | tail -6 | sed 's/^/      /'
+  stage "FAIL server died (bench rc=$RC)"; cleanup; exit 1
+fi
+
 # 命中率守卫：冷启动就该是 0% 左右；若接近 100% 说明缓存里已有整条 prompt，
 # 这一轮的 trace 里没有 prefill —— 直接判失败，别浪费导出和后续分析。
 HIT_VAL=$(grep -hoE '^HIT=[0-9.]+' "$OUT/bench.log" 2>/dev/null | tail -1 | cut -d= -f2)
@@ -404,18 +414,34 @@ if grep -q "Profiling done" "$SLOG" 2>/dev/null; then
   stage "auto-stopped at num_steps"
 else
   stage "stop_profile"
-  api_post "/stop_profile" "{}" 900
+  # EP 下实测 /stop_profile 会长时间不回包（导出早已完成但 HTTP 不返回），
+  # 所以只等 120s；超时继续，用下面的 analyse.done 判据收尾。
+  STOP_RESP=$(api_post "/stop_profile" "{}" 120)
+  echo "    /stop_profile → ${STOP_RESP}"
 fi
 # 32 步 / ~33GB 的导出可能要 10~30 分钟，原来只等 5 分钟会读到半成品
 EXPORT_WAIT_MIN=${EXPORT_WAIT_MIN:-30}
 export_waited=0
+EXPORT_DIED=0
 while [ "$export_waited" -lt $((EXPORT_WAIT_MIN * 60)) ]; do
   grep -q "Profiling done" "$SLOG" 2>/dev/null && break
+  # 更强的判据：每个采集 rank 的导出标记文件都出现（EP 下 HTTP 不返回时靠这个）
+  N_DONE=$(ls "$PROF_DIR"/*_ascend_pt/ASCEND_PROFILER_OUTPUT/analyse.done 2>/dev/null | wc -l | tr -d ' ')
+  [ "${N_DONE:-0}" -ge "$EXPECT_COLLECT" ] && { echo "    ✓ ${N_DONE} 个 rank 的 analyse.done 都就位"; break; }
+  # 守卫：server 没了就立刻退出，不再空等
+  if ! pgrep -f "sglang.launch_server" >/dev/null 2>&1; then
+    echo "  [FAIL] server 进程在导出期间消失，不可能再推进；立即退出（不再空等 ${EXPORT_WAIT_MIN} 分钟）"
+    stage "FAIL server died during export"; EXPORT_DIED=1; break
+  fi
   sleep 5; export_waited=$((export_waited + 5))
   if [ $((export_waited % 60)) -eq 0 ]; then
     echo "    [导出 ${export_waited}s] $(du -sh "$PROF_DIR" 2>/dev/null | cut -f1)  日志末行: $(tail -1 "$SLOG" 2>/dev/null | cut -c1-70)"
   fi
 done
+if [ "${EXPORT_DIED:-0}" = "1" ]; then
+  echo "  [FAIL] 导出期间 server 消失，trace 不完整，不打包"
+  stage "FAIL export aborted"; cleanup; exit 1
+fi
 if grep -q "Profiling done" "$SLOG" 2>/dev/null; then
   echo "  ✓ Profiling done"
   stage "profiling done"
