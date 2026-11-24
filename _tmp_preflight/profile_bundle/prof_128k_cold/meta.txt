@@ -1,0 +1,6 @@
+generated_at = 2026-11-24T12:53:23+00:00
+host = node-61-47-19-68
+git_head = a5cd67f226
+source_rank_dir = /tmp/prof_128k_cold_1124_124110/node-61-47-19-68_367910_20261124124607892_ascend_pt
+command = /home/a00821909/sglang/_tmp_preflight/collect_profile_bundle.py /tmp/prof_128k_cold_1124_124110 --tag prof_128k_cold
+bundle_bytes = 77159
