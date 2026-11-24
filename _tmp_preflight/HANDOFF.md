@@ -906,3 +906,57 @@ python3 _tmp_preflight/analyze_prefill_steps.py "$PROF" \
 看 **WIN_F_*** 和 **WIN_SLOPE_ATTN**（不要看 `F_*`：那是全 trace，混了冷/热两段）。
 `WIN_WALL_S` 应该接近 bench 的 prefill 时长（50% 命中时约 73s；冷 trace 的窗口只含那 16 个 chunk，
 所以这个数**可以**直接和 73.71s 对照）。若差很多，说明 chunk 边界或 token 数没对上，先别下结论。
+
+---
+
+## 17. 两步走：先 3 步 smoke，再全量（2026-11-24 定）
+
+全量采集要 20 分钟、1~4GB，而且**分析器的切步假设还没在真 trace 上验证过**
+（kernel_details.csv 的真实列名、Model ID 语义、每层算子序列是否重复）。
+所以先花 ~10 分钟采 **3 个 forward**，用证据包把假设验掉，两人各自验收后再跑全量。
+
+### 17.1 切步方法的修正（smoke 之前就发现的问题）
+
+初版分析器用「kernel 名序列的周期性」切步，在合成 trace 上就暴露了两个坑：
+
+| 坑 | 表现 | 处置 |
+|---|---|---|
+| 只靠名字周期 | 真实模型里每层的算子序列往往**相同** ⇒ 会锁到「一层」的周期，步数被放大 num_layers 倍 | 改成**主方法用 attention kernel 的 duration 阶跃**：同一 chunk 内所有 full-attention 层 seq_len 相同 ⇒ duration 恒定；跨 chunk +4096 ⇒ 阶跃。「等值段」= 一个 chunk |
+| 3 步太少时周期检测乱认 | 3 个 chunk（N=3L）时把 L 认成 57（真实 60），切出 2 步 | duration 阶跃法在 3 步下也能切对（合成验证：3 段 × 20 kernel） |
+
+现在的优先级：**attention-duration → Model ID → 名序列周期（带 warn）**，并与
+`total_tokens/chunk_tokens` 对账（差 >2 步就 warn）。
+
+顺带修：最后一步的右边界改为 `bounds[-1] + 每 chunk kernel 数`，避免把 decode 段算进
+最贵的最后一个 chunk；「首步墙钟远小于中位步」不再告警（那是正常的，早期 prefix 短）。
+
+### 17.2 smoke 要验的东西（验收标准）
+
+我的检查项（靠证据包里的 `kernel_schema.txt` + `prefill_steps.txt`）：
+1. `kernel_details.csv` 的列名与分析器假设一致（Start Time / Duration / Stream ID / Name / Accelerator Core）；
+2. `Model ID` 是否按 forward 递增（决定切步优先级是否要再调）；
+3. 每个 chunk 有多少个 attention kernel（= full-attn 层数）、duration 是否真的呈阶跃；
+4. 三个桶（attention / matmul / elementwise）是否都非零、wall 是否 ≥ 各桶之和的合理范围；
+5. 切出 **3 步**、且与 12,288/4096 对得上。
+
+你的检查项：MindStudio Insight 能否打开（`MAKE_TGZ=1` 会生成 `/tmp/prof_smoke3_insight.tgz`）。
+
+### 17.3 smoke 命令
+
+```bash
+cd /home/a00821909/sglang && git pull origin pr-50205-dsv41-a3-deepep
+
+EXTRA_ENV="HCCL_BUFFSIZE=128 SGLANG_DSPARK_NVLINK_VOCAB_GATHER=0" \
+EXTRA_ARGS="--swa-prefix-tails 16" MAX_PREFILL_TOKENS=8192 \
+DP_SIZE=4 CHUNKED_PREFILL=16384 MEM_FRACTION=0.88 DECODE_GRAPH=1 DECODE_BS="1 2 4" \
+NUM_STEPS=3 MAKE_TGZ=1 TAG=prof_smoke3 \
+  nohup bash _tmp_preflight/profile_oneshot.sh > /tmp/prof_smoke3.log 2>&1 &
+tail -f /tmp/prof_smoke3.log
+```
+
+注意：`NUM_STEPS=3` 只限制**采集**的 forward 数；请求本身照样跑满 32 个 chunk（~110s），
+所以命中率守卫仍是有效的 0% 检查。采到 3 步后 profiler 会自动停并导出（脚本不会再 POST
+`/stop_profile` —— `_stop_profile` 在 barrier 之前就 `return`，自动停后再调只会拿到
+"not in progress"，不会卡）。
+
+验收通过后再跑全量（`NUM_STEPS` 不传即默认 34，`MAKE_TGZ` 建议留 0）。

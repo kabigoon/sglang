@@ -17,6 +17,7 @@
     op_statistic_top.csv  算子聚合 top N
     kernel_top.csv        耗时 top N 的 kernel（含 pipe 比率列）
     comm_summary.csv      HCCL 通信汇总
+    kernel_schema.txt     kernel_details.csv 的列名/分布/样本序列（几 KB，用来离线核对切步假设）
 """
 from __future__ import annotations
 
@@ -152,6 +153,81 @@ def build_op_top(op_csv: str, out_csv: str, top: int) -> int:
     return len(keep)
 
 
+def build_kernel_schema(kernel_csv: str, out_txt: str, sample: int = 60) -> int:
+    """把 kernel_details.csv 的「列名 + 分布 + 序列样本」抽成几 KB 的文本。
+
+    为什么需要：analyze_prefill_steps.py 的切步完全依赖这张表的列结构、以及
+    「同一 chunk 内 kernel 序列是否重复」。这些只有真 trace 能回答。采 3 步 smoke 时
+    把这份 schema 推回来，就能离线把分析器改对，而不是拿 32 步的大 trace 去试错。
+
+    回答四个问题：
+      1) 到底有哪些列（Start Time / Model ID / Stream ID 是否都在）；
+      2) Model ID 是否可用（取值种类数）；
+      3) kernel 名序列的重复周期是「一层」还是「一个 chunk」；
+      4) attention 类 kernel 的 duration 序列是否呈「同 chunk 内恒定、跨 chunk 跳变」。
+    """
+    if not os.path.isfile(kernel_csv):
+        print("[warn] 没有 kernel_details.csv，跳过 schema")
+        return 0
+    fields, rows = read_csv_rows(kernel_csv)
+    per_stream = defaultdict(int)
+    per_name = defaultdict(lambda: [0, 0.0])
+    model_ids = defaultdict(int)
+    for r in rows:
+        per_stream[(r.get("Stream ID") or "?").strip()] += 1
+        nm = (r.get("Name") or "?").strip()
+        per_name[nm][0] += 1
+        per_name[nm][1] += to_float(r.get("Duration(us)"))
+        if "Model ID" in fields:
+            model_ids[(r.get("Model ID") or "").strip()] += 1
+
+    def num(r, key):
+        try:
+            return float(r.get(key))
+        except (TypeError, ValueError):
+            return None
+
+    with open(out_txt, "w") as f:
+        f.write("kernel_details.csv 结构诊断\n")
+        f.write("=" * 60 + "\n")
+        f.write("行数 = %d\n" % len(rows))
+        f.write("列（%d）:\n  %s\n\n" % (len(fields), ", ".join(fields)))
+        f.write("Stream ID 分布（前 10）:\n")
+        for sid, n in sorted(per_stream.items(), key=lambda kv: -kv[1])[:10]:
+            f.write("  %-10s %8d\n" % (sid, n))
+        f.write("\nModel ID 取值种类 = %d" % len(model_ids))
+        if len(model_ids) <= 8:
+            f.write("  → %s" % dict(list(model_ids.items())[:8]))
+        f.write("\n\nkernel 名 top %d（次数, 总耗时ms）:\n" % min(20, len(per_name)))
+        for nm, (c, us) in sorted(per_name.items(), key=lambda kv: -kv[1][0])[:20]:
+            f.write("  %-8d %12.1f  %s\n" % (c, us / 1000.0, nm[:80]))
+
+        # 主计算流：kernel 数最多的流
+        main_sid = max(per_stream.items(), key=lambda kv: kv[1])[0]
+        main = [r for r in rows if (r.get("Stream ID") or "").strip() == main_sid]
+        f.write("\n主计算流 = %s（%d 个 kernel）\n" % (main_sid, len(main)))
+        f.write("该流前 %d 个 kernel（Start Time(us), Duration(us), Name）:\n" % sample)
+        for i, r in enumerate(main[:sample]):
+            f.write("  %3d  %12s %10s  %s\n" % (
+                i, r.get("Start Time(us)"), r.get("Duration(us)"),
+                (r.get("Name") or "")[:70]))
+
+        # attention 类 kernel 的 duration 序列：判断「同 chunk 恒定、跨 chunk 跳变」
+        import re as _re
+        att = [r for r in rows
+               if _re.search(r"attention|attn|mla|indexer", (r.get("Name") or "").lower())]
+        f.write("\nattention 类 kernel 共 %d 个（前 %d 个的 Start/Duration）:\n" % (
+            len(att), min(sample * 2, len(att))))
+        for r in att[:sample * 2]:
+            f.write("  %12s %10s  %s\n" % (r.get("Start Time(us)"), r.get("Duration(us)"),
+                                            (r.get("Name") or "")[:60]))
+        f.write("\n注意：若上面 duration 呈「若干连续相等值 + 阶跃」= 周期性(chunk)结构；\n")
+        f.write("      若 layer 间 duration 交替变化 = 一层内就有不同窗口长度的层，需要按名字分组。\n")
+    print("  kernel_schema.txt: %d 行 kernel 的结构诊断（%.1f KB）" % (
+        len(rows), os.path.getsize(out_txt) / 1024.0))
+    return 1
+
+
 def build_comm_summary(comm_json: str, out_csv: str, top: int) -> int:
     """解析 communication_matrix.json。
 
@@ -270,6 +346,8 @@ def main() -> int:
                      os.path.join(dst, "kernel_top.csv"), args.top)
     build_op_top(os.path.join(ap_dir, "op_statistic.csv"),
                  os.path.join(dst, "op_statistic_top.csv"), args.top)
+    build_kernel_schema(os.path.join(ap_dir, "kernel_details.csv"),
+                        os.path.join(dst, "kernel_schema.txt"))
     build_comm_summary(os.path.join(ap_dir, "communication_matrix.json"),
                        os.path.join(dst, "comm_summary.csv"), 50)
 

@@ -220,6 +220,73 @@ def detect_period(ids: list[int]) -> tuple[int | None, int, str]:
     return None, 0, "24 个候选周期都没有通过精确匹配（匹配率<0.85），可能 kernel 序列不严格周期"
 
 
+def _median(xs):
+    xs = sorted(xs)
+    n = len(xs)
+    return xs[n // 2] if n % 2 else 0.5 * (xs[n // 2 - 1] + xs[n // 2])
+
+
+def segment_by_attention_duration(rows, main, tol=0.015):
+    """按 attention kernel 的 duration 阶跃切 chunk（主方法）。
+
+    物理依据：一个 chunk 内，**所有 full-attention 层**看到的 seq_len 相同（都是 T_k），
+    所以同一个算子名的 duration 在 chunk 内基本恒定；到下一个 chunk，T_k 增加 4096，
+    duration 随之阶跃。于是「连续的等值段」= 一个 chunk。
+
+    比 kernel 名序列的周期性可靠得多：真实模型里每层的算子序列往往**完全相同**，
+    按名字找周期会锁到「一层的周期」上，把步数放大 num_layers 倍。
+    SWA 层的 kernel 会饱和成常量（只形成 1 段），所以自然不会被选中。
+
+    返回 (bounds, n_steps, 诊断串) 或 (None, 0, 原因)。
+    """
+    att = [r for r in rows if bucket_of(r["name"]) == "attention"]
+    if len(att) < 4:
+        return None, 0, "attention kernel 太少（%d）" % len(att)
+    by_name = {}
+    for r in att:
+        by_name.setdefault(r["name"], []).append(r)
+
+    best = None
+    for nm, lst in by_name.items():
+        if len(lst) < 2:
+            continue
+        lst.sort(key=lambda r: r["start"])
+        groups = [[lst[0]]]
+        for r in lst[1:]:
+            cur = _median([x["dur"] for x in groups[-1]])
+            if cur > 0 and abs(r["dur"] - cur) <= tol * cur:
+                groups[-1].append(r)
+            else:
+                groups.append([r])
+        if len(groups) < 2:
+            continue
+        sizes = [len(g) for g in groups]
+        imbal = (max(sizes) - min(sizes)) / float(max(sizes))
+        if imbal > 0.25:            # 每组 kernel 数应基本一致（同一批层）
+            continue
+        # 偏好：组数多、imbalance 小、名字出现次数多
+        score = (len(groups), -imbal, len(lst))
+        if best is None or score > best[0]:
+            best = (score, nm, groups, imbal)
+
+    if best is None:
+        return None, 0, "没有哪个 attention 算子名的 duration 能切成 ≥2 个等长段"
+
+    _score, nm, groups, imbal = best
+    starts = [g[0]["start"] for g in groups]
+    main_starts = [r["start"] for r in main]
+    import bisect
+    bounds = []
+    for t0 in starts:
+        i = bisect.bisect_left(main_starts, t0)
+        bounds.append(min(i, len(main) - 1))
+    bounds = sorted(set(bounds))
+    n_steps = len(bounds)
+    why = ("duration 阶跃切步：算子=%s，段数=%d，每组 kernel 数≈%d，imbalance=%.2f"
+           % (nm[:40], n_steps, len(groups[0]), imbal))
+    return bounds, n_steps, why
+
+
 def segment_by_model(main: list[dict]) -> int:
     """用 Model ID 直接当步号；返回步数（0=不可用）。"""
     ids = [r["model"] for r in main if r["model"] not in ("", "N/A")]
@@ -239,10 +306,17 @@ def build_steps(main: list[dict], L: int, Lgood: int) -> tuple[list[int], int]:
 
 
 # ---------------------------------------------------------------- 统计
-def summarise(rows, main, bounds, n_steps, L):
-    """每步：wall + 各桶耗时。主计算流按下标切，其它流按时间窗切。"""
+def summarise(rows, main, bounds, n_steps):
+    """每步：wall + 各桶耗时。主计算流按下标切，其它流按时间窗切。
+
+    最后一步的右边界怎么定：每个 chunk 的 kernel 数应当一致，所以取
+    ``bounds[-1] + (bounds[1]-bounds[0])`` 处的 kernel 起点作为 prefill 的终点；
+    这样 decode 段不会被算进最后一个（也是最贵的）chunk。
+    """
     t = [main[i]["start"] for i in bounds]
-    tail_start = main[n_steps * L]["start"] if n_steps * L < len(main) else None
+    per_chunk = (bounds[1] - bounds[0]) if n_steps >= 2 else 0
+    tail_idx = bounds[-1] + per_chunk
+    tail_start = main[tail_idx]["start"] if per_chunk and tail_idx < len(main) else None
     t_end = tail_start if tail_start is not None else max(r["start"] + r["dur"] for r in main)
     edges = t + [t_end]
 
@@ -318,6 +392,8 @@ def main() -> int:
     ap.add_argument("--cached-prefix", type=int, default=0, help="第 0 个 chunk 之前已命中缓存的前缀长度")
     ap.add_argument("--total-tokens", type=int, default=0, help="未命中的总 token 数（0=按步数×chunk 估）")
     ap.add_argument("--csv", default=None, help="把每步明细写成 CSV（体积很小，可进证据包）")
+    ap.add_argument("--seg-tol", type=float, default=0.015,
+                    help="attention duration 分段容差（默认 1.5%%；chunk 变大时每步约 +3%%）")
     ap.add_argument("--window-from", type=int, default=0,
                     help="再报一个「工作点窗口」的组成：只统计累计长度 T_k>=该值的 chunk"
                          "（冷启动 trace 里用 65536 就正好是 50%% 命中的那 16 个 chunk）")
@@ -337,31 +413,52 @@ def main() -> int:
     main_sid, main_rows = pick_main_stream(rows)
     print("主计算流 = %s（%d 个 kernel）" % (main_sid, len(main_rows)))
 
-    # ---- 切步 ----
-    n_model = segment_by_model(main_rows)
-    if n_model >= 2:
-        # Model ID 可用：直接按 model id 分组
-        groups = defaultdict(list)
-        for i, r in enumerate(main_rows):
-            groups[r["model"]].append(i)
-        bounds = [min(v) for _k, v in sorted(groups.items())]
-        n_steps = len(bounds)
-        method = "Model ID"
-        print("切步：Model ID（%d 步）" % n_steps)
-    else:
-        ids = _encode([r["name"] for r in main_rows])
-        L, Lgood, why = detect_period(ids)
-        print("切步：周期检测 —— %s" % why)
-        if not L:
-            print("\n[FAIL] 无法切步。可用的余量：只能出总量表（见下），")
-            print("       或者改用两次采集（50%/0% 命中）对比总量。")
-            return _aggregate_only(rows, main_sid, args)
-        bounds, n_steps = build_steps(main_rows, L, Lgood)
-        method = "周期检测(L=%d)" % L
-        print("切步：%s → %d 步，每步 %d 个 kernel（第 0 步起点 t=%.3f ms）" % (
-            method, n_steps, L, main_rows[bounds[0]]["start"] / 1000.0))
+    # ---- 切步（按可靠性排序：物理信号 > 框架元数据 > 序列周期性）----
+    bounds = None
+    n_steps = 0
+    method = ""
 
-    steps, edges = summarise(rows, main_rows, bounds, n_steps, L if not n_model else 0)
+    # 1) attention duration 阶跃：与模型结构、与 num_steps 都无关，3 步也能切
+    b1, n1, why1 = segment_by_attention_duration(rows, main_rows, tol=args.seg_tol)
+    print("切步[1/3] attention-duration：%s" % why1)
+    if b1 and n1 >= 2:
+        bounds, n_steps, method = b1, n1, "attention-duration"
+    else:
+        # 2) Model ID（若 torch_npu 按 forward 递增填了它）
+        n_model = segment_by_model(main_rows)
+        if n_model >= 2:
+            groups = defaultdict(list)
+            for i, r in enumerate(main_rows):
+                groups[r["model"]].append(i)
+            bounds = [min(v) for _k, v in sorted(groups.items())]
+            n_steps = len(bounds)
+            method = "Model ID"
+            print("切步[2/3] Model ID：%d 步" % n_steps)
+        else:
+            # 3) kernel 名序列的周期性（真实模型里每层算子序列可能相同 → 会锁到「一层」
+            #    的周期，把步数放大 num_layers 倍，所以只当最后退路）
+            ids = _encode([r["name"] for r in main_rows])
+            L, Lgood, why3 = detect_period(ids)
+            print("切步[2/3] Model ID：不可用（取值种类 <2）")
+            print("切步[3/3] 周期检测：%s" % why3)
+            if not L:
+                print("\n[FAIL] 三种切步法都失败，只能出总量表（见下）。")
+                return _aggregate_only(rows, main_sid, args)
+            bounds, n_steps = build_steps(main_rows, L, Lgood)
+            method = "周期检测(L=%d)" % L
+            print("  [warn] 用的是退路方法：若步数≈num_layers×chunk数，说明锁到了「一层」的周期")
+
+    print("切步：%s → %d 步（第 0 步起点 t=%.3f ms）" % (
+        method, n_steps, main_rows[bounds[0]]["start"] / 1000.0))
+
+    # 与理论步数对账：129,093 / 4096 ≈ 32
+    if args.total_tokens and args.chunk_tokens:
+        expect = -(-args.total_tokens // args.chunk_tokens)
+        if abs(n_steps - expect) > 2:
+            print("  [warn] 切出 %d 步，但按 %d token / %d = %d 步。差得远就别信下面的表"
+                  % (n_steps, args.total_tokens, args.chunk_tokens, expect))
+
+    steps, edges = summarise(rows, main_rows, bounds, n_steps)
 
     # ---- 每个 chunk 的 token 数与累计长度 ----
     chunk = args.chunk_tokens
@@ -393,10 +490,11 @@ def main() -> int:
 
     walls = sorted(s["wall"] for s in steps)
     med = walls[len(walls) // 2] if walls else 0.0
-    if steps and med > 0 and abs(steps[0]["wall"] - med) > 0.3 * med:
-        print("  [warn] 第 0 步墙钟 %.1f ms 与中位步 %.1f ms 差 >30%%：可能是切步相位偏了"
-              "（有 prologue），或首个 chunk 被 scheduler 拼了别的东西" % (
-                  steps[0]["wall"] / 1000.0, med / 1000.0))
+    # 只有「首步明显比中位步大」才是相位/拼接问题；早期 chunk 天生更便宜（prefix 短），
+    # 所以「首步更小」是正常的，不要告警。
+    if steps and med > 0 and steps[0]["wall"] > 1.3 * med:
+        print("  [warn] 第 0 步墙钟 %.1f ms > 中位步 %.1f ms 的 1.3 倍：可能有 prologue 混进来了"
+              % (steps[0]["wall"] / 1000.0, med / 1000.0))
 
     prefill_wall = sum(s["wall"] for s in steps)
     print("\nprefill 墙钟合计 = %.1f ms（%d 步；主计算流 t0=%.0f ms，末尾=%.0f ms）"
