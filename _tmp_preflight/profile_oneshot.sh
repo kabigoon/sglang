@@ -319,7 +319,10 @@ echo "    bench pid=${BENCH_PID}，日志：$OUT/bench.log"
 
 PREFILL_WAIT=${PREFILL_WAIT:-600}
 waited=0
-until [ "$(grep -c "Prefill batch" "$SLOG" 2>/dev/null || true)" -ge "${TRIGGER_AFTER:-1}" ]; do
+# 只认「真正的大 chunk」：dummy/占位步也会打 Prefill batch，但 #new-token 只有个位数
+# （实测：no-EP 下 20、EP 下 6），真 chunk 是 4096。用 4 位数字过滤，避免 num_steps 被 dummy 吃光。
+PREFILL_RE='Prefill batch.*#new-token: [0-9]{4,}'
+until [ "$(grep -cE "$PREFILL_RE" "$SLOG" 2>/dev/null || true)" -ge "${TRIGGER_AFTER:-1}" ]; do
   if ! kill -0 "$BENCH_PID" 2>/dev/null; then
     echo "  [FAIL] bench 已退出但日志里没有 'Prefill batch'（请求可能根本没到 server）"
     tail -20 "$OUT/bench.log"; stage "FAIL no prefill batch"; cleanup; exit 1
@@ -332,8 +335,8 @@ until [ "$(grep -c "Prefill batch" "$SLOG" 2>/dev/null || true)" -ge "${TRIGGER_
     echo "  [FAIL] ${PREFILL_WAIT}s 内没等到 prefill"; tail -20 "$SLOG"; stage "FAIL prefill timeout"; cleanup; exit 1
   fi
 done
-N_PREFILL=$(grep -c "Prefill batch" "$SLOG" 2>/dev/null || true)
-echo "  ✓ 检测到 prefill 开始（等了 ${waited}s，日志里已有 ${N_PREFILL:-0} 条 Prefill batch）"
+N_PREFILL=$(grep -cE "$PREFILL_RE" "$SLOG" 2>/dev/null || true)
+echo "  ✓ 检测到真正的 prefill 开始（等了 ${waited}s，≥4 位 token 的 Prefill batch 已有 ${N_PREFILL:-0} 条）"
 
 echo
 echo "[4/7] 开 profile（num_steps=${NUM_STEPS}，activities=[CPU,GPU]）"
@@ -369,8 +372,8 @@ done
 wait "$BENCH_PID" 2>/dev/null; RC=$?
 echo "    请求结束：${el}s rc=${RC}"
 grep -hE "^HIT=|^TTFT_|^OUT_TPUT=" "$OUT/bench.log" | tail -3 | sed 's/^/    /'
-N_PREFILL=$(grep -c "Prefill batch" "$SLOG" 2>/dev/null || true)
-echo "    server 侧 Prefill batch 行数 = ${N_PREFILL:-0}（129K/4096 ≈ 32 条，可用来核对 chunk 数）"
+N_PREFILL=$(grep -cE "$PREFILL_RE" "$SLOG" 2>/dev/null || true)
+echo "    server 侧「大 Prefill batch」行数 = ${N_PREFILL:-0}（129K/4096 ≈ 32 条，可核对 chunk 数）"
 
 # 命中率守卫：冷启动就该是 0% 左右；若接近 100% 说明缓存里已有整条 prompt，
 # 这一轮的 trace 里没有 prefill —— 直接判失败，别浪费导出和后续分析。

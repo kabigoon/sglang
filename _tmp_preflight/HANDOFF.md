@@ -1150,3 +1150,35 @@ Insight 单目录建议 ≤1.5GB ⇒ **NUM_STEPS ≤ 5**。
 | early | `TRIGGER_AFTER=1 NUM_STEPS=3 MAKE_TGZ=1 TAG=demo_early` | ~710 MB | burst 1.4s、indexer 几十 us |
 
 对照要点：同一采集里的**非 owner 目录**没有任何 indexer/MLA 块 ⇒ "12 个 die 在等"的直接证据。
+
+---
+
+## 22. EP（deepep）下采集的两个坑（2026-11-24）
+
+### 22.1 `MAX_PREFILL_TOKENS` 漏传 ⇒ 直接 OOM
+
+`prof_128k_deepep` 第一轮崩在：
+
+```
+torch.OutOfMemoryError: NPU out of memory. Tried to allocate 322.00 MiB
+(61.27 GiB total; 54.39 GiB already allocated; 325.85 MiB free)
+  at DeepseekV2MoE.forward_deepep (deepseek_v2.py:1772)
+```
+
+server_args 转储里 `'max_prefill_tokens': 131072` —— **命令里漏了 `MAX_PREFILL_TOKENS=8192`**，
+退回默认 131072。DeepEP 的 dispatch 缓冲按「单次 forward 的 token 上限」分配，
+128K 的预算直接把激活/缓冲撑爆（no-EP 那轮带着 8192 所以没事）。
+
+⇒ **EP + 128K 采集必须同时给**：`MAX_PREFILL_TOKENS=8192`（每个 rank 一次只吃 4096）
+和 `--max-total-tokens 260000`（§14.8：池子 21GB→5.6GB，让出 ~15GB 给激活/EP 缓冲）。
+
+### 22.2 触发点还要更严：只认 `#new-token` ≥ 1000 的 Prefill batch
+
+EP 下 dummy/占位步是 **6 个 token**（no-EP 是 20），它们同样会打 `Prefill batch` 日志。
+只按行数触发会把 `num_steps` 吃光。现在 `profile_oneshot.sh` 用：
+
+```bash
+PREFILL_RE='Prefill batch.*#new-token: [0-9]{4,}'
+```
+
+真 chunk 是 4096（4 位数），dummy 是个位数/两位数 ⇒ 不会再误触发。
