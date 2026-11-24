@@ -478,12 +478,27 @@ bash _tmp_preflight/diag_run.sh
 
 | env | 作用 | 体积 |
 |---|---|---|
-| `SGLANG_NPU_PROFILE_RANK0_ONLY=1` | 只有 `tp_rank==0` 真正采集，其余跳过 | ~16× |
+| `SGLANG_NPU_PROFILE_RANK0_ONLY=1` | 只有 `tp_rank==0` 真正采集，其余跳过（**dp>1 时是错的**，见下） | ~16× |
+| `SGLANG_NPU_PROFILE_DP_REPLICA=1` | **每个 attention-DP replica 采一个 rank**（`tp_rank % attn_tp == 0`）—— dp>1 的推荐门控 | 4 个目录，只有 1 个大 |
 | `SGLANG_NPU_PROFILE_SIMPLIFY=1` | `data_simplification=True`（丢冗余 task/flow 事件） | 数倍 |
 | `SGLANG_NPU_PROFILE_LEVEL=0\|1\|2` | `ProfilerLevel`（0=算子级最省） | Level0 明显更小 |
 | `SGLANG_NPU_PROFILE_NO_AIC=1` | `aic_metrics=AiCoreNone`（不采 pipe 明细） | 明显更小 |
 
 默认全关时与原行为**逐字节等价**（PipeUtilization / Level1 / simplification=False / 全 rank 采）。
+
+⚠ **`RANK0_ONLY` 在 dp>1 时会静默采错 rank（2026-11-24 发现，务必用 `DP_REPLICA`）**：
+请求由 DP controller 按 **round_robin** 轮流分发（`data_parallel_controller.py:round_robin_scheduler`；
+`load_balance_method` 默认 `auto` → 非 PD 即 `round_robin`，`serving_hook.py:232`）。C=1 时
+一次只有一个请求在跑，`bench_serving --warmup-requests N` 恰好发 N 条（`serving.py:1495`），
+所以 **第 N+1 条**请求落在 slot `(N+1) % dp`。按 §11.2 的 `WARMUP=4` 推：warmup 占 slot 0-3、
+实测条 slot 0、**采集条 slot 1** ⇒ 请求跑在 tp_rank 4-7，而 `RANK0_ONLY` 守在 tp_rank 0。
+tp_rank 0 那一轮只做 0 token 的 FFN/通信，trace 会显示「attention≈0、Free 很高」，
+把结论引向「并行度问题」——**失败是静默的，方向正好相反**。
+
+`_ATTN_TP` 组是**连续块**（`parallel_state.py:2811-2826`：`ranks = list(range(st, en))`），
+所以 `tp_rank % attn_tp == 0` 恰好每个 replica 取一个（dp=4 时是 0/4/8/12），
+不管请求落在哪个 replica 都能采到；dp=1（attn_tp=16）时退化为只采 tp_rank 0。
+代价：4 个 rank 目录，其中只有拿到请求的那个有真算子，其余很小。
 
 ⚠ **两个只会"卡住"、不会报错的坑**（写这段时踩到的）：
 
@@ -551,3 +566,268 @@ git push origin feat/dsv41-a3-trace
 - 不要在脚本运行期间 `git pull`（bash 边读边执行，改文件会读到错位内容）。
 - jsonl 字段是 `<统计量>_<指标>_ms`（`mean_ttft_ms` / `median_ttft_ms`），抽数出 nan 先查这个。
 - 表格抽错不要重跑：`bash _tmp_preflight/resummarize.sh <bench 日志>` 秒级重算。
+
+---
+
+## 12. DeepEP / EP16 在 PR #50205 head 上的启用记录（2026-11-24）
+
+动机：同事配置在 **80K/0% 命中**下 TTFT=24.0s，我们旧栈同口径模型预测 51.5s（**2.15×**，有效 prefill 速率 3.33 vs 1.17 K tok/s）。
+他把 MoE 从 TP16+allreduce 换成 **EP16 + DeepEP all-to-all**，所以优先复现这个。
+
+新分支 `pr-50205-dsv41-a3-deepep`（基座 = upstream `pull/50205/head`）关键差异：`deep_ep 1.0.0+cann.9.2.0.b237` 已在镜像里，
+且新代码 **不再使用 `torch.ops.custom.*`**（改用 `sgl_kernel_npu.operators.*`），所以 **不需要装 custom-ops**。
+
+### 12.1 一路上踩掉的 6 个坑（按出现顺序）
+
+| # | 报错 | 根因 | 处置 |
+|---|---|---|---|
+| 1 | `argparse` usage dump | 新代 CLI 改了：`--enable-dp-attention --dp-size` → **`--attn-dp-size`**；`--max-running-requests`、`--reasoning-parser` 变成 `no_cli` | 启动器按代际探测自动选参数 |
+| 2 | `NameError: pynvml` in `vocab_gather → _nvlink_lease` | DSpark 的 vocab gather 探测走 NVLink/CUDA 路径（NPU 无 NVML） | `SGLANG_DSPARK_NVLINK_VOCAB_GATHER=False`（日志应显示 `NcclVocabGather`） |
+| 3 | `EI0019` 端口 60000-2 被占 | Linux `ip_local_port_range` 是 32768-60999，把 DeepEP 的默认基址包进去了 | `HCCL_IF_BASE_PORT=61000` |
+| 4 | `EZ1008 MoeLowLatencyDispatchV2: tiling failed` + `HCCL_BUFFSIZE is too SMALL (need 544MB, have 128MB)` | 启动器硬编码 `HCCL_BUFFSIZE=128` | 提到 ≥544，默认改 `640` |
+| 5 | `EZ1008 MoeLowLatencyCombineV2: need 1024MB` | **combine 的需求是 dispatch 的 2×** | 见下：降 maxBs 而不是继续加缓冲 |
+| 6 | `EL0019` 分配 1073741856B 失败 | `HCCL_BUFFSIZE=1024` 会为**每个通信域**各开一份，8.7GB 可用不够 | 不要给 1024；降低 maxBs |
+
+### 12.2 关键规律与推荐组合
+
+**需求 ≈ 8MB × `SGLANG_DEEPEP_NUM_MAX_DISPATCH_TOKENS_PER_RANK`**（该参数只影响 low-latency/decode 的缓冲，
+prefill 走 normal 模式，用 `Buffer.get_dispatch_config()` 的 hint，不受它影响）：
+
+```bash
+EXTRA_ENV="HCCL_BUFFSIZE=512 SGLANG_DEEPEP_NUM_MAX_DISPATCH_TOKENS_PER_RANK=32 \
+           HCCL_IF_BASE_PORT=61000 SGLANG_DSPARK_NVLINK_VOCAB_GATHER=False \
+           HCCL_OP_EXPANSION_MODE=HOST" \
+EXTRA_ARGS="--moe-a2a-backend deepep --deepep-mode auto --disable-overlap-schedule" \
+DP_SIZE=8 CHUNKED_PREFILL=32768 MEM_FRACTION=0.85 DECODE_GRAPH=1 \
+  bash _tmp_preflight/run_dsv41_w4a8.sh
+```
+
+若后续要更大 decode 批次，`maxBs` 与 `HCCL_BUFFSIZE` 要**一起**加（8MB/单位）。
+
+### 12.3 还没验证的
+- EP16 对 prefill TTFT 的实际收益（这是整件事的目标）
+- `--deepep-mode normal` 在新镜像上是否可用（可以作为不给 decode 开 low-latency 的退路）
+- 同事的 `SGLANG_NPU_DSV41_A3_DISPATCH_FFN_W4A8` 私有算子在 24s 里占多少
+
+---
+
+## 13. 新代码树（PR #50205 head）128K 基线 —— 已测（2026-11-24）
+
+分支 `pr-50205-dsv41-a3-deepep`，新镜像（`deep_ep 1.0.0+cann.9.2.0.b237`，**不需要装 custom-ops**）。
+配置：`dp=4`（`--attn-dp-size 4`，attn_tp=4）、`chunk 16384`(4096/rank)、`mem 0.88`、decode graph on、
+**不开 EP**、`MAX_PREFILL_TOKENS=8192`、`--swa-prefix-tails 16`、`SGLANG_DSPARK_NVLINK_VOCAB_GATHER=0`。
+
+| 项 | 新树实测 | 旧树对照 | 判定 |
+|---|---|---|---|
+| 实际输入 | 129,093 token | 129,099 | 同口径 |
+| 命中率 | **49.18%**（目标 50%） | 55.03% | 新树这次更接近 50% |
+| **TTFT median** | **73.71 s**（mean 74.43，p90 75.68） | **74.87 s** @55% | 见下 |
+| TPOT | **32.15 ms**（median 32.9） | 32.8 ms | 基本不变 ✅ 达标 |
+| Max ITL | 173 ms | — | 无尖峰 |
+| KV 池 | 978,560 token/rank | 500,608（dp=8 口径） | 宽裕 |
+
+**换算成同口径**：旧树四点模型对 (T=129,093, U=65,605) 的预测是 **79.2 s**，新树实测 **73.71 s**
+⇒ **新树比旧树行为快 7.4%**。但距离 30 s 目标仍需 **2.46×**。
+
+有效 prefill 速率：新树 0.890 K tok/s，旧树 0.776 K tok/s，**同事 80K/0% 达 3.333 K tok/s**。
+
+**结论**：换新代码树只值 7%，不解决问题；参数/配置这条路（chunk、mem、dp、EP、chunk 上限…）到目前为止累计也只值个位数百分比。
+2.46× 必须来自算子级或算法级改动。
+
+### 13.1 反面教材：dp=4 + C=4 不能用作基线
+`NUM_PROMPTS=4 CONCURRENCY=4` 实测 TTFT median **90.0 s**、`TPOT mean 57.6 ms`（超 SLO）、
+**`Max ITL = 92,247 ms`** —— 4 条 130K prefill 在 `MAX_PREFILL_TOKENS=8192` 下互相抢，decode 被饿死。
+另外该轮 median 被一条"几乎 100% 命中"的样本污染（mean 69.3 < median 90.0，反推那条只有 2.4 s）。
+⇒ **基线一律 C=1**；要快可以 `SKIP_FLUSH=1 WARMUP=0 NUM_PROMPTS=3`（约 5 分钟出数）。
+
+---
+
+## 14. 全部尝试与效果汇总（截至 2026-11-24）
+
+**基准口径**：128K/1K、50% 前缀缓存、C=1、TTFT 报 **median**。
+**参照基线**：旧树 dp=4 `74.9 s`（55.03% 命中）/ 旧树 dp=8 `67.9 s`（mean, 54.14%）。
+**目标**：TTFT < 30 s（需 2.46~2.65×），TPOT < 50 ms（已达标，32 ms）。
+
+### 14.1 调度/资源类旋钮 —— 全部在噪声内
+
+| 尝试 | 配置 | 结果 | 效果 | 结论 |
+|---|---|---|---|---|
+| 基线 | dp8, chunk 4096/rank, mem .85 | TTFT mean 67,938 / TPOT 33.05 / HIT 54.14% | — | 参照 |
+| 复现性 | 同上重复 | 67,916 | **−0.03%** | 噪声水平 ≈ 0.03% |
+| chunk 加大 | 6144/rank | 67,494 | −0.7% | 噪声内 |
+| chunk 再加大 | 8192/rank | 70,556 | **+3.9% 更差** | 反向 |
+| chunk 12288/16384 | — | OOM/超时 | — | 不可行 |
+| KV 池 1 | mem 0.87 | 67,979 | +0.06% | 无效 |
+| KV 池 2 | mem 0.90（池 1.52M） | 67,999 | +0.09% | 无效 |
+| 降 dp | dp4（attn_tp 4） | mean 65.8 / median 74.9 | mean −3%、median 更差 | 基本无效 |
+| prefill 图 | `--cuda-graph-backend-prefill=full` | `KeyError: 'block_tables'` | — | **死路** |
+| max-prefill-tokens | 131072 → 8192 | — | 只影响并发下的激活峰值 | 对 C=1 无影响 |
+| 并发 4 | dp4, C=4 | median 90.0 s / TPOT mean 57.6 / Max ITL 92 s | **灾难** | 争抢 + 口径污染，基线只用 C=1 |
+
+### 14.2 标度/建模类 —— 把"时序推断"这条路用到头
+
+| 尝试 | 结果 | 结论 |
+|---|---|---|
+| 四点拟合 | `TTFT = 7.202e-07·T^1.104·U^0.498`，四点残差 ≤0.8% | 可当内插器 |
+| 96K 标度点（模型没见过的点） | 预测 49.6 s / 实测 **49.1 s**（−1.1%） | **平滑，无路径突变** |
+| 固定 U≈27K 的 T 扫描 | T=60/90/120K → 22.2/30.4/36.8 s，T 指数仅 **0.78/0.67** | 前缀扫描比旧拟合**便宜** |
+| `U·T` 加性模型 | 反解出 B 差 2 倍、线性系数为负 | **形式被证伪** |
+| 七点重拟合 | `T^0.818·U^0.664`，RMS 4.5% | 幂律只是局部近似 |
+| ⇒ 方法论结论 | attention 份额只能夹在 **35%~84%**，天花板 1.5~6.1× | **时序法分辨率到头，必须 profiler** |
+
+### 14.3 代码树 / 镜像类
+
+| 尝试 | 结果 | 效果 |
+|---|---|---|
+| 旧镜像补装 post3 custom-ops | `OPS_CUSTOM=13/13` 可跑 | 旧代码必需 |
+| 新镜像（PR head）**不装** custom-ops | 代码已改用 `sgl_kernel_npu.operators.*`，六组全 OK | **不需要装** |
+| 换新代码树 | dp4 C=1：73.71 s（49.18% 命中）；旧树行为同条件预测 79.2 s | **+7.4%** |
+| 新镜像自带 `deep_ep 1.0.0+cann.9.2.0.b237` | 旧镜像没有 → EP 完全不可用 | EP 的前提 |
+
+### 14.4 EP16 + DeepEP 类
+
+| 尝试 | 结果 | 结论 |
+|---|---|---|
+| EP16 + deepep auto（80K/0%）| **68.0 s**；旧栈同口径模型 51.5 s | **EP 更慢 −23%**（虽混了 chunk 减半） |
+| 对照：同事同场景 | **24.0 s**（EP + 私有 `DISPATCH_FFN_W4A8` 算子 + attn-dp 4 + chunk 8192/rank） | 差距不在 EP，在**算子** |
+| 端口冲突 | `EI0019` 60000-2 被占（内核临时端口 32768-60999） | `HCCL_IF_BASE_PORT=61000` |
+| HCCL 窗口 | dispatch 需 544MB / combine 需 1024MB / prefill(cam normal) 需 945MB，`HCCL_BUFFSIZE=128` 装不下 | 需求 ≈ **8MB × maxBs**，且每个通信域各一份 → 给 1024 会 OOM（EL0019） |
+
+### 14.5 Profiling 已获得的信息（小请求，641 token / 9 forward）
+
+| 项 | 数值 |
+|---|---|
+| 时间分布 | Computing **51%** / Communication **11.6%**（Overlapped 仅 0.48 ms ≈ **零重叠**）/ **Free 37.4%** / Preparing 10.4% |
+| 算子分布 | 小算子（ReduceSum 6648 次、RealDiv 6634、Add 7830…）**≈40%**；matmul 家族 ≈26%；通信(AICPU 调度) ≈17%；**attention 仅 ≈5%** |
+| 泳道语义 | 43=主计算流；`N/A`=真 HCCL 传输；96/76/73/92=AICPU 通信调度；36/34=KV 管理 |
+| 最大通信 | `allreduce-total` 6 链路、**4.3 GB**、173 GB/s |
+| 体积 | 16 rank 全采 = 1.2~1.7 GB/rank ≈ **20 GB**；已移植 rank0-only+simplify → **~1 GB** |
+| ⚠ 口径 | 这是 **decode 为主**的样本，占比不能外推到 prefill |
+
+### 14.6 还没做 / 下一步唯一剩的高信息量动作
+
+- **128K prefill 的 profiler** —— 采集前修复与判读表见 **§15**（门控用 `DP_REPLICA`，每 chunk 明细用 `analyze_prefill_steps.py`）；决定 2.46× 押 attention 算法、小算子融合、还是并行度
+- 同事的 `DISPATCH_FFN_W4A8` 私有算子：PR 里没有，需要他给包或移植
+- `--moe-a2a-backend normal` 在新镜像上从未验证过（EP 的退路）
+
+**一句话经验**：所有"调参数"的手段（chunk / mem / dp / 图 / EP / chunk 上限 / 并发）累计只有个位数百分比；
+换代码树 +7.4%；剩下 2.46× 必然在**算子实现或算法结构**上，而定位它只能靠 profiler。
+
+### 14.7 EPLB 在 NPU 上的两个硬前置（2026-11-24 实测，**结论：本栈不可用**）
+
+同事配置里的 `--enable-eplb --ep-num-redundant-experts 16 --eplb-algorithm deepseek` 在 PR #50205 head 上试了两轮：
+
+| 轮次 | 现象 | 根因 |
+|---|---|---|
+| 第 1 轮 | server 起来、curl 通过，**128K prefill 时 OOM**（`engram_gate` 差 322MB；61.28GB 里 51.7GB 已分配、仅 272MB 空闲） | `MEM_FRACTION=0.85` 让 KV 池吃到 **978,560 token/rank（≈21GB）**，激活没余量；EPLB 的 16 个冗余专家再 +1.2GB |
+| 第 2 轮 | 加 `--max-total-tokens 260000` 压住池子后正常跑起来（能看到 decode 日志 `accept len 4.25`），但**第 256 步触发 rebalance 时崩** | `ValueError: [NPU EPLB] rank=15 layer=0 weight_index=0: NPU EPLB requires the original NZ expert blocks.` |
+
+EPLB 的权重布局要求（`hardware_backend/npu/eplb.py:315-330` `_validate_nz_expert_blocks`）：
+
+1. 专家权重必须是 **3D 批式 NZ 布局**；
+2. 必须是**一块大 storage 的切片**：`weight.stride(0) == full_storage.stride(0)` 且
+   `full_storage.numel() == shape[0] * weight.stride(0)`。
+
+我们的 W4A8 专家权重不是这种"整块 NZ storage 切片"形态（量化打包 + 融合布局），所以校验直接拒绝。
+这是**加载时的权重布局属性**，不是运行时开关能改的 —— 同事那边大概率是他私有 `DISPATCH_FFN_W4A8`
+算子配套的打包方式，PR 里没有。
+
+**⇒ 结论：EPLB 在本栈不可用，不再尝试。**
+
+### 14.8 内存核算（新树，对以后所有实验都适用）
+
+| 现象 | 数字 |
+|---|---|
+| 每 die 容量 | **61.28 GB** |
+| `MEM_FRACTION=0.88` 时池子 | **978,560 token/rank**（≈21GB） |
+| `MEM_FRACTION=0.85` + 128K prefill | 51.7GB 已分配、272MB 空闲 → `engram_gate` OOM |
+| 修法 | **`--max-total-tokens 260000`**（池子压到 ≈5.6GB，腾出 ~15GB 给激活 + HCCL 窗口） |
+
+`--max-total-tokens` 在 `kv_cache_configurator.py:516` 处是真上限（`min(capacity, max_total_tokens)`），
+比降 `MEM_FRACTION` 更精准：降 mem 是砍总预算，封顶是只砍池子、把余量留给激活。
+
+---
+
+## 15. 128K prefill profiler 的采集前修复（2026-11-24，本轮）
+
+目标不变：用**一次** dp=4/128K/50% 的 trace 把 2.46× 押在哪条路上定死。
+采集前发现三处会让这 20 分钟白跑（其中一处会**静默给出反向结论**）的问题，已修：
+
+### 15.1 三处修复
+
+| # | 问题 | 后果 | 修法 |
+|---|---|---|---|
+| ① | `profile_oneshot.sh` 只把自己的 `PROF_ENV` 传给启动器，**从不读调用方的 `EXTRA_ENV`** | 传 `EXTRA_ENV="… SGLANG_DSPARK_NVLINK_VOCAB_GATHER=0 …"` 会静默失效 → 首次 forward 在 vocab_gather 里 pynvml 崩（§12 坑 #2）。`HCCL_BUFFSIZE` 同样失效 | `FULL_ENV = PROF_ENV + 调用方 EXTRA_ENV` 合并后再传；ready 后**逐项 grep** 启动器打印的 `extra env` 行，缺了就立刻 FAIL（约 5 分钟，不等到 25 分钟后） |
+| ② | `RANK0_ONLY` 门控与 round-robin 放置冲突 | 采集条请求落在 **replica 1**（tp_rank 4-7），tp_rank 0 全程 0 token ⇒ trace 显示 attention≈0、Free 很高 ⇒ 误判成并行度问题。**静默、且方向相反** | 新增 `SGLANG_NPU_PROFILE_DP_REPLICA=1`（`tp_rank % attn_tp == 0`，见 §11.2.1）；`profile_oneshot.sh` 默认改用它 |
+| ③ | `step_trace_time.csv` 实测**只有一行**汇总（`Step` 列为空） | `analyze_profile.py` 把 17 个 chunk 混成一个总量 ⇒ 与 §14.5 那个 decode 样本同粒度，**回答不了「attention 是否随 prefix 增长」** | 新增 `analyze_prefill_steps.py`：从 `kernel_details.csv` 的 Start Time 自己切步（Model ID → 周期检测 → 兜底），出每 chunk 明细 + 斜率 |
+
+顺带：`collect_profile_bundle.py` / `analyze_profile.py` 原来按**目录名排序取第一个**，
+多 replica 时会取到空闲的那个 ⇒ 改成按 `kernel_details.csv` 体积取**最有料**的
+（`analyze_profile.py` 另加 `--all` 才相加）。
+
+另：`profile_oneshot.sh` 的 `NUM_STEPS` 默认 16 → **20**。U=65,605（49.18% 命中）按 4096/rank
+切是 **17 个 chunk**（16×4096+69），16 会截断掉**最贵的尾巴**，而斜率正是靠尾巴定的。
+
+⚠ 更正一条我一开始报错的说法：`EXTRA_ARGS` 在 HEAD 里**本来就是正确传给启动器的**
+（`${EXTRA_ARGS:+EXTRA_ARGS=…}`，由 `run_dsv41_w4a8.sh` 的 `${EXTRA_ARGS}` 消费），
+`--swa-prefix-tails 16` 不会丢；丢的只有 `EXTRA_ENV`。
+
+### 15.2 `analyze_prefill_steps.py`（新增）
+
+```bash
+python3 _tmp_preflight/analyze_prefill_steps.py /tmp/prof_128k \
+  --chunk-tokens 4096 --cached-prefix 63488 --total-tokens 65605 \
+  --ttft-ms 73710 --csv /tmp/steps.csv
+```
+
+切步策略（逐级降级，都不行就明确报 FAIL 而**不瞎猜**）：
+1. `Model ID` 列取值 >1 种 → 直接用；
+2. 否则**周期检测**：主计算流（kernel 数最多的流）的 kernel 名序列做 FFT 自相关找周期 L，
+   再用精确匹配验证（≥0.85），decode 段会破坏周期性 → 顺带定出 prefill 步数；
+3. 都失败 → 只出全 trace 桶分布，并明确说明「无法回答 attention 是否随 prefix 增长」。
+
+输出：每 chunk 一行（wall / attention / matmul / MoE / rope / elementwise / 通信 / aicore%）、
+每桶**斜率（ms/1K token）**与 R²、以及把份额乘到 bench TTFT 上的「砍光某项能省多少秒」。
+
+本地已用合成 trace 验证（17 步 × 120 kernel，attention 植 0.5 us/token 的斜率）：
+切步 17 步、`SLOPE_ATTN=0.500 R2=1.000`、`F_PREFIX=0.845`，与注入值一致；
+非周期 trace 正确走兜底并退出码 2。
+
+### 15.3 采集命令（dp=4，与 §13 基线同口径，只多两个旋钮）
+
+```bash
+cd /home/a00821909/sglang
+git pull origin pr-50205-dsv41-a3-deepep      # 本轮脚本改动必须拉下来
+df -h /tmp                                     # 4 个 rank 目录，预计 1~2 GB
+
+EXTRA_ENV="HCCL_BUFFSIZE=128 SGLANG_DSPARK_NVLINK_VOCAB_GATHER=0" \
+EXTRA_ARGS="--swa-prefix-tails 16" MAX_PREFILL_TOKENS=8192 \
+DP_SIZE=4 CHUNKED_PREFILL=16384 MEM_FRACTION=0.88 DECODE_GRAPH=1 DECODE_BS="1 2 4" \
+NUM_STEPS=20 TAG=prof_128k \
+  nohup bash _tmp_preflight/profile_oneshot.sh > /tmp/prof_run.log 2>&1 &
+tail -f /tmp/prof_run.log
+```
+
+预期读数（出现任一不符合就说明有问题，别急着分析）：
+- `token` 数 / ready 耗时：`max_total_num_tokens≈978560`、ready ~240s；
+- `✓ EXTRA_ENV 全部 … 已落到 server（逐项 grep 命中）` —— 没有这行就是 ① 回归；
+- `日志里 Profiling starts=1，skipped=12`（16-4，DP_REPLICA 门控）；
+- `NPU profiler config: simplify=True level=default(1) aic_pipe_utilization rank0_only=0 dp_replica=1`；
+- `Profiling done` + `rank 目录数 = 4`，其中一个明显大、其余很小；
+- 证据包 < 400KB、`/tmp/prof_128k_insight.tgz` 的大小。
+
+### 15.4 判读（拿到 15.2 的输出后）
+
+| 读数 | 押注 |
+|---|---|
+| `F_PREFIX` 高（≥0.5）且 `SLOPE_ATTN>0`、R² 高 | attention 算法：压缩/稀疏 KV、CP 序列并行 |
+| `SLOPE_ATTN≈0`、`F_ATTN` 低、`F_ELEM` 高（≥0.4） | 小算子融合（同事 `DISPATCH_FFN_W4A8` 那条路） |
+| 每 chunk `aicore%` 低、wall 远大于各桶之和 | 调度/overlap（当前最弱的先验） |
+| 三个都不够砍 43.7s | 必须**组合**两条路；先按「省秒数」排序再开工 |
+
+### 15.5 成本与退路
+
+- 采集 ≈ 25 分钟（起服务 5 + 预热 8 + 采集 1.5 + 导出解析 2~5 + 收包），`KEEP_SERVER=1` 可留 server 补采。
+- 若切步失败（周期检测过不了）：兜底仍能给出**prefill 口径**的桶分布（这本身就是 §14.5 缺的那块），
+  再用两次采集（`CACHE_PCT=50` vs `SKIP_FLUSH=0 CACHE_PCT=0`）对比总量做差分。
+- 内存退路：若 128K prefill OOM，按 §14.8 加 `--max-total-tokens 260000`（封池子，TTFT 不变）。
