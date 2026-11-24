@@ -167,8 +167,11 @@ export SGLANG_DSV4_REASONING_EFFORT=max
 # DeepEP low-latency 算子按 maxBs(=SGLANG_DEEPEP_NUM_MAX_DISPATCH_TOKENS_PER_RANK, 默认 128)
 # 预留 RDMA 窗口：实测 NEEDED=544MB，而 128MB 会在 tiling 阶段报
 #   "[ERROR][MoeLowLatencyDispatchV2] HCCL_BUFFSIZE is too SMALL"
-# 因此默认给 1024；可用外层 HCCL_BUFFSIZE=... 或 EXTRA_ENV 覆盖。
-export HCCL_BUFFSIZE=${HCCL_BUFFSIZE:-1024}
+# 需求与 maxBs 成正比：实测 544MB。但 HCCL 会为**每个通信域**各开一份，
+# 给 1024 会在 decode 图捕获阶段 OOM（EL0019: failed to allocate 1073741856 bytes）。
+# 折中默认 640（>544 留余量，又不至于把 8.7GB 可用显存吃光）。
+# 可用外层 HCCL_BUFFSIZE=... 或 EXTRA_ENV 覆盖；再紧就降到 576。
+export HCCL_BUFFSIZE=${HCCL_BUFFSIZE:-640}
 export HCCL_SOCKET_IFNAME=lo
 export GLOO_SOCKET_IFNAME=lo
 
