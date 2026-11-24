@@ -7,6 +7,7 @@ set -u
 PY=${PYTHON:-python3}
 
 REPO=$(cd "$(dirname "$0")/.." && pwd)
+export REPO          # 下面的 python 探测块要用它判断"仓库代码是否还引用 torch.ops.custom"
 LOG_DIR=${LOG_DIR:-/tmp/dsv41_preflight}
 mkdir -p "$LOG_DIR" 2>/dev/null || LOG_DIR=/tmp
 LOG="$LOG_DIR/check_image.$(date +%Y%m%d-%H%M%S).log"
@@ -141,18 +142,40 @@ for split in ("rope", "attention", "indexer", "mem_cache", "hyper_conn", "moe"):
 custom_ok = res.get("CUSTOM_OPS_IMPORT") == "OK"
 full = res.get("OPS_CUSTOM") == "13/13"
 rope_ok = res.get("OPERATORS_ROPE") == "OK"
-if custom_ok and full:
+
+# ⚠ 新版 sglang（PR #50205 head 及以后）已经**不再使用** torch.ops.custom.*：
+#   全部改从 sgl_kernel_npu.operators.* 导入。这种情况下 OPS_CUSTOM=0/13 是正常的，
+#   装 custom-ops 反而是白装。这里按"仓库代码是否真的引用 torch.ops.custom"来判。
+import subprocess as _sp
+_repo_py = os.path.join(os.environ.get("REPO", "."), "python", "sglang")
+try:
+    _hit = _sp.run(["grep", "-rq", "torch\\.ops\\.custom", _repo_py],
+                   capture_output=True).returncode
+    uses_custom = (_hit == 0)
+except Exception:
+    uses_custom = True   # 判断不了就按老假设走
+res["CODE_USES_CUSTOM_OPS"] = "yes" if uses_custom else "no"
+
+_need = ["OPERATORS_ROPE", "OPERATORS_ATTENTION", "OPERATORS_INDEXER",
+         "OPERATORS_MEM_CACHE", "OPERATORS_HYPER_CONN", "OPERATORS_MOE"]
+new_ok = all(res.get(k) == "OK" for k in _need)
+
+if not uses_custom:
+    # 新代码：只要求 sgl_kernel_npu.operators.* 齐全
+    res["VERDICT"] = "NEW_GEN_OK_FOR_THIS_CODE" if new_ok else "NEW_GEN_MISSING_OPERATORS"
+    res["IDEAL"] = "YES" if new_ok else "NO"
+elif custom_ok and full:
     res["VERDICT"] = "OLD_GEN_MATCH"
+    res["IDEAL"] = "YES" if all(res.get(k) == "OK" for k in _need[:4]) else "NO"
 elif custom_ok:
     res["VERDICT"] = "OLD_GEN_PARTIAL"
+    res["IDEAL"] = "NO"
 elif rope_ok:
     res["VERDICT"] = "NEW_GEN_MISMATCH"
+    res["IDEAL"] = "NO"
 else:
     res["VERDICT"] = "UNKNOWN"
-
-# 理想镜像 = 老代算子齐(13/13) 且 新代 Python API 也在（PR 里 backend 会 import 它）
-_need = ["OPERATORS_ROPE", "OPERATORS_ATTENTION", "OPERATORS_INDEXER", "OPERATORS_MEM_CACHE"]
-res["IDEAL"] = "YES" if (custom_ok and full and all(res.get(k) == "OK" for k in _need)) else "NO"
+    res["IDEAL"] = "NO"
 
 with open(verdict_path, "w") as fh:
     for k, v in res.items():
@@ -162,7 +185,7 @@ PY
 echo
 echo "===== 回传块（复制下面这几行）====="
 if [ -f "$VERDICT" ]; then
-  grep -E '^(CUSTOM_OPS_PKG|CUSTOM_OPS_IMPORT|TORCH|TORCH_NPU|OPS_CUSTOM|OPS_CUSTOM_MISSING|OPS_NPU|OPERATORS_ROPE|OPERATORS_ATTENTION|OPERATORS_INDEXER|OPERATORS_MEM_CACHE|VERDICT|IDEAL)=' "$VERDICT"
+  grep -E '^(CUSTOM_OPS_PKG|CUSTOM_OPS_IMPORT|TORCH|TORCH_NPU|OPS_CUSTOM|OPS_CUSTOM_MISSING|OPS_NPU|OPERATORS_ROPE|OPERATORS_ATTENTION|OPERATORS_INDEXER|OPERATORS_MEM_CACHE|OPERATORS_HYPER_CONN|OPERATORS_MOE|CODE_USES_CUSTOM_OPS|VERDICT|IDEAL)=' "$VERDICT"
   echo "SGL_KERNEL_NPU=$("$PY" -m pip show sgl-kernel-npu 2>/dev/null | awk '/^Version:/ {print $2}')"
   echo "VENDOR_ENV_SOURCED=$VENDOR_SOURCED"
   echo "LOG=$LOG"
