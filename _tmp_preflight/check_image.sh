@@ -149,7 +149,8 @@ rope_ok = res.get("OPERATORS_ROPE") == "OK"
 import subprocess as _sp
 _repo_py = os.path.join(os.environ.get("REPO", "."), "python", "sglang")
 try:
-    _hit = _sp.run(["grep", "-rq", "torch\\.ops\\.custom", _repo_py],
+    # 只扫 .py 源码：__pycache__/*.pyc 里可能残留老代码的字节码，会误判成"仍在用 custom ops"
+    _hit = _sp.run(["grep", "-rq", "--include=*.py", "torch\\.ops\\.custom", _repo_py],
                    capture_output=True).returncode
     uses_custom = (_hit == 0)
 except Exception:

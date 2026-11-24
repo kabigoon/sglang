@@ -5,6 +5,7 @@
 set -u
 
 REPO=$(cd "$(dirname "$0")/.." && pwd)
+export REPO          # 下面的探测要用它判断仓库代码是否仍引用 torch.ops.custom
 LOG_DIR=${LOG_DIR:-/tmp/dsv41_preflight}
 mkdir -p "$LOG_DIR" 2>/dev/null || LOG_DIR=/tmp
 LOG="$LOG_DIR/check_import.$(date +%Y%m%d-%H%M%S).log"
@@ -79,6 +80,15 @@ try:
     except Exception:
         got = []
     print("after init_npu_backend: custom ops %d/%d" % (len(got), len(names)))
+    if not got:
+        # 新版 sglang（PR #50205 head 及以后）已改用 sgl_kernel_npu.operators.*，
+        # 不再注册 torch.ops.custom.*；此时 0/N 是**正常**的，不是故障。
+        import subprocess as _sp
+        _repo = os.path.join(os.environ.get("REPO", "."), "python", "sglang")
+        _uses = _sp.run(["grep", "-rq", "--include=*.py", "torch\.ops\.custom", _repo],
+                        capture_output=True).returncode == 0
+        if not _uses:
+            print("  (期望值：本仓库代码已不使用 torch.ops.custom.*，0/N 属于正常)")
     res["OPS_AFTER_INIT"] = "%d/%d" % (len(got), len(names))
 except Exception as e:
     print("init_npu_backend 检查失败（可能没有可见 NPU 设备）:", type(e).__name__, e)
