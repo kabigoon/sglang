@@ -72,11 +72,19 @@ export MODEL_PATH=${MODEL_PATH:-$DEFAULT_W}
 if [ ! -d "$MODEL_PATH" ]; then
   ALT="/mnt/paas/weights/$(basename "$MODEL_PATH")"
   if [ -d "$ALT" ]; then
-    echo "[info] 权重不在 $MODEL_PATH，自动改用 $ALT"
+    echo "[info] 权重不在 ${MODEL_PATH}，自动改用 ${ALT}"
     MODEL_PATH="$ALT"
   fi
 fi
-[ -d "$MODEL_PATH" ] || { echo "权重目录不存在: $MODEL_PATH（可用 MODEL_PATH=... 指定）"; exit 2; }
+[ -d "$MODEL_PATH" ] || { echo "权重目录不存在: ${MODEL_PATH}（可用 MODEL_PATH=... 指定）"; exit 2; }
+
+# ---- 代码代际探测：新版把 attention 分组改名为 --attn-dp-size，且部分参数变成 no_cli ----
+REPO_DIR=$(cd "$(dirname "$0")/.." && pwd)
+if grep -rqs "^    attn_dp_size:" "$REPO_DIR/python/sglang/srt/arg_groups/fields/parallel.py" 2>/dev/null; then
+  NEW_CLI=1
+else
+  NEW_CLI=0
+fi
 
 echo "==================== 启动配置 ===================="
 echo "  VARIANT        : $VARIANT"
@@ -197,10 +205,28 @@ export SGLANG_RAGGED_VERIFY_MODE=static
 for kv in $EXTRA_ENV; do export "$kv"; done
 
 # 组装可选参数
-if [ "$OVERRIDE_STYLE" = "legacy" ]; then
+if [ "$NEW_CLI" = "1" ]; then
+  # 新代：只抹掉 quantization_config，不覆盖 architectures（让 checkpoint config 自己决定）
+  JSON_OVERRIDE='{"quantization_config": null}'
+elif [ "$OVERRIDE_STYLE" = "legacy" ]; then
   JSON_OVERRIDE="{\"architectures\": [\"$ARCH_OVERRIDE\"], \"quantization_config\": null}"
 else
   JSON_OVERRIDE="{\"architectures\": [\"$ARCH_OVERRIDE\"]}"
+fi
+
+# ---- 并行/CLI 参数按代码代际组装 ----
+PARALLEL_ARGS=()
+EXTRA_OLD_ARGS=()
+if [ "$NEW_CLI" = "1" ]; then
+  # 新版：--attn-dp-size 就是"TP 组内的 attention DP 组数"，FFN 仍是 TP；
+  #       enable_dp_attention 由 attn_dp_size>1 自动推导，不再有该 CLI；
+  #       --max-running-requests / --reasoning-parser 在新版是 no_cli，不能从命令行传
+  PARALLEL_ARGS=(--attn-dp-size "$DP_SIZE")
+  echo "  [info] 新代 CLI：--attn-dp-size ${DP_SIZE}（等价老的 --enable-dp-attention --dp-size）"
+else
+  PARALLEL_ARGS=(--enable-dp-attention --dp-size "$DP_SIZE")
+  EXTRA_OLD_ARGS=(--max-running-requests "$MAX_RUNNING" --reasoning-parser deepseek-v4)
+  echo "  [info] 老代 CLI：--enable-dp-attention --dp-size $DP_SIZE + max-running + reasoning-parser"
 fi
 
 DGRAPH_ARGS=()
@@ -251,15 +277,14 @@ python3 -m sglang.launch_server --model-path ${MODEL_PATH} \
     --watchdog-timeout 9000 \
     --host 0.0.0.0 --port ${PORT} \
     --mem-fraction-static ${MEM_FRACTION} \
-    --max-running-requests ${MAX_RUNNING} \
     --chunked-prefill-size ${CHUNKED_PREFILL} \
     --max-prefill-tokens 131072 \
     --kv-cache-dtype auto \
     --enable-dp-lm-head \
     ${DGRAPH_ARGS[@]+"${DGRAPH_ARGS[@]}"} \
     --cuda-graph-bs-decode ${DECODE_BS} \
-    --enable-dp-attention --dp-size ${DP_SIZE} \
-    --reasoning-parser deepseek-v4 \
+    ${PARALLEL_ARGS[@]+"${PARALLEL_ARGS[@]}"} \
+    ${EXTRA_OLD_ARGS[@]+"${EXTRA_OLD_ARGS[@]}"} \
     --language-model-only \
     --json-model-override-args "${JSON_OVERRIDE}" \
     ${PGRAPH_ARGS[@]+"${PGRAPH_ARGS[@]}"} \
