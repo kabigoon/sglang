@@ -41,6 +41,10 @@ DP_SIZE=${DP_SIZE:-8}
 # 想要每 rank 4096，就要写 32768（DP=8）。
 CHUNKED_PREFILL=${CHUNKED_PREFILL:-4096}
 MAX_RUNNING=${MAX_RUNNING:-16}
+# 单次 prefill 迭代的全局 token 上限。并发高时必须调小，否则调度器会把多条请求的
+# 多个 chunk 拼进一次 prefill，激活显存按倍数涨（实测 C=4 时整机 HBM 打满、server 卡死）。
+# 同事那条 4k/2k 脚本用的是 8192。
+MAX_PREFILL_TOKENS=${MAX_PREFILL_TOKENS:-131072}
 # ⚠ 这个值决定"权重+KV 池"的总预算，剩下的才是 prefill 激活的余量。
 #   池子 4.19M token 对 C≤16 都过剩；prefill 大 chunk 反而需要几 GB 激活内存。
 #   128K + chunk 4096 建议 0.85；仍 OOM 再降到 0.80。
@@ -107,6 +111,7 @@ echo "  prefill graph  : $PREFILL_GRAPH (1=开)"
 echo "  decode graph   : $DECODE_GRAPH (1=保留, 0=关闭)  bs=[$DECODE_BS]"
 [ -n "$EXTRA_ENV" ] && echo "  extra env      : $EXTRA_ENV"
 [ -n "$EXTRA_ARGS" ] && echo "  extra args     : $EXTRA_ARGS"
+echo "  max prefill tok: ${MAX_PREFILL_TOKENS}"
 echo "  chunked prefill: $CHUNKED_PREFILL (全局) -> $((CHUNKED_PREFILL / DP_SIZE)) 每 DP rank"
 echo "  max running    : $MAX_RUNNING (全局) -> $((MAX_RUNNING / DP_SIZE)) 每 DP rank"
 echo "=================================================="
@@ -285,7 +290,7 @@ python3 -m sglang.launch_server --model-path ${MODEL_PATH} \
     --host 0.0.0.0 --port ${PORT} \
     --mem-fraction-static ${MEM_FRACTION} \
     --chunked-prefill-size ${CHUNKED_PREFILL} \
-    --max-prefill-tokens 131072 \
+    --max-prefill-tokens ${MAX_PREFILL_TOKENS} \
     --kv-cache-dtype auto \
     --enable-dp-lm-head \
     ${DGRAPH_ARGS[@]+"${DGRAPH_ARGS[@]}"} \
