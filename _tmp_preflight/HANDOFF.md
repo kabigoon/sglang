@@ -697,3 +697,36 @@ DP_SIZE=8 CHUNKED_PREFILL=32768 MEM_FRACTION=0.85 DECODE_GRAPH=1 \
 
 **一句话经验**：所有"调参数"的手段（chunk / mem / dp / 图 / EP / chunk 上限 / 并发）累计只有个位数百分比；
 换代码树 +7.4%；剩下 2.46× 必然在**算子实现或算法结构**上，而定位它只能靠 profiler。
+
+### 14.7 EPLB 在 NPU 上的两个硬前置（2026-11-24 实测，**结论：本栈不可用**）
+
+同事配置里的 `--enable-eplb --ep-num-redundant-experts 16 --eplb-algorithm deepseek` 在 PR #50205 head 上试了两轮：
+
+| 轮次 | 现象 | 根因 |
+|---|---|---|
+| 第 1 轮 | server 起来、curl 通过，**128K prefill 时 OOM**（`engram_gate` 差 322MB；61.28GB 里 51.7GB 已分配、仅 272MB 空闲） | `MEM_FRACTION=0.85` 让 KV 池吃到 **978,560 token/rank（≈21GB）**，激活没余量；EPLB 的 16 个冗余专家再 +1.2GB |
+| 第 2 轮 | 加 `--max-total-tokens 260000` 压住池子后正常跑起来（能看到 decode 日志 `accept len 4.25`），但**第 256 步触发 rebalance 时崩** | `ValueError: [NPU EPLB] rank=15 layer=0 weight_index=0: NPU EPLB requires the original NZ expert blocks.` |
+
+EPLB 的权重布局要求（`hardware_backend/npu/eplb.py:315-330` `_validate_nz_expert_blocks`）：
+
+1. 专家权重必须是 **3D 批式 NZ 布局**；
+2. 必须是**一块大 storage 的切片**：`weight.stride(0) == full_storage.stride(0)` 且
+   `full_storage.numel() == shape[0] * weight.stride(0)`。
+
+我们的 W4A8 专家权重不是这种"整块 NZ storage 切片"形态（量化打包 + 融合布局），所以校验直接拒绝。
+这是**加载时的权重布局属性**，不是运行时开关能改的 —— 同事那边大概率是他私有 `DISPATCH_FFN_W4A8`
+算子配套的打包方式，PR 里没有。
+
+**⇒ 结论：EPLB 在本栈不可用，不再尝试。**
+
+### 14.8 内存核算（新树，对以后所有实验都适用）
+
+| 现象 | 数字 |
+|---|---|
+| 每 die 容量 | **61.28 GB** |
+| `MEM_FRACTION=0.88` 时池子 | **978,560 token/rank**（≈21GB） |
+| `MEM_FRACTION=0.85` + 128K prefill | 51.7GB 已分配、272MB 空闲 → `engram_gate` OOM |
+| 修法 | **`--max-total-tokens 260000`**（池子压到 ≈5.6GB，腾出 ~15GB 给激活 + HCCL 窗口） |
+
+`--max-total-tokens` 在 `kv_cache_configurator.py:516` 处是真上限（`min(capacity, max_total_tokens)`），
+比降 `MEM_FRACTION` 更精准：降 mem 是砍总预算，封顶是只砍池子、把余量留给激活。
