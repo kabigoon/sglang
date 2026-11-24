@@ -1,0 +1,226 @@
+kernel_details.csv 结构诊断
+============================================================
+行数 = 581230
+列（46）:
+  Device_id, Model ID, Task ID, Stream ID, Name, Type, OP State, Accelerator Core, Start Time(us), Duration(us), Wait Time(us), Block Num, Mix Block Num, HF32 Eligible, Input Shapes, Input Data Types, Input Formats, Output Shapes, Output Data Types, Output Formats, Context ID, aicore_time(us), aic_total_cycles, aic_mac_time(us), aic_mac_ratio, aic_scalar_time(us), aic_scalar_ratio, aic_mte1_time(us), aic_mte1_ratio, aic_mte2_time(us), aic_mte2_ratio, aic_fixpipe_time(us), aic_fixpipe_ratio, aic_icache_miss_rate, aiv_time(us), aiv_total_cycles, aiv_vec_time(us), aiv_vec_ratio, aiv_scalar_time(us), aiv_scalar_ratio, aiv_mte2_time(us), aiv_mte2_ratio, aiv_mte3_time(us), aiv_mte3_ratio, aiv_icache_miss_rate, cube_utilization(%)
+
+Stream ID 分布（前 10）:
+  34           490049
+  54            75880
+  175            5335
+  N/A            5004
+  38             4800
+  174             150
+  32               12
+
+Model ID 取值种类 = 3  → {'4294967295': 499740, '47': 5435, '48': 76055}
+
+kernel 名 top 20（次数, 总耗时ms）:
+  120555          390.6  aclnnAdds_AddAiCore_Add
+  115870         2611.4  aclnnReduceSum_ReduceSumOpAiCore_ReduceSum
+  111770         1309.3  aclnnDiv_RealDivAiCore_RealDiv
+  30575          4457.3  aclnnInplaceCopy_CastAiCore_Cast
+  19150          2292.1  aclnnMul_MulAiCore_Mul
+  12933          2346.6  aclnnAdd_AddAiCore_Add
+  8490             49.9  aclnnMul_SliceAiCore_Slice
+  7681            244.7  aclnnInplaceCopy_TensorMoveAiCore_TensorMove
+  6355           1146.2  aclnnMatmul_MatMulCommon_MatMulV2
+  6273             21.3  aclnnInplaceZero_ZerosLikeAiCore_ZerosLike
+  5980            300.8  RmsNorm
+  5730             19.8  aclnnSigmoid_SigmoidAiCore_Sigmoid
+  4910            156.2  InplacePartialRotaryMul
+  4480             94.9  aclnnDynamicQuantV2_DynamicQuant_DynamicQuant
+  4480            686.5  aclnnQuantMatmulWeightNz_QuantBatchMatmulV3_QuantBatchMatmulV3
+  4420            546.9  aclnnInplaceMaskedFillScalar_MaskedFillAiCore_MaskedFill
+  4391            316.9  aclnnClamp_ClipByValueV2AiCore_ClipByValueV2
+  4245           5632.3  aclnnBatchMatMul_BatchMatMulNd_BatchMatMulV2
+  3510              4.9  aclnnFloorDivides_CastAiCore_Cast
+  3305             17.0  aclnnClampMin_ClipByValueV2AiCore_ClipByValueV2
+
+主计算流 = 34（490049 个 kernel）
+该流前 60 个 kernel（Start Time(us), Duration(us), Name）:
+    0  1795526994764336.156	      5.680  aclnnIndex_SliceAiCore_Slice
+    1  1795526994764380.935	      9.420  aclnnIndex_IndexCheck_IndexCheck
+    2  1795526994764424.594	      4.200  aclnnIndex_SliceAiCore_Slice
+    3  1795526994764428.834	     14.580  aclnnIndex_IndexAiCore_Index
+    4  1795526994764471.133	      3.060  aclnnGtScalar_GreaterAiCore_Greater
+    5  1795526994764499.053	      3.040  aclnnFloorDivides_FloorDivAiCore_FloorDiv
+    6  1795526994764544.552	      4.060  aclnnFloorDivides_SliceAiCore_Slice
+    7  1795526994764589.731	      1.240  aclnnFloorDivides_CastAiCore_Cast
+    8  1795526994764632.950	      2.360  aclnnFloorDivides_FloorDivAiCore_FloorDiv
+    9  1795526994764675.709	      1.860  aclnnFloorDivides_CastAiCore_Cast
+   10  1795526994764685.549	      2.180  aclnnMuls_MulAiCore_Mul
+   11  1795526994764718.828	      7.820  aclnnArange_ArangeAiCore_Range
+   12  1795526994764762.148	      9.879  aclnnAdd_AddAiCore_Add
+   13  1795526994764772.047	      2.260  aclnnInplaceCopy_CastAiCore_Cast
+   14  1795526994764806.067	      1.660  aclnnInplaceFillScalar_FillAiCore_Fill
+   15  1795526994764808.207	     10.719  aclnnIndexPutImpl_IndexCheck_IndexCheck
+   16  1795526994764842.406	    387.472  aclnnIndexPutImpl_IndexPut_IndexPut
+   17  1795526994765229.898	      2.680  aclnnCat_ConcatD_ConcatD
+   18  1795526994765232.598	      3.780  aclnnInplaceCopy_CastAiCore_Cast
+   19  1795526994766078.381	      8.520  aclnnIndex_IndexCheck_IndexCheck
+   20  1795526994766086.921	     29.800  aclnnIndex_IndexAiCore_Index
+   21  1795526994766154.560	      7.640  aclnnIndex_IndexCheck_IndexCheck
+   22  1795526994766162.220	     23.879  aclnnIndex_IndexAiCore_Index
+   23  1795526994768022.322	     19.500  aclnnCat_ConcatD_ConcatD
+   24  1795526994768066.022	      3.100  aclnnInplaceCopy_CastAiCore_Cast
+   25  1795526994768342.076	      3.580  aclnnInplaceCopy_CastAiCore_Cast
+   26  1795526994768916.665	      2.100  aclnnIndex_IndexCheck_IndexCheck
+   27  1795526994768918.805	      8.839  aclnnIndex_IndexAiCore_Index
+   28  1795526994769162.540	    335.693  alloc_extend_kernel
+   29  1795526994769498.253	      2.400  aclnnInplaceCopy_CastAiCore_Cast
+   30  1795526994769500.673	    334.993  alloc_extend_kernel
+   31  1795526994769835.686	      2.000  aclnnInplaceCopy_CastAiCore_Cast
+   32  1795526994769837.726	      1.860  aclnnInplaceCopy_CastAiCore_Cast
+   33  1795526994769839.606	      1.580  aclnnInplaceCopy_CastAiCore_Cast
+   34  1795526994769841.206	     11.600  aclnnIndexPutImpl_IndexCheck_IndexCheck
+   35  1795526994769852.826	    354.353  aclnnIndexPutImpl_IndexPut_IndexPut
+   36  1795526994770210.919	      5.740  write_req_to_token_pool_triton
+   37  1795526994770816.547	      2.400  aclnnRepeat_TileAiCore_Tile
+   38  1795526994772025.702	      2.220  aclnnEqScalar_EqualAiCore_Equal
+   39  1795526994772070.362	      9.299  aclnnNonzeroV2_NonzeroAiCore_MemSet
+   40  1795526994772111.681	      7.820  aclnnNonzeroV2_NonzeroAiCore_NonZero
+   41  1795526994773667.930	      2.820  compute_position_kernel
+   42  1795526994773726.728	      1.980  aclnnInplaceCopy_CastAiCore_Cast
+   43  1795526994773800.207	      9.460  aclnnIndex_IndexCheck_IndexCheck
+   44  1795526994773809.687	     31.299  aclnnIndex_IndexAiCore_Index
+   45  1795526994773841.006	      2.600  aclnnInplaceCopy_CastAiCore_Cast
+   46  1795526994774509.613	      2.640  compute_position_kernel
+   47  1795526994775659.910	      1.840  aclnnSubs_SubAiCore_Sub
+   48  1795526994775686.909	      1.780  aclnnClamp_ClipByValueV2AiCore_ClipByValueV2
+   49  1795526994776016.083	     16.039  aclnnForeachCopy_ForeachCopy_ForeachCopy
+   50  1795526994776056.582	      2.440  aclnnInplaceCopy_CastAiCore_Cast
+   51  1795526994776386.275	      2.280  aclnnMax_ReduceMaxAiCore_ReduceMax
+   52  1795526994776394.075	      1.800  aclnnMax_ReduceMaxAiCore_ReduceMax
+   53  1795526994776624.031	      2.080  aclnnIndex_IndexCheck_IndexCheck
+   54  1795526994776689.189	     11.020  aclnnIndex_SliceAiCore_Slice
+   55  1795526994776729.388	      7.620  aclnnIndex_IndexAiCore_Index
+   56  1795526994776771.788	      3.760  aclnnFloorDivides_SliceAiCore_Slice
+   57  1795526994776815.367	      1.120  aclnnFloorDivides_CastAiCore_Cast
+   58  1795526994776855.306	      3.320  aclnnFloorDivides_FloorDivAiCore_FloorDiv
+   59  1795526994776858.646	      1.540  aclnnFloorDivides_CastAiCore_Cast
+
+attention 类 kernel 共 1805 个（前 120 个的 Start/Duration）:
+  1795526994778212.119	    201.816  aclnnSparseFlashMlaMetadata_SparseFlashMlaMetadata_SparseFla
+  1795526994778425.275	   1108.337  aclnnSparseFlashMlaMetadata_SparseFlashMlaMetadata_SparseFla
+  1795526994779539.812	   1060.039  aclnnSparseFlashMlaMetadata_SparseFlashMlaMetadata_SparseFla
+  1795526994790627.011	    216.055  SparseFlashMla
+  1795526994885115.663	    215.956  SparseFlashMla
+  1795526994918394.858	   2638.867  LightningIndexerV2
+  1795526994921046.145	   3841.583  SparseFlashMla
+  1795526994956933.928	   3872.583  SparseFlashMla
+  1795526994991764.372	   3865.303  SparseFlashMla
+  1795526995027052.627	   3883.002  SparseFlashMla
+  1795526995063050.508	   3876.422  SparseFlashMla
+  1795526995097350.182	   3886.403  SparseFlashMla
+  1795526995132176.267	   2640.947  LightningIndexerV2
+  1795526995134829.314	   3842.963  SparseFlashMla
+  1795526995172057.150	   3863.543  SparseFlashMla
+  1795526995209896.674	   3861.683  SparseFlashMla
+  1795526995247854.095	   3869.783  SparseFlashMla
+  1795526995281393.765	   3871.923  SparseFlashMla
+  1795526995318177.410	   3864.383  SparseFlashMla
+  1795526995415809.740	   2636.187  LightningIndexerV2
+  1795526995418458.067	   3818.823  SparseFlashMla
+  1795526995456157.394	   3876.222  SparseFlashMla
+  1795526995488999.837	   3871.323  SparseFlashMla
+  1795526995527014.738	   3863.263  SparseFlashMla
+  1795526995563880.781	   3866.903  SparseFlashMla
+  1795526995600911.561	   3869.303  SparseFlashMla
+  1795526995633575.889	   5841.223  LightningIndexerV2
+  1795526995639425.072	   3850.803  SparseFlashMla
+  1795526995674060.220	   3877.822  SparseFlashMla
+  1795526995709935.623	   3867.863  SparseFlashMla
+  1795526995743680.729	   3882.242  SparseFlashMla
+  1795526995779552.792	   7803.884  SparseLightningIndexer
+  1795526995787364.756	   3843.863  SparseFlashMla
+  1795526995824369.257	   3865.682  SparseFlashMla
+  1795526995856414.136	   3872.483  SparseFlashMla
+  1795526995892009.905	   3870.443  SparseFlashMla
+  1795526995923495.656	   7803.004  SparseLightningIndexer
+  1795526995931306.920	   3832.943  SparseFlashMla
+  1795526995964874.069	   3864.263  SparseFlashMla
+  1795526995997690.914	   3875.842  SparseFlashMla
+  1795526996035335.262	   3882.562  SparseFlashMla
+  1795526996067031.468	   7800.724  SparseLightningIndexer
+  1795526996074840.732	   3837.944  SparseFlashMla
+  1795526996110051.509	   3875.002  SparseFlashMla
+  1795526996141942.872	   3883.782  SparseFlashMla
+  1795526996173387.223	   3862.423  SparseFlashMla
+  1795526996208849.275	   7800.704  SparseLightningIndexer
+  1795526996216657.979	   3827.343  SparseFlashMla
+  1795526996251141.710	   3873.182  SparseFlashMla
+  1795526996288663.440	   3858.223  SparseFlashMla
+  1795526996324667.121	   3858.343  SparseFlashMla
+  1795526996374057.894	    202.116  aclnnSparseFlashMlaMetadata_SparseFlashMlaMetadata_SparseFla
+  1795526996374298.329	   1073.359  aclnnSparseFlashMlaMetadata_SparseFlashMlaMetadata_SparseFla
+  1795526996375377.727	   1134.698  aclnnSparseFlashMlaMetadata_SparseFlashMlaMetadata_SparseFla
+  1795526996386268.190	    214.216  SparseFlashMla
+  1795526996479998.357	    220.536  SparseFlashMla
+  1795526996513445.849	   3580.548  LightningIndexerV2
+  1795526996517038.457	   3844.823  SparseFlashMla
+  1795526996552726.604	   3876.903  SparseFlashMla
+  1795526996587956.640	   3867.503  SparseFlashMla
+  1795526996622503.830	   3858.323  SparseFlashMla
+  1795526996658650.948	   3878.722  SparseFlashMla
+  1795526996693314.035	   3866.023  SparseFlashMla
+  1795526996728187.298	   3581.729  LightningIndexerV2
+  1795526996731780.807	   3835.523  SparseFlashMla
+  1795526996768934.024	   3873.783  SparseFlashMla
+  1795526996806632.571	   3882.482  SparseFlashMla
+  1795526996844715.130	   3871.683  SparseFlashMla
+  1795526996878101.363	   3872.623  SparseFlashMla
+  1795526996914950.147	   3859.463  SparseFlashMla
+  1795526997012503.138	   3580.128  LightningIndexerV2
+  1795526997016097.286	   3841.503  SparseFlashMla
+  1795526997053817.132	   3873.143  SparseFlashMla
+  1795526997086508.259	   3873.443  SparseFlashMla
+  1795526997124456.961	   3886.902  SparseFlashMla
+  1795526997161255.726	   3877.842  SparseFlashMla
+  1795526997198281.426	   3865.583  SparseFlashMla
+  1795526997230910.574	   7712.786  LightningIndexerV2
+  1795526997238632.000	   3824.503  SparseFlashMla
+  1795526997273373.426	   3874.982  SparseFlashMla
+  1795526997309471.164	   3870.383  SparseFlashMla
+  1795526997343304.868	   3890.263  SparseFlashMla
+  1795526997379153.632	  10072.759  SparseLightningIndexer
+  1795526997389234.611	   3836.943  SparseFlashMla
+  1795526997426409.908	   3864.223  SparseFlashMla
+  1795526997458507.167	   3872.262  SparseFlashMla
+  1795526997493952.858	   3881.083  SparseFlashMla
+  1795526997525397.610	  10070.819  SparseLightningIndexer
+  1795526997535476.509	   3845.543  SparseFlashMla
+  1795526997569187.475	   3873.863  SparseFlashMla
+  1795526997601822.903	   3873.983  SparseFlashMla
+  1795526997639302.494	   3872.303  SparseFlashMla
+  1795526997670807.805	  10072.239  SparseLightningIndexer
+  1795526997680888.963	   3848.023  SparseFlashMla
+  1795526997716190.198	   3864.643  SparseFlashMla
+  1795526997748016.362	   3882.383  SparseFlashMla
+  1795526997779324.857	   3885.322  SparseFlashMla
+  1795526997814555.433	  10076.298  SparseLightningIndexer
+  1795526997824639.971	   3842.783  SparseFlashMla
+  1795526997859032.104	   3877.563  SparseFlashMla
+  1795526997896591.314	   3867.342  SparseFlashMla
+  1795526997932675.253	   3875.382  SparseFlashMla
+  1795526997983783.972	    211.095  aclnnSparseFlashMlaMetadata_SparseFlashMlaMetadata_SparseFla
+  1795526997984026.047	   1061.778  aclnnSparseFlashMlaMetadata_SparseFlashMlaMetadata_SparseFla
+  1795526997985094.285	   1063.639  aclnnSparseFlashMlaMetadata_SparseFlashMlaMetadata_SparseFla
+  1795526997997238.563	    222.515  SparseFlashMla
+  1795526998090805.493	    212.996  SparseFlashMla
+  1795526998124327.123	   4512.510  LightningIndexerV2
+  1795526998128851.693	   3853.923  SparseFlashMla
+  1795526998164524.020	   3880.003  SparseFlashMla
+  1795526998199567.820	   3888.402  SparseFlashMla
+  1795526998234068.691	   3877.142  SparseFlashMla
+  1795526998269954.094	   3869.263  SparseFlashMla
+  1795526998304839.577	   3873.522  SparseFlashMla
+  1795526998339688.301	   4515.169  LightningIndexerV2
+  1795526998344215.930	   3836.763  SparseFlashMla
+  1795526998381371.408	   3864.963  SparseFlashMla
+  1795526998418981.396	   3870.283  SparseFlashMla
+  1795526998456641.024	   3876.702  SparseFlashMla
+  1795526998489868.300	   3862.843  SparseFlashMla
+
+注意：若上面 duration 呈「若干连续相等值 + 阶跃」= 周期性(chunk)结构；
+      若 layer 间 duration 交替变化 = 一层内就有不同窗口长度的层，需要按名字分组。

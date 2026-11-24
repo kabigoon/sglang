@@ -1,0 +1,6 @@
+generated_at = 2026-11-24T13:51:25+00:00
+host = node-61-47-19-68
+git_head = f49fea8149
+source_rank_dir = /tmp/prof_128k_deepep_1124_132655/node-61-47-19-68_435358_20261124132954666_ascend_pt
+command = _tmp_preflight/collect_profile_bundle.py /tmp/prof_128k_deepep_1124_132655 --tag prof_128k_deepep
+bundle_bytes = 78561
