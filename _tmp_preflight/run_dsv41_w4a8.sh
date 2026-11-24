@@ -41,9 +41,11 @@ DP_SIZE=${DP_SIZE:-8}
 # 想要每 rank 4096，就要写 32768（DP=8）。
 CHUNKED_PREFILL=${CHUNKED_PREFILL:-4096}
 MAX_RUNNING=${MAX_RUNNING:-16}
-# 单次 prefill 迭代的全局 token 上限。并发高时必须调小，否则调度器会把多条请求的
-# 多个 chunk 拼进一次 prefill，激活显存按倍数涨（实测 C=4 时整机 HBM 打满、server 卡死）。
-# 同事那条 4k/2k 脚本用的是 8192。
+# 每个 DP rank **各自**一次 forward 的新 token 预算（⚠ 不按 attn_dp 除，也没有"全局共享"这回事：
+# 每个 scheduler 进程各拿一份，见 tp_worker.py get_worker_info 原样传 get_schedule().max_prefill_tokens）。
+# 它限制的是"这一轮 forward 能拼进几条请求的 chunk"：chunk=4096/rank 时 8192 ⇒ 每 rank 每轮最多 2 条。
+# 并发高时必须调小，否则调度器会把多条请求的多个 chunk 拼进一次 prefill，激活显存按倍数涨
+# （实测 C=4 时整机 HBM 打满、server 卡死）。同事那条 4k/2k 脚本用的是 8192。
 MAX_PREFILL_TOKENS=${MAX_PREFILL_TOKENS:-131072}
 # ⚠ 这个值决定"权重+KV 池"的总预算，剩下的才是 prefill 激活的余量。
 #   池子 4.19M token 对 C≤16 都过剩；prefill 大 chunk 反而需要几 GB 激活内存。
