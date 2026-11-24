@@ -1,0 +1,481 @@
+#!/usr/bin/env python3
+"""analyze_prefill_steps.py —— 把 128K prefill 的 trace 拆成「每 chunk 一行」，回答两件事：
+
+  1. 一次 128K/50% prefill 里，时间花在**扫 prefix 的 attention**、**新 token 的 FFN/MoE**、
+     还是**海量小算子/通信**上？（三选一决定 2.46× 押哪条路）
+  2. attention 的每 chunk 耗时**是否随已扫 prefix 长度增长**？（§5.5 只能把份额夹在 35%~84%，
+     这条斜率就是把它定死的那把尺子）
+
+为什么不用 step_trace_time.csv：实测它只有**一行**汇总（Step 列为空），没有每步数据；
+所以这里从 kernel_details.csv 的 Start Time 自己切步。
+
+切步策略（逐级降级，全部失败就老实报错，不会瞎猜）：
+  A. 有 Model ID 且取值 >1 种 → 直接用它；
+  B. 否则用主计算流 kernel 名序列的**周期性**：FFT 自相关找周期 L，再用精确匹配验证
+     （同一 chunk 内 kernel 序列完全重复，decode 段会破坏周期性 → 顺带定出 prefill 步数）；
+  C. 都不行 → 打印诊断，只出总量表。
+
+用法：
+  python3 _tmp_preflight/analyze_prefill_steps.py /tmp/prof_128k
+  python3 _tmp_preflight/analyze_prefill_steps.py /tmp/prof_128k --chunk-tokens 4096 \\
+      --cached-prefix 63488 --total-tokens 65605 --csv steps.csv
+
+`--cached-prefix`（本次命中进 cache 的前缀）与 `--total-tokens`（未命中的 token 数）
+只影响 x 轴的绝对位置和「prefix 部分」的归因；斜率（ms/1K token）与两者无关。
+"""
+from __future__ import annotations
+
+import argparse
+import csv
+import glob
+import os
+import sys
+from collections import defaultdict
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from analyze_profile import bucket_of  # noqa: E402  复用同一套分桶规则
+
+BUCKET_ORDER = ["attention", "matmul/linear", "MoE/gating", "rope/norm", "elementwise",
+                "HCCL/通信", "其它"]
+
+# 回传块里的 key 只用 ASCII，别让中文进 git/表格
+LABEL = {"attention": "ATTN", "matmul/linear": "MM", "MoE/gating": "MOE", "rope/norm": "ROPE",
+         "elementwise": "ELEM", "HCCL/通信": "COMM", "其它": "OTHER"}
+
+CMAP = {
+    "name": ("Name",),
+    "stream": ("Stream ID",),
+    "start": ("Start Time(us)", "Start Time(us)"),
+    "dur": ("Duration(us)",),
+    "core": ("Accelerator Core",),
+    "model": ("Model ID",),
+    "aicore": ("aicore_time(us)",),
+}
+
+
+# ---------------------------------------------------------------- 读 trace
+def _dir_weight(d: str) -> int:
+    kd = os.path.join(d, "ASCEND_PROFILER_OUTPUT", "kernel_details.csv")
+    try:
+        return os.path.getsize(kd)
+    except OSError:
+        return 0
+
+
+def find_rank_dir(root: str, want: str | None) -> str:
+    cands = sorted(glob.glob(os.path.join(root, "*_ascend_pt")))
+    if not cands:
+        if os.path.isdir(os.path.join(root, "ASCEND_PROFILER_OUTPUT")):
+            return root
+        sys.exit("没找到 *_ascend_pt 目录：%s" % root)
+    if want:
+        hit = [d for d in cands if want in os.path.basename(d)]
+        if not hit:
+            sys.exit("--rank %r 没匹配到任何目录；候选：%s" % (want, [os.path.basename(d) for d in cands]))
+        return hit[0]
+    ranked = sorted(cands, key=_dir_weight, reverse=True)
+    if len(ranked) > 1:
+        print("发现 %d 个 rank 目录，取最有料的一个（其余是空闲 replica）：" % len(ranked))
+        for d in ranked:
+            print("    %9.1f MB  %s" % (_dir_weight(d) / 1e6, os.path.basename(d)))
+    return ranked[0]
+
+
+def _col_index(header: list[str]) -> dict:
+    """按需找列，容忍前后空格/大小写。"""
+    norm = {(h or "").strip(): i for i, h in enumerate(header)}
+    out = {}
+    for key, names in CMAP.items():
+        for n in names:
+            if n in norm:
+                out[key] = norm[n]
+                break
+    return out
+
+
+def read_kernels(path: str) -> tuple[list[dict], dict]:
+    """只读需要的列，避免几百 MB 的 DictReader 开销。"""
+    if not os.path.isfile(path):
+        sys.exit("没有 kernel_details.csv：%s" % path)
+    rows = []
+    with open(path, newline="", errors="replace") as f:
+        rd = csv.reader(f)
+        try:
+            header = next(rd)
+        except StopIteration:
+            sys.exit("kernel_details.csv 是空的：%s" % path)
+        idx = _col_index(header)
+        missing = [k for k in ("name", "stream", "start", "dur") if k not in idx]
+        if missing:
+            sys.exit("kernel_details.csv 缺列 %s；实际表头：%s" % (missing, header[:20]))
+        skip_nodur = 0
+        for r in rd:
+            try:
+                dur = float(r[idx["dur"]])
+            except (ValueError, IndexError):
+                skip_nodur += 1
+                continue
+            if dur <= 0:
+                skip_nodur += 1
+                continue
+            try:
+                start = float(r[idx["start"]])
+            except (ValueError, IndexError):
+                skip_nodur += 1
+                continue
+            rows.append({
+                "name": (r[idx["name"]] or "").strip(),
+                "stream": (r[idx["stream"]] or "?").strip(),
+                "start": start,
+                "dur": dur,
+                "core": (r[idx["core"]] or "?").strip() if "core" in idx else "?",
+                "model": (r[idx["model"]] or "").strip() if "model" in idx else "",
+                "aicore": None,
+            })
+            if "aicore" in idx:
+                try:
+                    rows[-1]["aicore"] = float(r[idx["aicore"]])
+                except (ValueError, IndexError):
+                    pass
+    return rows, {"header": header, "skipped": skip_nodur, "cols": idx}
+
+
+# ---------------------------------------------------------------- 找主计算流
+def pick_main_stream(rows: list[dict]) -> tuple[str, list[dict]]:
+    per = defaultdict(lambda: [0, 0.0])
+    for r in rows:
+        d = per[r["stream"]]
+        d[0] += 1
+        d[1] += r["dur"]
+    # 主计算流 = kernel 数最多（不是耗时最多）：HCCL 的 N/A 流常常耗时也很高，
+    # 但它是通信流，用它切步会把并行流的时间算进步长。
+    cands = [(sid, n, us) for sid, (n, us) in per.items() if sid != "N/A"]
+    if not cands:
+        cands = [(sid, n, us) for sid, (n, us) in per.items()]
+    cands.sort(key=lambda kv: -kv[1])
+    print("按 kernel 数排前 5 的流：")
+    for sid, n, us in cands[:5]:
+        print("    stream %-6s kernels=%-8d total=%.1f ms" % (sid, n, us / 1000.0))
+    sid = cands[0][0]
+    return sid, sorted([r for r in rows if r["stream"] == sid], key=lambda r: r["start"])
+
+
+# ---------------------------------------------------------------- 切步
+def _encode(names: list[str]) -> list[int]:
+    vocab, ids = {}, []
+    for n in names:
+        v = vocab.get(n)
+        if v is None:
+            v = len(vocab)
+            vocab[n] = v
+        ids.append(v)
+    return ids
+
+
+def detect_period(ids: list[int]) -> tuple[int | None, int, str]:
+    """FFT 自相关找周期 L；返回 (L, 有效周期前缀长度, 诊断)。"""
+    try:
+        import numpy as np
+    except ImportError:
+        return None, 0, "没有 numpy，无法做周期检测"
+    N = len(ids)
+    if N < 8:
+        return None, 0, "kernel 数太少（%d）" % N
+    x = np.asarray(ids, dtype=np.float64)
+    x -= x.mean()
+    n = 1 << int(np.ceil(np.log2(2 * N)))
+    f = np.fft.rfft(x, n)
+    ac = np.fft.irfft(f * np.conj(f), n)[:N]
+    if ac[0] <= 0:
+        return None, 0, "自相关退化（全同 kernel？）"
+    ac = ac / ac[0]
+
+    lo, hi = max(8, N // 64), min(N - 1, max(16, N // 3))
+    if hi <= lo:
+        return None, 0, "可搜索的周期范围为空（N=%d）" % N
+    cand = sorted(range(lo, hi), key=lambda L: -ac[L])[:24]
+
+    ids_arr = np.asarray(ids)
+    for L in sorted(cand):
+        m = ids_arr[L:] == ids_arr[:-L]
+        score = float(m.mean())
+        if score < 0.85:
+            continue
+        # 周期性在哪结束？用 32 窗的匹配率<90% 定位（decode 段会破坏周期）
+        w = min(32, max(1, len(m) // 4))
+        cum = np.concatenate([[0], np.cumsum(m.astype(np.int64))])
+        if len(m) >= w:
+            means = (cum[w:] - cum[:-w]) / float(w)
+            bad = np.flatnonzero(means < 0.9)
+            end = int(bad[0] + w) if len(bad) else len(m)
+        else:
+            end = len(m)
+        Lgood = end + L
+        n_steps = int(round(Lgood / L))
+        if n_steps < 2:
+            continue
+        return L, Lgood, "周期=%d，整体匹配=%.3f，周期区=%d，推得步数=%d" % (
+            L, score, Lgood, n_steps)
+    return None, 0, "24 个候选周期都没有通过精确匹配（匹配率<0.85），可能 kernel 序列不严格周期"
+
+
+def segment_by_model(main: list[dict]) -> int:
+    """用 Model ID 直接当步号；返回步数（0=不可用）。"""
+    ids = [r["model"] for r in main if r["model"] not in ("", "N/A")]
+    if len(ids) < len(main) * 0.8:
+        return 0
+    uniq = sorted(set(ids))
+    if len(uniq) < 2:
+        return 0
+    return len(uniq)
+
+
+def build_steps(main: list[dict], L: int, Lgood: int) -> tuple[list[int], int]:
+    """返回 (每步在主计算流里的起始下标列表, 步数)。"""
+    n_steps = max(1, int(round(Lgood / L)))
+    bounds = [k * L for k in range(n_steps)]
+    return bounds, n_steps
+
+
+# ---------------------------------------------------------------- 统计
+def summarise(rows, main, bounds, n_steps, L):
+    """每步：wall + 各桶耗时。主计算流按下标切，其它流按时间窗切。"""
+    t = [main[i]["start"] for i in bounds]
+    tail_start = main[n_steps * L]["start"] if n_steps * L < len(main) else None
+    t_end = tail_start if tail_start is not None else max(r["start"] + r["dur"] for r in main)
+    edges = t + [t_end]
+
+    steps = [{
+        "wall": 0.0, "n": 0, "pk": defaultdict(float), "aicore": 0.0, "model": "",
+    } for _ in range(n_steps)]
+    for k in range(n_steps):
+        steps[k]["wall"] = edges[k + 1] - edges[k]
+
+    import bisect
+    for r in rows:
+        k = bisect.bisect_right(edges, r["start"]) - 1
+        if k < 0:
+            k = 0
+        if k >= n_steps:
+            continue  # decode/尾部
+        s = steps[k]
+        s["n"] += 1
+        s["pk"][bucket_of(r["name"])] += r["dur"]
+        if r["aicore"]:
+            s["aicore"] += r["aicore"]
+    return steps, edges
+
+
+def fit_slope(xs, ys):
+    """一次线性回归，返回 (slope_us_per_token, intercept_us, r2)。"""
+    try:
+        import numpy as np
+    except ImportError:
+        return None, None, None
+    n = len(xs)
+    if n < 3:
+        return None, None, None
+    X = np.asarray(xs, dtype=np.float64)
+    Y = np.asarray(ys, dtype=np.float64)
+    A = np.vstack([X, np.ones(n)]).T
+    coef, *_ = np.linalg.lstsq(A, Y, rcond=None)
+    pred = A @ coef
+    ss_res = float(((Y - pred) ** 2).sum())
+    ss_tot = float(((Y - Y.mean()) ** 2).sum())
+    r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else float("nan")
+    return float(coef[0]), float(coef[1]), r2
+
+
+def fmt_ms(us: float) -> str:
+    return "%.1f" % (us / 1000.0)
+
+
+# ---------------------------------------------------------------- main
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("root")
+    ap.add_argument("--rank", default=None, help="只分析目录名含该子串的 rank")
+    ap.add_argument("--chunk-tokens", type=int, default=4096, help="每个 prefill chunk 的 token 数")
+    ap.add_argument("--cached-prefix", type=int, default=0, help="第 0 个 chunk 之前已命中缓存的前缀长度")
+    ap.add_argument("--total-tokens", type=int, default=0, help="未命中的总 token 数（0=按步数×chunk 估）")
+    ap.add_argument("--csv", default=None, help="把每步明细写成 CSV（体积很小，可进证据包）")
+    ap.add_argument("--ttft-ms", type=float, default=73710.0,
+                    help="bench 实测的 TTFT（用来把份额换算成秒；默认 73.71s = 新树基线）")
+    ap.add_argument("--target-ms", type=float, default=30000.0, help="TTFT 目标（默认 30s）")
+    args = ap.parse_args()
+
+    rd = find_rank_dir(args.root, args.rank)
+    ap_dir = os.path.join(rd, "ASCEND_PROFILER_OUTPUT")
+    print("分析：%s" % ap_dir)
+    rows, meta = read_kernels(os.path.join(ap_dir, "kernel_details.csv"))
+    if not rows:
+        sys.exit("kernel_details.csv 里没有可用行")
+    print("kernel 行数=%d（跳过 dur<=0 的 %d 行）" % (len(rows), meta["skipped"]))
+
+    main_sid, main_rows = pick_main_stream(rows)
+    print("主计算流 = %s（%d 个 kernel）" % (main_sid, len(main_rows)))
+
+    # ---- 切步 ----
+    n_model = segment_by_model(main_rows)
+    if n_model >= 2:
+        # Model ID 可用：直接按 model id 分组
+        groups = defaultdict(list)
+        for i, r in enumerate(main_rows):
+            groups[r["model"]].append(i)
+        bounds = [min(v) for _k, v in sorted(groups.items())]
+        n_steps = len(bounds)
+        method = "Model ID"
+        print("切步：Model ID（%d 步）" % n_steps)
+    else:
+        ids = _encode([r["name"] for r in main_rows])
+        L, Lgood, why = detect_period(ids)
+        print("切步：周期检测 —— %s" % why)
+        if not L:
+            print("\n[FAIL] 无法切步。可用的余量：只能出总量表（见下），")
+            print("       或者改用两次采集（50%/0% 命中）对比总量。")
+            return _aggregate_only(rows, main_sid, args)
+        bounds, n_steps = build_steps(main_rows, L, Lgood)
+        method = "周期检测(L=%d)" % L
+        print("切步：%s → %d 步，每步 %d 个 kernel（第 0 步起点 t=%.3f ms）" % (
+            method, n_steps, L, main_rows[bounds[0]]["start"] / 1000.0))
+
+    steps, edges = summarise(rows, main_rows, bounds, n_steps, L if not n_model else 0)
+
+    # ---- 每个 chunk 的 token 数与累计长度 ----
+    chunk = args.chunk_tokens
+    total = args.total_tokens or chunk * n_steps
+    toks, cum, left = [], [], total
+    for k in range(n_steps):
+        tk = min(chunk, left) if left > 0 else 0
+        toks.append(tk)
+        left -= tk
+        cum.append(args.cached_prefix + sum(toks))
+    if args.total_tokens and total > chunk * n_steps:
+        print("[warn] total_tokens=%d > chunk*n_steps=%d：步数可能被截断（NUM_STEPS 太小？）"
+              % (total, chunk * n_steps))
+
+    # ---- 每步表 ----
+    print("\n===== 每 chunk 明细（wall=墙钟，其余=该桶 kernel 耗时之和） =====")
+    head = "step %9s %7s %9s" % ("T_k(tok)", "tokens", "wall_ms")
+    for b in BUCKET_ORDER:
+        head += " %10s" % b.split("/")[0][:9]
+    head += " %7s" % "aicore%"
+    print(head)
+    for k, s in enumerate(steps):
+        line = "%-4d %9d %7d %9s" % (k, cum[k], toks[k], fmt_ms(s["wall"]))
+        for b in BUCKET_ORDER:
+            line += " %10s" % fmt_ms(s["pk"].get(b, 0.0))
+        busy = (100.0 * s["aicore"] / s["wall"]) if s["wall"] > 0 and s["aicore"] else float("nan")
+        line += " %7s" % ("%.0f" % busy if busy == busy else "-")
+        print(line)
+
+    walls = sorted(s["wall"] for s in steps)
+    med = walls[len(walls) // 2] if walls else 0.0
+    if steps and med > 0 and abs(steps[0]["wall"] - med) > 0.3 * med:
+        print("  [warn] 第 0 步墙钟 %.1f ms 与中位步 %.1f ms 差 >30%%：可能是切步相位偏了"
+              "（有 prologue），或首个 chunk 被 scheduler 拼了别的东西" % (
+                  steps[0]["wall"] / 1000.0, med / 1000.0))
+
+    prefill_wall = sum(s["wall"] for s in steps)
+    print("\nprefill 墙钟合计 = %.1f ms（%d 步；主计算流 t0=%.0f ms，末尾=%.0f ms）"
+          % (prefill_wall / 1000.0, n_steps, edges[0] / 1000.0, edges[-1] / 1000.0))
+
+    # ---- 各桶总量与斜率 ----
+    print("\n===== 各桶：总量 / 相对墙钟 / 随累计长度的斜率 =====")
+    print("%-14s %10s %8s %14s %10s %8s" % ("桶", "总耗时ms", "占墙钟", "斜率 ms/1Ktok", "截距ms", "R²"))
+    fitted = {}
+    for b in BUCKET_ORDER:
+        ys = [s["pk"].get(b, 0.0) for s in steps]
+        tot = sum(ys)
+        if tot <= 0:
+            continue
+        slope, icept, r2 = fit_slope(cum, ys)
+        fitted[b] = (slope, icept, r2, tot)
+        print("%-14s %10s %7.1f%% %14s %10s %8s" % (
+            b, fmt_ms(tot), 100.0 * tot / prefill_wall if prefill_wall else 0,
+            ("%.3f" % slope) if slope is not None else "-",   # us/token 数值上等于 ms/1K token
+            ("%.1f" % (icept / 1000.0)) if icept is not None else "-",
+            ("%.3f" % r2) if r2 is not None and r2 == r2 else "-"))
+
+    def slope_ms_per_1k(b):
+        """us/token → ms/1K token：×1000/1000 = 原值（数值相等，单位不同）。"""
+        v = fitted.get(b)
+        return None if not v or v[0] is None else v[0]
+
+    # ---- 结论块 ----
+    def share(b):
+        s = fitted.get(b)
+        return (s[3] / prefill_wall) if s and prefill_wall else 0.0
+
+    attn = fitted.get("attention")
+    f_attn = share("attention")
+    f_prefix = 0.0
+    if attn and attn[0] is not None:
+        f_prefix = (attn[0] * sum(cum)) / prefill_wall if prefill_wall else 0.0
+    small = share("elementwise") + share("rope/norm")
+    comm = share("HCCL/通信")
+    moe = share("MoE/gating") + share("matmul/linear")
+
+    print("\n===== 归因（prefill 墙钟 = %.1f s） =====" % (prefill_wall / 1e6))
+    print("  attention 全部            : %6.1f%%   (斜率 %s ms/1K token)" % (
+        100 * f_attn, "%.3f" % slope_ms_per_1k("attention") if slope_ms_per_1k("attention") is not None else "-"))
+    print("  其中「随 prefix 线性增长」: %6.1f%%   ← 这部分才是稀疏/压缩 KV、CP 能吃掉的" % (100 * f_prefix))
+    print("  小算子（elem+rope/norm）  : %6.1f%%" % (100 * small))
+    print("  通信                      : %6.1f%%" % (100 * comm))
+    print("  FFN/MoE（moe+matmul）     : %6.1f%%" % (100 * moe))
+    if f_prefix > 0:
+        print("\n  若 prefix 扫描免费：上限 %.2f×（1/(1-f_prefix)）" % (1.0 / (1.0 - f_prefix)))
+    need_ms = args.ttft_ms - args.target_ms
+    print("\n  TTFT 假设 = %.1f s，目标 %.1f s → 需砍 %.1f s" % (
+        args.ttft_ms / 1000.0, args.target_ms / 1000.0, need_ms / 1000.0))
+    print("  （份额来自本 trace；把份额乘到 bench 的 TTFT 上，才可比）")
+    for label, f in (("砍光 prefix 扫描", f_prefix), ("砍光 attention(含新token)", f_attn),
+                     ("砍光小算子", small), ("砍光通信", comm), ("砍光 FFN/MoE+matmul", moe)):
+        save = f * args.ttft_ms
+        print("    · %-24s → 省 %6.1f s %s" % (label, save / 1000.0,
+                                             "✅ 够了" if save >= need_ms else "（不够）"))
+
+    # ---- 回传块 ----
+    print("\n===== 回传块（复制这段）=====")
+    print("STEPS=%d METHOD=%s CHUNK=%d CACHED_PREFIX=%d TOTAL=%d" % (
+        n_steps, method, chunk, args.cached_prefix, total))
+    print("PREFILL_WALL_S=%.2f" % (prefill_wall / 1e6))
+    print("F_ATTN=%.3f F_PREFIX=%.3f F_SMALL=%.3f F_COMM=%.3f F_MOE_MM=%.3f" % (
+        f_attn, f_prefix, small, comm, moe))
+    for b in ("attention", "matmul/linear", "MoE/gating", "elementwise", "HCCL/通信"):
+        v = fitted.get(b)
+        if v and v[0] is not None:
+            print("SLOPE_%s=%.3f_ms_per_1K R2=%s TOTAL_S=%.2f" % (
+                LABEL[b], v[0], ("%.3f" % v[2]) if v[2] == v[2] else "-", v[3] / 1e6))
+    print("===== 回传块结束 =====")
+
+    # ---- CSV ----
+    if args.csv:
+        with open(args.csv, "w", newline="") as f:
+            w = csv.writer(f)
+            w.writerow(["step", "T_k_tokens", "tokens", "wall_ms"] + [b for b in BUCKET_ORDER] + ["aicore_pct"])
+            for k, s in enumerate(steps):
+                busy = (100.0 * s["aicore"] / s["wall"]) if s["wall"] > 0 and s["aicore"] else ""
+                w.writerow([k, cum[k], toks[k], "%.3f" % (s["wall"] / 1000.0)]
+                           + ["%.3f" % (s["pk"].get(b, 0.0) / 1000.0) for b in BUCKET_ORDER]
+                           + [("%.1f" % busy) if busy != "" else ""])
+        print("\n每步明细已写：%s" % args.csv)
+    return 0
+
+
+def _aggregate_only(rows, main_sid, args) -> int:
+    """切步失败时的兜底：只出总量桶表，明确标注不足以定斜率。"""
+    total = sum(r["dur"] for r in rows) or 1.0
+    agg = defaultdict(float)
+    for r in rows:
+        agg[bucket_of(r["name"])] += r["dur"]
+    print("\n===== 兜底：全 trace 桶分布（不含每步斜率）=====")
+    for b, us in sorted(agg.items(), key=lambda kv: -kv[1]):
+        print("  %-14s %10s %7.1f%%" % (b, fmt_ms(us), 100.0 * us / total))
+    print("\n注意：这是所有 stream 相加，> 墙钟；且**无法**回答「attention 是否随 prefix 增长」。")
+    print("建议：加 --rank 指定具体 rank，或先看上面的切步诊断再决定补采。")
+    return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

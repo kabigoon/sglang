@@ -41,6 +41,26 @@ KERNEL_FIELDS = [
 ]
 
 
+def _dir_weight(d: str) -> int:
+    """证据包只取一个 rank 目录：按「料多少」排序，别按目录名。
+
+    DP_REPLICA 门控会留下 N 个目录（每个 replica 一个），其中只有**拿到请求**的那个
+    有真正的算子和 attention，其余是空闲 rank。按名字取第一个很可能取到空的那个。
+    """
+    kd = os.path.join(d, "ASCEND_PROFILER_OUTPUT", "kernel_details.csv")
+    try:
+        return os.path.getsize(kd)
+    except OSError:
+        total = 0
+        for root, _dirs, files in os.walk(d):
+            for f in files:
+                try:
+                    total += os.path.getsize(os.path.join(root, f))
+                except OSError:
+                    pass
+        return total
+
+
 def find_rank_dir(root: str) -> str:
     cands = sorted(glob.glob(os.path.join(root, "*_ascend_pt")))
     if not cands:
@@ -48,7 +68,10 @@ def find_rank_dir(root: str) -> str:
             return root
         sys.exit("没找到 *_ascend_pt 目录：%s" % root)
     if len(cands) > 1:
-        print("[warn] 找到 %d 个 rank 目录，只取第一个：%s" % (len(cands), cands[0]))
+        cands.sort(key=_dir_weight, reverse=True)
+        print("[info] 找到 %d 个 rank 目录，按 kernel_details 大小取最有料的一个：" % len(cands))
+        for d in cands:
+            print("        %9.1f MB  %s" % (_dir_weight(d) / 1e6, os.path.basename(d)))
     return cands[0]
 
 

@@ -54,6 +54,14 @@ def bucket_of(op: str) -> str:
     return "其它"
 
 
+def _dir_weight(d: str) -> int:
+    kd = os.path.join(d, "ASCEND_PROFILER_OUTPUT", "kernel_details.csv")
+    try:
+        return os.path.getsize(kd)
+    except OSError:
+        return 0
+
+
 def rank_dirs(root: str) -> list[str]:
     dirs = sorted(glob.glob(os.path.join(root, "*_ascend_pt")))
     if not dirs:
@@ -61,6 +69,22 @@ def rank_dirs(root: str) -> list[str]:
         if os.path.isdir(os.path.join(root, "ASCEND_PROFILER_OUTPUT")):
             return [root]
     return dirs
+
+
+def pick_busiest(dirs: list[str]) -> list[str]:
+    """多目录时默认只分析「最有料」的那个。
+
+    DP_REPLICA 门控会留下每个 replica 一个目录，只有拿到请求的那个有真算子；
+    把空闲 rank 一起相加会把占比稀释成无意义的值（而 --all 仍可显式求和）。
+    """
+    if len(dirs) <= 1:
+        return dirs
+    ranked = sorted(dirs, key=_dir_weight, reverse=True)
+    print("发现 %d 个 rank 目录，按 kernel_details 大小默认只分析最有料的一个"
+          "（要全部相加用 --all）：" % len(dirs))
+    for d in ranked:
+        print("    %9.1f MB  %s" % (_dir_weight(d) / 1e6, os.path.basename(d)))
+    return ranked[:1]
 
 
 def read_op_stats(path: str) -> list[dict]:
@@ -95,11 +119,14 @@ def main() -> int:
     ap.add_argument("--top", type=int, default=15)
     ap.add_argument("--rank", default=None, help="只分析 pid 匹配这个子串的 rank")
     ap.add_argument("--per-rank", action="store_true", help="每个 rank 各打一张 top 表（默认只打汇总）")
+    ap.add_argument("--all", action="store_true", help="所有 rank 目录相加（默认只取最有料的一个）")
     args = ap.parse_args()
 
     dirs = rank_dirs(args.root)
     if args.rank:
         dirs = [d for d in dirs if args.rank in os.path.basename(d)]
+    elif not args.all:
+        dirs = pick_busiest(dirs)
     if not dirs:
         print("没找到 *_ascend_pt 目录（或 --rank 过滤后为空）：%s" % args.root, file=sys.stderr)
         return 2
@@ -144,7 +171,8 @@ def main() -> int:
 
     grand_total = sum(per_rank_total.values())
     print("解析成功 rank：%d（缺失/空：%d）" % (len(per_rank_total), missing))
-    print("所有 rank 的算子耗时总和：%s（注意：这是 16 个 rank 相加，不是墙钟时间）" % fmt_us(grand_total))
+    print("所有 rank 的算子耗时总和：%s（注意：这是 %d 个 rank 相加，不是墙钟时间）" % (
+        fmt_us(grand_total), len(per_rank_total)))
 
     # ---- 桶汇总 ----
     print("\n===== 按类别汇总（跨 %d 个 rank 相加） =====" % len(per_rank_total))

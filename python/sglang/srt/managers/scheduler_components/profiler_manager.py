@@ -79,6 +79,43 @@ def _prof_rank0_only() -> bool:
     return get_parallel().tp_rank != 0
 
 
+def _prof_dp_replica_only() -> bool:
+    """True = 本 rank 跳过采集（每个 attention-DP replica 只留第一个 rank）。
+
+    为什么需要它（RANK0_ONLY 在 dp>1 时是错的）：C=1 时请求由 round-robin 分到**任意**
+    一个 DP replica，而 tp_rank==0 只属于 replica 0。若请求落在 replica 1..N-1，
+    tp_rank 0 那一轮只做 0 token 的 FFN/通信，trace 会显示「几乎没有 attention、Free 很高」，
+    从而把结论误导成「并行度问题」——失败是静默的，且方向正好相反。
+
+    replica 内的 _ATTN_TP 组是**连续块**（parallel_state: ``ranks = list(range(st, en))``），
+    所以 ``tp_rank % attn_tp_size == 0`` 恰好每个 replica 取一个 rank。
+    dp=1（attn_tp=tp_size）时退化为只采 tp_rank 0，与 RANK0_ONLY 等价。
+    """
+    if os.getenv("SGLANG_NPU_PROFILE_DP_REPLICA", "0") != "1":
+        return False
+    par = get_parallel()
+    try:
+        attn_tp = int(par.attn_tp_size)
+    except Exception:  # pragma: no cover - 组还没建好时保守退化
+        logger.warning(
+            "SGLANG_NPU_PROFILE_DP_REPLICA=1 但读不到 attn_tp_size，"
+            "退化为只采 tp_rank 0（dp>1 时可能采到空闲 replica！）"
+        )
+        attn_tp = 0
+    if attn_tp <= 1:
+        return par.tp_rank != 0
+    return par.tp_rank % attn_tp != 0
+
+
+def _prof_collect_gate() -> str:
+    """返回非空字符串 = 本 rank 被跳过，值是被哪个门控跳过的（写日志用）。"""
+    if _prof_rank0_only():
+        return "rank0-only"
+    if _prof_dp_replica_only():
+        return "dp-replica"
+    return ""
+
+
 @dataclass(kw_only=True)
 class SchedulerProfilerManager:
     get_forward_ct: Callable[[], int]
@@ -214,11 +251,12 @@ class SchedulerProfilerManager:
         )
         if _is_npu:
             logger.info(
-                "NPU profiler config: simplify=%s level=%s aic=%s rank0_only=%s",
+                "NPU profiler config: simplify=%s level=%s aic=%s rank0_only=%s dp_replica=%s",
                 _prof_simplify(),
                 os.getenv("SGLANG_NPU_PROFILE_LEVEL", "default(1)"),
                 "none" if os.getenv("SGLANG_NPU_PROFILE_NO_AIC", "0") == "1" else "pipe_utilization",
                 os.getenv("SGLANG_NPU_PROFILE_RANK0_ONLY", "0"),
+                os.getenv("SGLANG_NPU_PROFILE_DP_REPLICA", "0"),
             )
 
         activities = self.profiler_activities
@@ -277,18 +315,20 @@ class SchedulerProfilerManager:
             self.rpd_profiler.rangePush("", "rpd profile range", "")
             self.profile_in_progress = True
         elif torchprof_activities:
-            if _prof_rank0_only():
+            gate = _prof_collect_gate()
+            if gate:
                 # 记账已经完成，所以被跳过的 rank 会和采集 rank 在同一个 forward 自动 stop
                 self._gated_out = True
                 self.profile_in_progress = True
                 logger.info(
                     "NPU profiling skipped on this rank "
-                    "(SGLANG_NPU_PROFILE_RANK0_ONLY=1, tp_rank=%d)",
+                    "(gate=%s, tp_rank=%d)",
+                    gate,
                     get_parallel().tp_rank,
                 )
                 self._apply_detailed_annotations(self.detailed_annotations)
                 return ProfileReqOutput(
-                    success=True, message="Succeeded (skipped: rank0-only)"
+                    success=True, message=f"Succeeded (skipped: {gate})"
                 )
             self.torch_profiler = torch.profiler.profile(
                 activities=torchprof_activities,
