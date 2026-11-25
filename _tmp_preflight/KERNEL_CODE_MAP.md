@@ -6,6 +6,8 @@
 > 算子实现：`/Users/an/Developer/ops-transformer`（CANN ops-transformer 9.2.0 快照，**不是** 机器上那个 wheel）、
 > `/Users/an/Developer/sgl-kernel-npu`（deep_ep / CamMoe 源）。
 > 机器上没有 NPU 环境，所以 **wheel 的二进制内容一律标「未验证」**；凡是只依赖仓库源码 + 本次 trace 的结论，都可复核。
+> **2026-11-25 更新**：新增 §5「trace 实证」，把 13 个算子的发起位置从「读代码推断」升级为「Python 栈实证」
+> （证据：`_tmp_preflight/profile_bundle/callstacks/demo_ep_late.md`）。
 
 ## 0. 缩写与证据等级
 
@@ -36,18 +38,20 @@
 |---|---|---|---|---|---|
 | **SparseLightningIndexer** | `BACKEND:1755`（`_dsv41_index_qsli_topk` 的 `if not is_npu_arch35():` 分支） | **4** | `indexer.uses_candidates == True`（`IDX:226`：`0 <= candidate_source_layer_id < layer_id`）→ layer 24/28/32/36；且 arch≠35 | **4.00 s**（4×~1000 ms） | 第 2 级 topk（consumer）。`quant_sparse_lightning_indexer_dsl`（`BACKEND:1780`）是 **A5 路径，本次运行没走**，见 Q1 |
 | **LightningIndexerV2** | `BACKEND:1599`（`candidate=True`）/ `BACKEND:1611`（plain） | **4** | 在 `index_source_layer_ids` 且 `not uses_candidates` → layer 2/8/14/20 | **165.6 ms** = 3×28.02 + 1×**81.49** | layer 20 那次是 candidate 发布者（多个 candidate 输出），仍只要 81.5 ms |
-| **SparseFlashMla** | `BACKEND:2214`（A3）；A5 在 `BACKEND:2287` | **40** | 每层 1 次；`compress_ratio==0` 层只带 window，ratio 1/2 层额外带 `cmp_kv` + `c{ratio}_topk_indices` | **148.6 ms**（38×3.72 + 2×0.21） | 真注意力，与 indexer 无关；不是瓶颈 |
-| SparseFlashMlaMetadata | `BACKEND:2074`（A3，`_dsv41_attention_kernel_metadata`） | 3 | 每个 ratio（0/1/2）各一份 dispatch table | 2.3 ms（AI_CPU，avg 767 µs） | 3 = win + c1 + c2 |
-| **CamMoeCombineNormal** | `DISPATCH:956` → `deep_ep.Buffer.low_latency_combine`（`sgl-kernel-npu/python/deep_ep/deep_ep/buffer.py:716`）→ `strategies/low_latency_strategy.py:150` → C++ runtime（deep_ep ops2）→ `sgl-kernel-npu/csrc/deepep/ops2/op_host/cam_moe_combine_normal.cpp:4,85`（`OP_ADD(CamMoeCombineNormal)`） | **40** | EP=deepep + low-latency + 每层 MoE | **70.9 ms**（avg 1.77 ms，min 0.083 / max 5.93） | 是 DeepEP 的 combine（P2P），不是 HCCL；见 Q6 |
-| CamMoeDispatchNormal / NotifyDispatch / DispatchLayout | 同一 dispatch 链（`DISPATCH` 的 low-latency dispatch） | 40 / 40 / 40 | 同上 | 23.9 / 24.5 / 1.4 ms | ops2 的三个配套 kernel |
+| **SparseFlashMla** | `BACKEND:2214`（`_forward_low_ratio_attention`，A3）；A5 在 `BACKEND:2287` | **40** | 每层 1 次；`compress_ratio==0` 层只带 window，ratio 1/2 层额外带 `cmp_kv` + `c{ratio}_topk_indices` | **148.6 ms**（38×3.72 + 2×0.21） | 真注意力，与 indexer 无关；不是瓶颈 |
+| SparseFlashMlaMetadata | `BACKEND:2074`（`_dsv41_attention_kernel_metadata` ← `:4527 _compute_kernel_metadata` ← `:4433 init_forward_metadata`；A3） | 3 | 每个 ratio（0/1/2）各一份 dispatch table | 2.3 ms（AI_CPU，avg 767 µs） | 3 = win + c1 + c2 |
+| **CamMoeCombineNormal** | `DISPATCH:723 _combine_core`（`buffer.combine(config=normal_combine_config)`）→ `deep_ep/buffer.py:536` → `strategies/normal_strategy.py:365/398 _intranode_combine` → `csrc/deepep/ops2/.../cam_moe_combine_normal.cpp:85` | **40** | **EP=deepep、normal 模式、intranode** + 每层 MoE；外层包在 two-batch-overlap 里 | **70.9 ms**（avg 1.77，min 0.083 / max 5.93） | trace 实证见 §5；**不是** low-latency 那条（算子名 `Normal` 即此意） |
+| CamMoeDispatchNormal / NotifyDispatch / DispatchLayout | `DISPATCH:668 _dispatch_core`（`buffer.dispatch`）/ `:648`（`get_dispatch_layout`）→ `normal_strategy.py:203 _intranode_dispatch` | 40 / 40 / 40 | 同上 | 23.9 / 24.5 / 1.4 ms | 同一 normal dispatch 链的三个 kernel |
 | **Cast**（`aclnn…_CastAiCore_Cast`） | 主源：`MHC_T:22,23,47-49`（fp32 往返）、`BACKEND:1512`（NZ format cast）、MoE 量化 | **1087** | — | 149.1 ms | 单笔最大 498 µs |
 | **Add**（含 `Adds`） | `MHC_T:33-35`（sinkhorn eps）、`MHC_T:45-48`（残差）、bias | **3774** | sinkhorn_iters=20 | 91.0 ms | ~3120 次来自 sinkhorn |
 | **ReduceSum** | `MHC_T:33-35`（`comb.sum(dim=-1/-2)`） | **3282** | 同上 | 84.9 ms | 39 次/调用 × 2 调用/层 × 40 层 = 3120（95%） |
 | **RealDiv** | `MHC_T:33-35`（`comb / (sum+eps)`） | **3200** | 同上 | 41.0 ms | 与 ReduceSum 一一配对 |
-| **Mul** | `MHC_T:24`（`* inv_rms`）、`MHC_T:48`（`post_mix*x`）、RoPE（`Dsv4NpuRoPE.apply_rotary_mul_inplace`） | **667** | — | 77.4 ms | 单笔最大 980 µs（fp32 残差） |
+| **Mul** | **主因 RoPE**：`dsv4/dsv4_rope.py:165,177 apply_rotary_mul_inplace`（← `MODEL:2522 _forward_prepare`）；次因 `MHC_T:24/48`（`* inv_rms`/`post_mix*x`） | **667** | — | 77.4 ms | trace 实证：278/400 个 Mul 事件栈指向 RoPE，9 种栈（§5） |
 | ReduceMean / Pows / Rsqrt | `MHC_T:23`（`flat.square().mean(-1)` + `rsqrt`） | 91 / 88 / 88 | mHC 的 rms 归一 | 31.9 / 49.1 / 3.5 ms | 与 Mul `inv_rms` 同一行 |
 | RmsNorm | `torch_npu.npu_rms_norm`（`BACKEND:1378` compressor 后）等 | 169 | — | 9.9 ms | 融合版，已经不贵 |
-| BatchMatMulV2 / MatMulV3 / GroupedMatmul / QuantBatchMatmulV3 | MLA 前后投影 + MoE | 120 / 85 / 80 / 128 | — | 189 / 64 / 30 / 23 ms | 合计 ~306 ms，占 5.6% |
+| **LeftShift**（AI_CPU） | `layers/engram.py:122 _e8m0_to_float`：`(exps << 23).view(torch.float32)` | 2 | engram 层（layer 1/14）的 MXFP8 标度解码 | **19 ms**（单笔 9.5 ms） | trace 实证 §5；**在 CPU 上**跑，单笔 9.5 ms 很反常 |
+| **RepeatInterleave** | `layers/engram.py:439 forward`（← `MODEL:4203`） | 1 | engram 查表/展开 | 0.5 ms | trace 实证 §5 |
+| BatchMatMulV2 / MatMulV3 / GroupedMatmul / QuantBatchMatmulV3 | MLA 前后投影 + MoE；`GroupedMatmul` = `layers/moe/matmul.py:41`（w4a8 专家 GEMM，← `moe_runner/ascend.py:278/310`） | 120 / 85 / 80 / 128 | — | 189 / 64 / 30 / 23 ms | 合计 ~306 ms，占 5.6%；除 GroupedMatmul 外 launcher 未采到栈（§5.3） |
 
 **一句话**：4.00 s（SLI）+ 0.17 s（LIV2）+ 0.15 s（MLA）= 4.32 s，占每 chunk 5.43 s 算子时间的 **79.7%**；其余（elementwise 0.52 s、MoE 通信/combine 0.12 s、matmul 0.31 s）合计 ~1.0 s，都不是主战场。
 
@@ -64,9 +68,9 @@ MODEL:2626  attn_backend.forward_low_ratio_sources(...)          # 每个 ratio�
  └ BACKEND:1305  forward_low_ratio_sources
     └ BACKEND:1335  self._low_ratio_index_topk(layer, ...)       # run_indexer and layer.indexer is not None
        └ BACKEND:1414  _low_ratio_index_topk
-          ├ BACKEND:1435  if indexer.is_candidate_source:  → _dsv41_index_full_topk(candidate=True) → LIV2
-          ├ BACKEND:1437  elif indexer.uses_candidates:    → _dsv41_index_qsli_topk          ← 这里
-          └ BACKEND:1440  else:                            → _dsv41_index_full_topk          → LIV2
+          ├ BACKEND:1435  if indexer.is_candidate_source:  → BACKEND:1438 _dsv41_index_full_topk(candidate=True) → LIV2
+          ├ BACKEND:1442  elif indexer.uses_candidates:    → BACKEND:1443 _dsv41_index_qsli_topk   ← 这里（trace 实证）
+          └ BACKEND:1444  else:                            → BACKEND:1445 _dsv41_index_full_topk      → LIV2
              └ BACKEND:1729  _dsv41_index_qsli_topk
                 └ BACKEND:1755  _dsv41_a3_ops().sparse_indexer(...)   # ← SparseLightningIndexer
 ```
@@ -123,7 +127,8 @@ MODEL:2626  attn_backend.forward_low_ratio_sources(...)          # 每个 ratio�
 判定条件落点：
 - 谁有 indexer：`MODEL:1526`（`if self.layer_id in config.index_source_layer_ids`）。
 - 谁发候选：`BACKEND:1435-1441`（`if indexer.is_candidate_source: ... fm.dsv41_candidate_blocks = blocks`）。
-- 谁消费候选：`BACKEND:1437` + `IDX:226`。
+- 谁消费候选：`BACKEND:1442-1443`（`elif indexer.uses_candidates: topk = self._dsv41_index_qsli_topk(...)`）+ `IDX:226`。
+  （行号已用 trace 栈核对：SLI 的调用者帧就是 1443，见 §5。）
 - 谁 `owns_k`（写 index-K cache）：`IDX:224` `self.owns_k = layer_id in config.kv_source_layer_ids`，
   写 K 在 `BACKEND:1450-1533`（`_dsv41_index_k_store`）。
 
@@ -246,22 +251,30 @@ MAC 总量 4096×122 880×32×128 = **2.06 TMAC**（≈4.1 TFLOP），按 20 AIC
 
 ### Q6. `CamMoeCombineNormal` 是哪段代码？为什么 1.7–5.9 ms 波动？
 
-**是 DeepEP 的 combine**（不是 HCCL all-reduce，也不是 `ascend_ops` 的 MC2 那条）：
+**是 DeepEP 的 combine，但是「normal 模式 + intranode」那条，不是 low-latency**——2026-11-25 的 trace 栈实证
+（见 §5）推翻了本文件第一版"`low_latency_combine`"的猜测。算子名里的 `Normal` 本来就是 `normal_combine_config` 的意思。
 
 ```
-DISPATCH:956        buffer.low_latency_combine(x=..., topk_idx=..., topk_weights=..., handle=...)
- └ deep_ep/deep_ep/buffer.py:716  Buffer.low_latency_combine
-    └ deep_ep/strategies/low_latency_strategy.py:126,150  DefaultLowLatencyCommStrategy → self.runtime.low_latency_combine（C++）
-       └ sgl-kernel-npu/csrc/deepep/ops2/...   → aclnnCamMoeCombineNormal（OP_ADD 见 op_host/cam_moe_combine_normal.cpp:85）
+DISPATCH:723  _combine_core                                          ← 发起位置
+ └ buffer.combine(..., config=DeepEPConfig.normal_combine_config)     （DISPATCH:729）
+    └ deep_ep/buffer.py:536 combine → strategies/normal_strategy.py:365 combine
+       └ normal_strategy.py:398 _intranode_combine  → aclnnCamMoeCombineNormal
+          （CANN 侧 OP_ADD 见 sgl-kernel-npu/csrc/deepep/ops2/op_host/cam_moe_combine_normal.cpp:85）
 ```
 
-旁证：trace 里同时有 `CamMoeDispatchNormal` / `NotifyDispatch` / `DispatchLayout` 三个 ops2 配套 kernel，
-以及 `comm_summary.csv` 的 `distinct_ops` 值（0–4，都是 HCCL allreduce/allgather），
-而 `CamMoe*` 系列不在任何 HCCL 汇总行里（它们是 DeepEP 自己的 dispatch/combine kernel）【数+推】。如果是 `--moe-a2a-backend ascend_ops` 会走
-`torch_npu.npu_moe_distribute_combine_v2`（`token_dispatcher/ascend_ops.py:358`），trace 里不会出现 `CamMoe*`。
+dispatch 侧对称：`DISPATCH:668 _dispatch_core` → `buffer.dispatch(config=normal_dispatch_config)`（`DISPATCH:680`）
+→ `normal_strategy.py:203 _intranode_dispatch`；`DispatchLayout` 在同一个函数里先调 `:648 get_dispatch_layout`。
+`DISPATCH:734` 的 `set_dispatch_mode_as_normal()` 可以直接确认模式。
+
+**两条旁证**：
+- trace 栈里再往上一层是 `batch_overlap/two_batch_overlap.py:1193 _execute` ⇒ **TBO（two-batch-overlap）开着**，
+  dispatch/combine 与计算重叠执行（所以"时长"里混着等待窗口）。MoE 层本身是 `ep_moe/layer.py` +
+  `fused_moe_triton/layer.py` + `modelslim`（w4a8）。
+- 如果是 `--moe-a2a-backend ascend_ops` 会走 `torch_npu.npu_moe_distribute_combine_v2`
+  （`token_dispatcher/ascend_ops.py:358`），trace 里根本不会出现 `CamMoe*` ⇒ 这条部署用的是 **deepep**。
 
 **为什么波动大（0.083 → 5.93 ms，70×）—— 它是"等人"，不是"干活"**：
-- 硬件计数：`Block Num=40`（纯 AIV，`aicore_time=0`，说明没有 cube 活），`aiv_mte2_ratio` 0.49–0.72（数据搬运为主）。
+- 硬件计数：`Block Num=40`（纯 AIV，`aicore_time=0`，没有 cube 活），`aiv_mte2_ratio` 0.49–0.72（纯搬运）。
 - **时长与本地工作量无关**（决定性证据，【数】）：
 
 | kernel_attrs 里的本次输入 | 本地 token 数 | 时长 |
@@ -269,12 +282,12 @@ DISPATCH:956        buffer.low_latency_combine(x=..., topk_idx=..., topk_weights
 | `44,5120;132;384;1024,6;1024,6;1` | **44** | **4 878 µs** |
 | `7167,5120;21501;384;1024,6;1024,6;1` | **7167** | **3 100 µs** |
 
-  44 token 比 7167 token 还慢 ⇒ 时间花在"等其他 EP rank 把专家算完并回包"，不是花在自己身上。
+  44 token 比 7167 token 还慢 ⇒ 时间花在"等所有 peer 把专家算完并回包"，不是花在自己身上。
 - 因此波动 = **层间/rank 间 MoE 负载不均衡 + 跨 die 同步**。C=1、EP 下每个 rank 拿到的 token 数逐层抖动，
   combine 的完成时刻 = 最慢那个 peer；`NotifyDispatch`（avg 612 µs，几乎不动）是它的配对同步点。
 - 补充：`op_statistic` 里 `min=82.96 µs`（哪一次对应哪个 batch 没有单独证据，**推断**为近空批/收尾），
-  说明它的基线低到几十 µs 级，弹性来自同步而不是本地计算，
-  典型搬运型 kernel 的形态。**它不是可优化的算法热点（70.9 ms/chunk，1.3%），但它会把别人的慢放大成自己的墙钟等待。**
+  说明基线低到几十 µs 级，弹性来自同步而不是本地计算，典型搬运型 kernel 的形态。
+  **它不是可优化的算法热点（70.9 ms/chunk，1.3%），但它会把别人的慢放大成自己的墙钟等待。**
 
 ---
 
@@ -297,6 +310,7 @@ DISPATCH:956        buffer.low_latency_combine(x=..., topk_idx=..., topk_weights
 
 | 项 | 为什么 Python 改不了 | 依据 |
 |---|---|---|
+| `sgl_kernel_npu.operators.*` 这一层 wrapper（arg_check → `_cann_impl` → aclnn） | trace 栈显示 SLI/MLA 的调用链是 `sgl_kernel_npu/operators/.../xxx.py:_cann_impl → aclnn`，即 wrapper 也在 wheel 里，本仓库改不到 | §5 的 `仓库帧链` 列 |
 | SLI 的候选掩码成本（本轮 968 ms/次 的主体） | 每 tile 的标量重扫写在 kernel 里；修复版是同一文件的"块级表 + Brcb 展开"（2026-09-22 P1 重写） | `OP_SLI/.../sparse_lightning_indexer_service_vector_arch22.h:326-460` |
 | `Block Num=20` / S2 不能跨核切 | 由 `CalcTschBlockDim(GetCoreNumAic/Aiv)` + kernel 的 D4 约束决定 | `OP_SLI tiling.cpp:1084-1090`；`..._kernel_arch22.h:330` |
 | SLI 必须扫全 S2 | leak 语义（候选外可达位置降级但仍参与排序） | `OP_SLI/README.md` 公式 + `tiling.cpp:804-810`（s2 = block_table×page） |
@@ -337,6 +351,67 @@ DISPATCH:956        buffer.low_latency_combine(x=..., topk_idx=..., topk_weights
 
 ---
 
+## 5. trace 实证：算子 → Python 发起位置（2026-11-25）
+
+**证据文件**：`_tmp_preflight/profile_bundle/callstacks/demo_ep_late.md`（origin `b38f551a2f`，554 行）。
+由 `_tmp_preflight/dump_callstack.py` 从**同一份** demo trace 的 `trace_view.json`（745.3 MB）抽出：
+1,141,811 个事件，其中 149,967 个带栈（13.1%）。
+
+**关键口径**：这些栈挂在 **`cpu_op`** 事件上（kernel 事件本身不带栈）。所以下表每一行都是
+"这个 aclnn 算子被哪一行 Python 调起"的**直接证据**，不是推断。
+
+### 5.1 已实证的 13 行
+
+| 算子 | 命中/带栈 | 最内层 sglang 帧 = 发起位置 | 再往外一层（调用者） | vs §1 旧推断 |
+|---|---|---|---|---|
+| `SparseLightningIndexer` | 50 / 8 | `BACKEND:1755 _dsv41_index_qsli_topk` | `BACKEND:1443 _low_ratio_index_topk` ⟵ `:1338 forward_low_ratio_sources` | ✅ 一致 |
+| `LightningIndexerV2` | 46 / 6 | `BACKEND:1611 _dsv41_index_full_topk` | `BACKEND:1445 _low_ratio_index_topk` | ✅（候选源 `:1438` 那条没采到栈） |
+| `SparseFlashMla` | 400 / 86 | `BACKEND:2214 _forward_low_ratio_attention` | `BACKEND:4698 forward` ⟵ `MODEL:3010 forward` | ✅ 补上了函数名 |
+| `SparseFlashMlaMetadata` | 36 / 6 | `BACKEND:2074 _dsv41_attention_kernel_metadata` | `:4527 _compute_kernel_metadata` ⟵ `:4433 init_forward_metadata` ⟵ `eager_runner.py:306 _execute_extend` | ✅ 且证实"forward 之前一次性建表" |
+| `CamMoeCombineNormal` | 400 / 80 | `DISPATCH:723 _combine_core` | `deep_ep/buffer.py:536` ⟵ `normal_strategy.py:398 _intranode_combine` | ⚠️ **改**：normal 模式，非 low-latency |
+| `CamMoeDispatchNormal` / `NotifyDispatch` | 400 / 80 | `DISPATCH:668 _dispatch_core` | `buffer.py:390` ⟵ `normal_strategy.py:203 _intranode_dispatch` | ⚠️ 同上 |
+| `DispatchLayout` | 400 / 80 | `DISPATCH:648 _dispatch_core` | `buffer.py:258` ⟵ `normal_strategy.py:60 get_dispatch_layout` | ⚠️ 同上 |
+| `_hc_broadcast_kernel` | 8 / 2 | `kernels/ops/layernorm/mhc.py:1863 hc_broadcast` | `MODEL:4631 _forward_impl` | ✅ 一致 |
+| `LeftShift` | 36 / 4 | **`layers/engram.py:122 _e8m0_to_float`** | `:1581 _owned_rows` ⟵ `:1716 _dp_global_buffer_lookup` ⟵ `:1620 _dp_sharded_lookup` ⟵ `:1510 forward` | ⚠️ **改**：不是 hash，是 MXFP8 标度解码 `(exps << 23)` |
+| `RepeatInterleave` | 10 / 2 | **`layers/engram.py:439 forward`** | `MODEL:4203 _forward_layers_hc_pre_from_prev` | 新 |
+| `GroupedMatmul` | 400 / 160 | `layers/moe/matmul.py:41 forward` | `quantization/moe_methods.py:841 apply` ⟵ `moe_runner/ascend.py:278/310 run` ⟵ `fused_moe_triton/layer.py:1837 run_moe_core` | 新（w4a8 专家 GEMM） |
+| `Mul` | 400 / 278 | **`dsv4/dsv4_rope.py:165/177 apply_rotary_mul_inplace`** | `MODEL:2522 _forward_prepare` | ⚠️ **改**：主体是 RoPE，不是 mHC |
+| `Add/Adds` | 400 / 4 | `BACKEND:3646 _stable_compact_1d` | `:2412 _build_dsv41_ratio_metadata` ⟵ `:2340` ⟵ `:4436 init_forward_metadata` | ⚠️ 采到的是 **metadata 构建**里的 Add |
+
+### 5.2 还没采到栈的 7 个（不是没栈，是名字对不上）
+
+`BatchMatMulV2` / `MatMulV3` / `QuantBatchMatmulV3` / `Cast` / `ReduceSum` / `RealDiv` / `GatherV2`
+全部 0 栈。原因：**kernel 名带子 kernel 后缀**（`aclnnInplaceCopy_CastAiCore_Cast`），而带栈的 `cpu_op`
+事件叫 **aclnn 名**（`aclnnInplaceCopy`，没有 `Cast` 后缀），所以本文件的锚定正则只匹到了 kernel 事件。
+
+补法（一次 38 s，不用重采）：
+
+```bash
+python3 _tmp_preflight/dump_callstack.py /tmp/demo_ep_late_1124_135951 --tag demo_ep_late_cpuop \
+  --ops-re 'BatchMatMul' --ops-re 'Matmul' --ops-re 'QuantMatmul' --ops-re 'InplaceCopy' \
+  --ops-re 'ReduceSum' --ops-re 'Div' --ops-re 'Embedding'
+```
+
+### 5.3 三条读法注意事项（别踩）
+
+1. **时长那一列不能看**：栈挂在 `cpu_op` 上，"栈 #1 ×8 dur 0.1 ms" 是 **host 下发时间**；SLI 的 984 ms 在
+   `kernel_details.csv` 里，不在这份 md 里。次数和 launcher 可用。
+2. **帧里的行号是"调用点行号"**（`f_lineno`），不是函数首行 —— 所以 `BACKEND:1443` 就是"调
+   `_dsv41_index_qsli_topk` 的那一行"，可以直接当锚点。注意这与 Insight 的 Python 泳道标签**不同**：后者用
+   `co_firstlineno`（带装饰器的函数会显示成装饰器行，例如 `forward` → 4592）。
+3. **栈的端点可能是同一个 aclnn 调用的不同封装层**：例如 SLI 的完整链是
+   `sgl_kernel_npu/operators/indexer/sparse_lightning_indexer.py:165` → `:39 _cann_impl` →
+   `operators/.../sparse_lightning_indexer/sparse_lightning_indexer.py:197` → `utils/arg_check.py:524 wrapper` → aclnn。
+   ⇒ **这层 Python wrapper 也在 `sgl_kernel_npu` wheel 里，本仓库改不到**（补强 §3.2）。
+
+### 5.4 顺带看清的两个结构（对读流程有用）
+
+- **每层的驱动者是 stage 机器**，不是 `DecoderLayer.forward` 本身：
+  `models/deepseek_v4_platform_stage.py:162 run_attn_hc` → `self_attn(...)` → `run_attn_post(...)` → `:209 run_ffn_hc`。
+  所以 mHC 的 pre/post 与 attn/FFN 交错出现、每层 2 次 sinkhorn，都能对上。
+- **MoE 走 two-batch-overlap**：`batch_overlap/two_batch_overlap.py:1193 _execute` 包住 dispatch/combine；
+  层是 `ep_moe/layer.py` + `fused_moe_triton/layer.py` + `modelslim`（w4a8）。
+
 ## 附录 A：数字核对（谁都能重算）
 
 1. **4 次 SLI = 4.00 s**：`SparseLightningIndexer` count=8（2 forward）、total=8 004 696 µs → 每次 1 000.6 ms，每 forward 4 次。
@@ -366,4 +441,9 @@ DISPATCH:956        buffer.low_latency_combine(x=..., topk_idx=..., topk_weights
 5. **`--chunked-prefill-size` 改小是否真的对 SLI 无收益**：由"代价 ∝ T×S2、S2 不随 chunk 变"推出；
    若实现里对 T 有额外的固定开销（每核 20 份的边界），会略偏。未实测。
 6. **4 次 SLI 分别属于 layer 24/28/32/36**：由 `uses_candidates` 定义（layer > 20）唯一确定，属【码】；
-   但 trace 里没有 per-kernel 的 layer id，若要逐层对号需要带 stack 的 trace。
+   trace 栈只能给出"哪一行发的"，给不出 layer id（栈里没有 layer 变量），逐层对号仍需带参数打印的 trace。
+7. **`BatchMatMulV2` / `MatMulV3` / `QuantBatchMatmulV3` / `Cast` / `ReduceSum` / `RealDiv` / `GatherV2` 的 launcher**：
+   本次 0 栈（原因见 §5.2），仍是【推】。**其中对结论影响最大的是 `ReduceSum` / `RealDiv`**——我在附录 A.7
+   把 95% 归给 mHC sinkhorn，靠的是"次数吻合 + 代码里只有这一处"；栈没采到之前，这条仍是【推】。
+8. **mHC sinkhorn 的真实耗时**：§1 表里那 85/41 ms 是 **kernel 时间**；它在 eager + C=1 下还有一层 launch 开销
+   （每层 ~100 个 <20 us 的算子），真实墙钟贡献**未验证**（需要未扰动 trace 或 host 侧计时）。
