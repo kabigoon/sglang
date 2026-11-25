@@ -96,3 +96,34 @@
 1. 表 D 的尾部算子（`lm_head` / sampler）——补一条 `--ops-re 'lm_head|Linear|TopK|Softmax'` 的栈即可。
 2. `RepeatInterleave`（A3）到底在干什么——它每 forward 一次、0.5 ms，目前只有"engram"这个线索。
 3. 表 B 里"次/层"带 `~` 的（B4/B6/B7）需要按层枚举才能精确；现在是从 `op_statistic` 总数除出来的。
+
+---
+
+## 时间对齐：Insight ↔ `chunk_ops.txt` ↔ 绝对时间
+
+三个口径同时存在（以 `demo_ep_late` 为例，可当作以后任何一次 trace 的模板）：
+
+| 口径 | 零点 | 本 trace 的零点 |
+|---|---|---|
+| Insight 界面上的 `Start` | profiler trace 起点 | `1795529070163.929 ms` |
+| `chunk_ops.txt` 的「相对 ms」 | 主计算流（stream 34）**第一个 kernel** | `1795529070244.918 ms` |
+| `kernel_details.csv` 的 `Start Time(us)` | 绝对 epoch | 直接用，无需换算 |
+
+换算（本 trace）：
+
+```
+chunk_ops_ms = Insight_ms   − 80.989
+Insight_ms   = chunk_ops_ms + 80.989
+chunk_ops_ms = StartNs / 1e6 − 1795529070244.918
+Insight_ms   = StartNs / 1e6 − 1795529070163.929
+```
+
+**为什么差 80.989 ms**：`dump_chunk_ops.py` 用「主计算流第一个 kernel」当 0，而 Insight 用「trace 起点」当 0；
+中间这 ~81 ms 是采集起始阶段 / 其它流上的 kernel。
+
+**任选一个锚点即可自检**：
+
+| 锚点 | 绝对时间 | Insight | chunk_ops |
+|---|---|---|---|
+| `GatherV2`（embedding） | `1795529070354.671 ms` | 190.742 ms | 109.8 ms |
+| `mix_stats` 的 `Cast [4096,20480] bf16→FLOAT` | `1795529070375.919 ms` | 211.989 ms | 131.0 ms |
