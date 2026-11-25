@@ -6,8 +6,9 @@
 > 算子实现：`/Users/an/Developer/ops-transformer`（CANN ops-transformer 9.2.0 快照，**不是** 机器上那个 wheel）、
 > `/Users/an/Developer/sgl-kernel-npu`（deep_ep / CamMoe 源）。
 > 机器上没有 NPU 环境，所以 **wheel 的二进制内容一律标「未验证」**；凡是只依赖仓库源码 + 本次 trace 的结论，都可复核。
-> **2026-11-25 更新**：新增 §5「trace 实证」，把 13 个算子的发起位置从「读代码推断」升级为「Python 栈实证」
-> （证据：`_tmp_preflight/profile_bundle/callstacks/demo_ep_late.md`）。
+> **2026-11-25 更新**：新增 §5「trace 实证」，把 §1 表里几乎所有算子的「Python 发起位置」从读代码推断升级为
+> **Python 栈实证**（两轮补采，证据：`_tmp_preflight/profile_bundle/callstacks/demo_ep_late{,_cpuop}.md`）。
+> 只剩 `Adds`（sinkhorn 的 `+eps`）仍是按次数吻合推断。
 
 ## 0. 缩写与证据等级
 
@@ -42,16 +43,19 @@
 | SparseFlashMlaMetadata | `BACKEND:2074`（`_dsv41_attention_kernel_metadata` ← `:4527 _compute_kernel_metadata` ← `:4433 init_forward_metadata`；A3） | 3 | 每个 ratio（0/1/2）各一份 dispatch table | 2.3 ms（AI_CPU，avg 767 µs） | 3 = win + c1 + c2 |
 | **CamMoeCombineNormal** | `DISPATCH:723 _combine_core`（`buffer.combine(config=normal_combine_config)`）→ `deep_ep/buffer.py:536` → `strategies/normal_strategy.py:365/398 _intranode_combine` → `csrc/deepep/ops2/.../cam_moe_combine_normal.cpp:85` | **40** | **EP=deepep、normal 模式、intranode** + 每层 MoE；外层包在 two-batch-overlap 里 | **70.9 ms**（avg 1.77，min 0.083 / max 5.93） | trace 实证见 §5；**不是** low-latency 那条（算子名 `Normal` 即此意） |
 | CamMoeDispatchNormal / NotifyDispatch / DispatchLayout | `DISPATCH:668 _dispatch_core`（`buffer.dispatch`）/ `:648`（`get_dispatch_layout`）→ `normal_strategy.py:203 _intranode_dispatch` | 40 / 40 / 40 | 同上 | 23.9 / 24.5 / 1.4 ms | 同一 normal dispatch 链的三个 kernel |
-| **Cast**（`aclnn…_CastAiCore_Cast`） | 主源：`MHC_T:22,23,47-49`（fp32 往返）、`BACKEND:1512`（NZ format cast）、MoE 量化 | **1087** | — | 149.1 ms | 单笔最大 498 µs |
-| **Add**（含 `Adds`） | `MHC_T:33-35`（sinkhorn eps）、`MHC_T:45-48`（残差）、bias | **3774** | sinkhorn_iters=20 | 91.0 ms | ~3120 次来自 sinkhorn |
-| **ReduceSum** | `MHC_T:33-35`（`comb.sum(dim=-1/-2)`） | **3282** | 同上 | 84.9 ms | 39 次/调用 × 2 调用/层 × 40 层 = 3120（95%） |
-| **RealDiv** | `MHC_T:33-35`（`comb / (sum+eps)`） | **3200** | 同上 | 41.0 ms | 与 ReduceSum 一一配对 |
+| **Cast**（`aclnn…_CastAiCore_Cast`） | **没有单一来源**：78 种栈。最大单源是 TP `parallel_state.py:1433 all_gather`（12%），其次 `deepep.py:668/723`、`npu/moe/activation.py:66-72 _clipped_swiglu_quant`、`BACKEND:2148 _dsv41_a3_kv_lengths`、`MHC_T:22/47-49` | **1087** | — | 149.1 ms | trace 实证 §5.5；单笔最大 498 µs。**别按算子优化它**，按「哪段代码产生 fp32 往返」改 |
+| **Add**（含 `Adds`） | `MHC_T:34/35`（sinkhorn 的 `+eps`）、`BACKEND:3646 _stable_compact_1d`（metadata 构建）、bias | **3774** | sinkhorn_iters=20 | 91.0 ms | ~3120 次来自 sinkhorn（次数吻合）；采到栈的只有 metadata 那条 |
+| **ReduceSum** | `MHC_T:34/35`（`comb.sum(dim=-1/-2)`） | **3282** | 同上 | 84.9 ms | **trace 实证**：382/400 的栈指向 `MHC_T:34/35 mix_stats_torch`；算式 39×2×40=3120（95%）成立 |
+| **RealDiv** | `MHC_T:34/35`（`comb / (sum+eps)`） | **3200** | 同上 | 41.0 ms | **trace 实证**：374/400 指向 `MHC_T:34/35`（余下是 `npu/moe/activation.py:69-71`） |
 | **Mul** | **主因 RoPE**：`dsv4/dsv4_rope.py:165,177 apply_rotary_mul_inplace`（← `MODEL:2522 _forward_prepare`）；次因 `MHC_T:24/48`（`* inv_rms`/`post_mix*x`） | **667** | — | 77.4 ms | trace 实证：278/400 个 Mul 事件栈指向 RoPE，9 种栈（§5） |
 | ReduceMean / Pows / Rsqrt | `MHC_T:23`（`flat.square().mean(-1)` + `rsqrt`） | 91 / 88 / 88 | mHC 的 rms 归一 | 31.9 / 49.1 / 3.5 ms | 与 Mul `inv_rms` 同一行 |
 | RmsNorm | `torch_npu.npu_rms_norm`（`BACKEND:1378` compressor 后）等 | 169 | — | 9.9 ms | 融合版，已经不贵 |
 | **LeftShift**（AI_CPU） | `layers/engram.py:122 _e8m0_to_float`：`(exps << 23).view(torch.float32)` | 2 | engram 层（layer 1/14）的 MXFP8 标度解码 | **19 ms**（单笔 9.5 ms） | trace 实证 §5；**在 CPU 上**跑，单笔 9.5 ms 很反常 |
 | **RepeatInterleave** | `layers/engram.py:439 forward`（← `MODEL:4203`） | 1 | engram 查表/展开 | 0.5 ms | trace 实证 §5 |
-| BatchMatMulV2 / MatMulV3 / GroupedMatmul / QuantBatchMatmulV3 | MLA 前后投影 + MoE；`GroupedMatmul` = `layers/moe/matmul.py:41`（w4a8 专家 GEMM，← `moe_runner/ascend.py:278/310`） | 120 / 85 / 80 / 128 | — | 189 / 64 / 30 / 23 ms | 合计 ~306 ms，占 5.6%；除 GroupedMatmul 外 launcher 未采到栈（§5.3） |
+| **BatchMatMulV2** | **2/3 是 `MHC_T:47 post_torch`**（fp32 `bmm(comb.float()ᵀ, residual.float())`，2 次/层）；1/3 是 `MODEL:619 _apply_wo_a_bf16_matmul`（o_proj einsum `tgd,grd->tgr`，1 次/层） | 120 | — | **189 ms** | trace 实证 §5.5；单笔 2.2 ms 的那类基本都是 post_torch（**mHC 的 fp32 残差混合 ≈176 ms/forward**） |
+| **MatMulV3** / **QuantBatchMatmulV3** | `quantization/linear_method_npu.py:141 apply`（w4a8/unquant 线性）；MatMulV3 另有 `moe/matmul.py:41`、`unquant.py:1088` | 85 / 128 | — | 64 / 23 ms | trace 实证 §5.5 |
+| **GroupedMatmul** | `layers/moe/matmul.py:41 forward` ⟵ `moe_runner/ascend.py:278/310 run` | 80 | — | 30 ms | trace 实证 §5.5（w4a8 专家 GEMM） |
+| **GatherV2** | `quantization/unquant.py:953-954 embedding`（`F.embedding`） | **1** | — | 0.08 ms | trace 实证 §5.5；**每 forward 恰 1 次 ⇒ 最好的切步 anchor** |
 
 **一句话**：4.00 s（SLI）+ 0.17 s（LIV2）+ 0.15 s（MLA）= 4.32 s，占每 chunk 5.43 s 算子时间的 **79.7%**；其余（elementwise 0.52 s、MoE 通信/combine 0.12 s、matmul 0.31 s）合计 ~1.0 s，都不是主战场。
 
@@ -353,7 +357,9 @@ dispatch 侧对称：`DISPATCH:668 _dispatch_core` → `buffer.dispatch(config=n
 
 ## 5. trace 实证：算子 → Python 发起位置（2026-11-25）
 
-**证据文件**：`_tmp_preflight/profile_bundle/callstacks/demo_ep_late.md`（origin `b38f551a2f`，554 行）。
+**证据文件**：
+① `_tmp_preflight/profile_bundle/callstacks/demo_ep_late.md`（origin `b38f551a2f`，554 行，kernel 名口径）；
+② `_tmp_preflight/profile_bundle/callstacks/demo_ep_late_cpuop.md`（origin `b60d8ed51b`，1036 行，aclnn 名口径，见 §5.5）。
 由 `_tmp_preflight/dump_callstack.py` 从**同一份** demo trace 的 `trace_view.json`（745.3 MB）抽出：
 1,141,811 个事件，其中 149,967 个带栈（13.1%）。
 
@@ -412,6 +418,38 @@ python3 _tmp_preflight/dump_callstack.py /tmp/demo_ep_late_1124_135951 --tag dem
 - **MoE 走 two-batch-overlap**：`batch_overlap/two_batch_overlap.py:1193 _execute` 包住 dispatch/combine；
   层是 `ep_moe/layer.py` + `fused_moe_triton/layer.py` + `modelslim`（w4a8）。
 
+### 5.5 第二轮（按 aclnn 名补采）：7 个 0 栈算子全部补齐
+
+证据：`_tmp_preflight/profile_bundle/callstacks/demo_ep_late_cpuop.md`（origin `b60d8ed51b`，1036 行）。
+同一份 trace、同一批栈事件（13.1%），只是把匹配口径从 **kernel 名**换成 **aclnn 名**。
+
+| 第一轮 0 栈的 kernel | 命中的 aclnn 事件 | 带栈 | 最内层 sglang 帧（发起位置） | 结论 |
+|---|---|---|---|---|
+| `BatchMatMulV2`（240） | `BatchMatMul` | 240 | **160 个 → `MHC_T:47 post_torch`**；80 个 → `MODEL:619 _apply_wo_a_bf16_matmul` | ⚠️ 再归因，见下 |
+| `MatMulV3`（170） | `Matmul` | 400 | `quantization/linear_method_npu.py:141 apply`（主）+ `moe/matmul.py:41`、`unquant.py:1088`、`deepseek_v2.py:595`（共 19 种栈） | 线性层大杂烩 |
+| `QuantBatchMatmulV3`（256） | `QuantMatmul` | 256 | `quantization/linear_method_npu.py:141 apply`（6 种栈全在这里） | w4a8 量化线性 |
+| `Cast`（2174） | `InplaceCopy` | 400 | **78 种栈**：`parallel_state.py:1433 all_gather`(48)、`deepep.py:668/723`(24+12)、`npu/moe/activation.py:66-72 _clipped_swiglu_quant`(36)、`BACKEND:2148 _dsv41_a3_kv_lengths`(12) | 无单一归因 |
+| `ReduceSum`（3282） | `ReduceSum` | 400 | **`MHC_T:34/35 mix_stats_torch`（382/400）** | ✅ sinkhorn 实证 |
+| `RealDiv`（3200） | `Div` | 400 | **`MHC_T:34/35 mix_stats_torch`（374/400）** + `npu/moe/activation.py:69-71` | ✅ sinkhorn 实证 |
+| `GatherV2`（2） | `Embedding` | 4 | `quantization/unquant.py:953-954 embedding`（`F.embedding`） | 切步 anchor 确认 |
+
+**三条结论**：
+
+1. **「ReduceSum/RealDiv 的 95% 是 mHC sinkhorn」从【推】升级为【实证】**：就是 `MHC_T:34/35`
+   （`comb / (comb.sum(dim=-1/-2) + eps)`）。附录 A.7 那套"39 次 × 2 子层 × 40 层"的算式成立。
+2. **`BatchMatMulV2` 要再归因（重要）**：我第一版把它整体当 o_proj，实际 **240 个里 160 个（2/3）是 mHC 的
+   `post_torch` fp32 bmm**（`comb.float()ᵀ @ residual.float()`，每层 2 次），只有 80 个是 `wo_a` 的 einsum（每层 1 次）。
+   按时长自校验：`160×2.2 ms + 80×0.3 ms ≈ 376 ms` ≈ 实测 377.6 ms（两个总体正好对上 `op_statistic` 的
+   min=0.316 / max=2.203 ms）。物理论证也支持这个配对：fp32 bmm 要读 `[T,4,5120]` fp32（335 MB）再写同尺寸，
+   2.2 ms 合理；`wo_a` einsum 只有几十 MB 流量，对应 0.3 ms。
+   ⇒ **mHC 的 fp32 残差混合 ≈176 ms/forward（3.2%）**，是非 indexer 里最大的单笔 matmul，比 o_proj 大得多。
+3. **`Cast` 没有单一归因**（78 种栈，最大单源只占 12%）：它是全局 dtype 边界，遍布 TP all_gather、DeepEP、
+   MoE 量化、KV 长度 cast、mHC 的 fp32 往返。⇒ 只能按"哪段代码产生了不必要的 fp32 往返"去改，不能按算子改。
+
+**一个还没查清的点**：`Embedding` 这一组命中（被 `--per-op 400` 截断）合计 220 ms，但只有 4 个带栈
+（= 每 forward 2 次 token embedding）。其余大概是 engram 的 384M 大表查找（`engram.embed_rows`），
+但**未验证**——它可能是个被漏掉的小热点，值得单独用 `--ops-re 'engram|embed'` 查一次。
+
 ## 附录 A：数字核对（谁都能重算）
 
 1. **4 次 SLI = 4.00 s**：`SparseLightningIndexer` count=8（2 forward）、total=8 004 696 µs → 每次 1 000.6 ms，每 forward 4 次。
@@ -424,6 +462,7 @@ python3 _tmp_preflight/dump_callstack.py /tmp/demo_ep_late_1124_135951 --tag dem
 6. **4065 / 2033 = 池页数，2:1**：`(size+65)//64`；4065×64≈260 160，2033×64≈130 112。
 7. **sinkhorn 次数**：`range(sinkhorn_iters-1)=19` × (2 次 `sum`+`div`) + 1 次初始列归一 = 39 `ReduceSum` +
    39 `RealDiv` + 39 `Adds`/调用；×2 子层/层 ×40 层 = **3120**，实测 3282 / 3200（95%/97.5%）。
+   **已实证**（§5.5）：382/400 的 `ReduceSum` 栈、374/400 的 `RealDiv` 栈都指向 `MHC_T:34/35`。
 8. **每 forward 元素级合计**：Cast 149.1 + Add 91.0 + ReduceSum 84.9 + Mul 77.4 + RealDiv 41.0 + Pows 49.1 +
    ReduceMean 31.9 ≈ **524 ms**（约占 5.43 s 的 9.6%）。
 
@@ -442,8 +481,8 @@ python3 _tmp_preflight/dump_callstack.py /tmp/demo_ep_late_1124_135951 --tag dem
    若实现里对 T 有额外的固定开销（每核 20 份的边界），会略偏。未实测。
 6. **4 次 SLI 分别属于 layer 24/28/32/36**：由 `uses_candidates` 定义（layer > 20）唯一确定，属【码】；
    trace 栈只能给出"哪一行发的"，给不出 layer id（栈里没有 layer 变量），逐层对号仍需带参数打印的 trace。
-7. **`BatchMatMulV2` / `MatMulV3` / `QuantBatchMatmulV3` / `Cast` / `ReduceSum` / `RealDiv` / `GatherV2` 的 launcher**：
-   本次 0 栈（原因见 §5.2），仍是【推】。**其中对结论影响最大的是 `ReduceSum` / `RealDiv`**——我在附录 A.7
-   把 95% 归给 mHC sinkhorn，靠的是"次数吻合 + 代码里只有这一处"；栈没采到之前，这条仍是【推】。
+7. ~~`BatchMatMulV2` / `MatMulV3` / `QuantBatchMatmulV3` / `Cast` / `ReduceSum` / `RealDiv` / `GatherV2` 的 launcher~~
+   ⇒ **已补齐**（§5.5）。剩余的新问题是 `Embedding` 那一组（400 命中被截断、合计 220 ms、只有 4 个带栈）：
+   其余事件是不是 engram 的 384M 表查找、是 device 还是 host 时间，**未验证**。
 8. **mHC sinkhorn 的真实耗时**：§1 表里那 85/41 ms 是 **kernel 时间**；它在 eager + C=1 下还有一层 launch 开销
    （每层 ~100 个 <20 us 的算子），真实墙钟贡献**未验证**（需要未扰动 trace 或 host 侧计时）。
