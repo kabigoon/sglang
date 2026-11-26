@@ -192,12 +192,27 @@ cube_utilization = 97.6%
 
 | 项 | sglang（BF16，ll / LIV2 + SLI） | **vLLM-Ascend（INT8 QLI V2）** | 倍数 |
 |---|---|---|---|
-| **索引器** | **4.00 s**（4 次 × 984 ms） | **0.172 s**（12 个 kernel，均 14.4 ms，max 49.5） | **≈23×** |
+| **索引器（同 S 单次）** | **984 ms** @ S=122,880 | **49.5 ms** @ S=54,347 ⇒ 线性外推 **≈112 ms** @ S=122,880 | **≈8.8×** |
+| **索引器（整段 prefill / token 归一）** | 49–50 s / 64K token = **773 us/token** | 5.52 s / 127K token = **43 us/token** | **≈18×** |
+| 索引器（每 chunk，仅供参照） | 4.00 s（晚段，4 次 × 984 ms） | 0.172 s（全段平均，12 个 kernel，均 14.4 ms，max 49.5） | （**不可直接相除**，见 §9.1） |
 | MLA | 0.149 s | **0.150 s** | 1.0× |
 | mHC | 0.35–0.40 s（纯 torch：`mix_stats_torch` + fp32 `post_torch`） | **0.122 s**（`HcPre` 0.078 + `HcPost` 0.044，融合算子） | ≈3× |
 | 通信 | 未单独统计（TP 内 allreduce 为主） | 0.256 s（alltoallv + allreduce + allgather，其中 4.7 s/32 未重叠） | — |
 | 其它（gemm/norm/moe/quant/other） | ~0.9 s | ~0.30 s | — |
 | **每 chunk 墙钟** | **4.6 s** | **0.85 s** | **≈5.4×** |
+
+### 9.1 关于"23×"这个口径的更正
+
+早期草稿里写过"索引器 23×"，这是**拿 sglang 的晚段单次成本（984 ms @ S≈122,880）去除 vLLM 的全段平均（172 ms/chunk）**得到的，
+两个端点不在同一 S、也不在同一统计方式上，**不能这样比**。正确的三种口径见上表：
+
+- **同 S 单次 ≈8.8×** —— 衡量"同一个算子、同样工作量，实现差多少"；
+- **按实算 token 归一 ≈18×** —— 更大是因为 vLLM 多算了整整一倍 token（127K vs 64K）；
+- 每 chunk 平均值会随 S 增长（成本 ∝ S），**跨段相除没有意义**。
+
+索引器的成本与 S 成正比（Insight 单次实例：`T=4096, S=54347` → 49.5 ms，`Input Shapes` 第 2 个维度就是 S），
+因此正确的做法是拟合 `t(S) = a·S + b`：**斜率差 = 访存/算法效率差，截距差 = 固定开销（如 mask 重扫）**。
+`collect_va_profile.py` 已加 `va_calls.csv`（逐次调用的 Duration + Input Shapes）用于拟合。
 
 ### 一句话归因
 
@@ -212,7 +227,7 @@ cube_utilization = 97.6%
 
 ## 10. 对 sglang 侧的三条可执行结论
 
-1. **索引器是唯一值得大动的大头**：每 chunk 4.0 s → 目标是 0.2 s 量级；TTFT 73.7 s 可望降到 **20 s 量级**。
+1. **索引器是唯一值得大动的大头**：同 S 单次 984 ms → 目标 ~110 ms（vLLM 水平），按 token 归一就是从 773 us/token 降到 43 us/token；TTFT 73.7 s 有望降到 **20 s 量级**。
    路径：INT8 量化（`QuantSparseLightningIndexer` 只注册 arch22，而 sglang 的 `quant_*_dsl` 被 `is_npu_arch35()` 挡住 —— **门禁过严**）+ mask 重扫的合并（block table 一次读取 + Brcb）。
 2. **mHC 融合算子可移植**：vLLM 的 `HcPre`/`HcPost` 在 A3（`ascend910_93`）上确实在用、比 sglang 的纯 torch 快 3×。
    收益 ≈ 0.25 s/chunk（TTFT 里约 4 s），且**不用换框架**。
