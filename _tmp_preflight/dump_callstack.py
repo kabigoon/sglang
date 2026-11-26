@@ -52,7 +52,12 @@ REPO_HINTS = (
     "sgl-kernel-npu",
     "deep_ep/",
     "ops-transformer",
+    "vllm_ascend/",
+    "vllm/",
 )
+
+# "主仓"帧：launcher 优先取这一类（跨框架复用：sglang 或 vllm-ascend 的 trace 都能用）
+PRIMARY_HINTS = ("sglang/", "vllm_ascend/", "vllm/")
 
 # torch 自己插入的"最内层"帧特征，用来判断栈的方向（inner-first vs inner-last）
 TORCH_INNER_HINTS = (
@@ -293,8 +298,9 @@ def is_repo(fr: dict) -> bool:
     return any(h in b for h in REPO_HINTS)
 
 
-def is_sglang(fr: dict) -> bool:
-    return "sglang/" in _blob(fr) or "/sglang/srt/" in _blob(fr)
+def is_primary(fr: dict) -> bool:
+    b = _blob(fr)
+    return any(h in b for h in PRIMARY_HINTS)
 
 
 def _is_inner_torch(fr: dict) -> bool:
@@ -347,7 +353,7 @@ def repo_chain(frames: list[dict], limit: int = 4) -> str:
 def launcher_sglang(frames: list[dict]) -> str:
     inner, _ = normalize_order(frames)
     for fr in inner:
-        if is_sglang(fr):
+        if is_primary(fr):
             return fmt_frame(fr)
     return ""
 
@@ -432,8 +438,19 @@ def main() -> int:
         action="store_true",
         help="kernel 事件没有栈时，用「时间包含」找最内层 python scope 的栈（异步下可能错配，输出会标 [推断]）",
     )
+    ap.add_argument(
+        "--repo-hint",
+        action="append",
+        default=[],
+        help="额外的『仓库代码帧』特征串（可多次）；换框架时用，如 --repo-hint vllm_ascend/",
+    )
     ap.add_argument("--probe", action="store_true", help="只做体检：字段名/有没有栈/事件分布")
     args = ap.parse_args()
+
+    if args.repo_hint:
+        global REPO_HINTS, PRIMARY_HINTS
+        REPO_HINTS = tuple(REPO_HINTS) + tuple(args.repo_hint)
+        PRIMARY_HINTS = tuple(PRIMARY_HINTS) + tuple(args.repo_hint)
 
     path = find_trace(args.trace)
     size_mb = os.path.getsize(path) / 1024 / 1024
@@ -657,7 +674,7 @@ def main() -> int:
     A("")
     A("**读法**：")
     A("")
-    A("- 每种栈按「最内层在前」打印；`launcher` = 最内层 `python/sglang/` 帧（拿不到时退回最内层任意仓库帧），")
+    A("- 每种栈按「最内层在前」打印；`launcher` = 最内层主仓帧（`python/sglang/` 或 `vllm_ascend/`；拿不到时退回最内层任意仓库帧），")
     A("  也就是**该算子实际被哪一行 sglang 代码发起**，可直接回填 `KERNEL_CODE_MAP.md` 的「Python 发起位置」列。")
     A("- `仓库帧链` 是从内往外的完整 sglang/deep_ep 调用链（`A ⟵ B` 读作「A 被 B 调用」）。")
     A("- 栈方向按 torch 的 dispatch 帧位置自动判定；判不出来时按原始顺序打印，并在下面标注。")
@@ -666,7 +683,7 @@ def main() -> int:
 
     A("## 汇总")
     A("")
-    A("| 算子 | 命中 | 带栈 | 合计 ms | 去重栈 | launcher（最内层 sglang 帧） |")
+    A("| 算子 | 命中 | 带栈 | 合计 ms | 去重栈 | launcher（最内层 sglang/vllm_ascend 帧） |")
     A("|---|---|---|---|---|---|")
     for lb, n, ns, ms, ng, best in rows:
         A("| `%s` | %d | %d | %.1f | %d | %s |" % (lb, n, ns, ms, ng, ("`%s`" % best) if best else "—"))
@@ -719,7 +736,7 @@ def main() -> int:
                     ds[0] / 1000.0,
                     dmed,
                     ds[-1] / 1000.0,
-                    launcher_sglang(g[0]["frames"]) or "（栈里没有 sglang 帧）",
+                    launcher_sglang(g[0]["frames"]) or "（栈里没有主仓帧）",
                 )
             )
             chain = repo_chain(g[0]["frames"])
