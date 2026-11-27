@@ -104,32 +104,35 @@ def build(device: str, T: int, S: int, max_pages: int, cand_mode: str = "recent"
     return q, k, w, cu_q, seqused_k, block_table, cand
 
 
-KW = dict(
-    cu_seqlens_q=None,
-    cu_seqlens_k=None,
-    seqused_q=None,
-    cmp_residual_k=None,
-    layout_q="TND",
-    layout_k="PA_BBND",
-    mask_mode=3,
-    cmp_ratio=1,
-    max_seqlen_q=-1,
-)
+def common_kwargs(cu_q, seqused_k, block_table):
+    """两个算子共有的关键字实参。
 
-
-def run_once(op, q, k, w, cu_q, seqused_k, block_table, cand):
-    return op(
-        q,
-        k,
-        w,
-        TOPK,
-        cand,
+    注意签名差异（由 ``--dry-run`` / 冒烟日志确认）：
+      SparseLightningIndexer: (q, k, w, topk, candidate_block_indices, *, ...)
+      LightningIndexerV2    : (q, k, w, topk, *, ...)      ← 没有第 5 个位置参数
+    所以 5 个位置参数只能给 SLI；LIV2 走 4 个位置参数 + 关键字。
+    """
+    return dict(
         cu_seqlens_q=cu_q,
+        cu_seqlens_k=None,
+        seqused_q=None,
         seqused_k=seqused_k,
+        cmp_residual_k=None,
         block_table=block_table,
-        candidate_block_size=CAND_BLOCK_SIZE,
-        **KW,
+        max_seqlen_q=-1,
+        layout_q="TND",
+        layout_k="PA_BBND",
+        mask_mode=3,
+        cmp_ratio=1,
     )
+
+
+def run_once(name, op, q, k, w, cu_q, seqused_k, block_table, cand):
+    kw = common_kwargs(cu_q, seqused_k, block_table)
+    if name == "sli":  # SparseLightningIndexer：带候选块（5 个位置参数）
+        return op(q, k, w, TOPK, cand, candidate_block_size=CAND_BLOCK_SIZE, **kw)
+    # LightningIndexerV2：全量 top-k，无候选
+    return op(q, k, w, TOPK, **kw)
 
 
 def timeit(fn, warmup: int, iters: int):
@@ -196,12 +199,18 @@ def main() -> int:
                         continue
                     try:
                         res[name] = timeit(
-                            lambda op=ops[name]: run_once(op, q, k, w, cu_q, seqused_k, bt, cand),
+                            lambda n=name, op=ops[name]: run_once(
+                                n, op, q, k, w, cu_q, seqused_k, bt, cand
+                            ),
                             args.warmup, args.iters,
                         )
                     except Exception as e:
                         res[name] = float("nan")
-                        print("[fail] %s @T=%d,S=%d: %r" % (name, T, S, e), file=sys.stderr)
+                        print(
+                            "[fail] %s @T=%d,S=%d: %r\n       kwargs=%s"
+                            % (name, T, S, e, sorted(common_kwargs(None, None, None))),
+                            file=sys.stderr,
+                        )
                 sli_ms, liv2_ms = res.get("sli", float("nan")), res.get("liv2", float("nan"))
                 ratio = (sli_ms / liv2_ms) if liv2_ms and liv2_ms == liv2_ms else float("nan")
                 print("%-6d %-8d %-6s %10.2f %10.2f %10.2f" % (T, S, mode, sli_ms, liv2_ms, ratio))
