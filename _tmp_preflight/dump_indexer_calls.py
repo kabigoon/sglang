@@ -128,20 +128,25 @@ def main() -> int:
             if args.pattern.lower() not in (r.get("Name") or "").lower():
                 continue
             T, S, width = parse_shapes(r.get("Input Shapes") or "", args.page)
-            phase = "prefill" if T > 1 else ("decode" if T == 1 else "unknown")
-            if T <= 0 and not warned[0]:
-                warned[0] = True
-                print(
-                    "[warn] 无法从 Input Shapes 解析出 T，该行标为 phase=unknown。样例行:\n"
-                    "       %s | dur=%.1f ms | %r" % (r.get("Name"), dur / 1000.0, r.get("Input Shapes")),
-                    file=sys.stderr,
-                )
-            if args.phase != "all" and phase != args.phase:
-                continue
             try:
                 dur = float(r.get("Duration(us)") or 0)
             except ValueError:
                 dur = 0.0
+            phase = "prefill" if T > 1 else ("decode" if T == 1 else "unknown")
+            if not warned[0]:  # 第一行永远打一次原文，方便核对解析口径
+                warned[0] = True
+                print(
+                    "[info] 首行样例: %s | dur=%.1f ms | T=%s S=%s | shapes=%r"
+                    % (r.get("Name"), dur / 1000.0, T, S, (r.get("Input Shapes") or "")[:200]),
+                    file=sys.stderr,
+                )
+                if T <= 0:
+                    print(
+                        "[warn] 解析不出 T（该行 phase=unknown）；如果全部如此，请把上面的 shapes 原文反馈。",
+                        file=sys.stderr,
+                    )
+            if args.phase != "all" and phase != args.phase:
+                continue
             out = {c: r.get(c, "") for c in have}
             out["dur_ms"] = "%.3f" % (dur / 1000.0)
             out["T"] = T
