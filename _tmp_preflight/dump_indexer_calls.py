@@ -73,7 +73,10 @@ def parse_shapes(shapes: str, page: int):
     q 通常是第 0 段（`T,heads,dim`），但不同 profiler 版本下第 0 段可能是空的或别的张量，
     所以退化为"扫第一个三段式 shape"。都失败时 T=0（调用方应标 unknown，而不是 decode）。
     """
-    fields = [f.strip() for f in (shapes or "").split(";")]
+    # profiler 的 Input Shapes 有时带一层字面量引号（""4096,32,128;...""），
+    # csv 已经剥掉一层，这里再剥一层，否则 int('"4096') 会失败。
+    shapes = (shapes or "").strip().strip('"')
+    fields = [f.strip().strip('"') for f in shapes.split(";")]
     T = 0
     if fields and fields[0]:
         try:
@@ -177,6 +180,11 @@ def main() -> int:
             "%-26s %-8s %9d %4d %10.1f %8.1f..%.1f"
             % (name[:26], phase, S, len(ds), statistics.median(ds), min(ds), max(ds))
         )
+
+    hist = {}
+    for r in rows:
+        hist[r["phase"]] = hist.get(r["phase"], 0) + 1
+    print("\nphase 分布: %s   （unknown 表示 Input Shapes 里解析不出 T）" % hist)
 
     for name in sorted({r["Name"] for r in rows}):
         pts = []
