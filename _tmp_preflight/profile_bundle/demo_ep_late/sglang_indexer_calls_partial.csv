@@ -1,0 +1,7 @@
+Name,Start Time(us),Duration(us),Input Shapes,Block Num,Mix Block Num,aic_mac_time(us),aic_mac_ratio,cube_utilization(%),Type,Accelerator Core,"S(derived,rows)",note,source
+LightningIndexerV2,1795529070783631.738,28022.180,"4096,32,128;2033,64,1,128;4096,32;2;;;1;1;1,960;;",20,40,,0.273,99.933,MIX_AIC,MIX_AIC,61440,aic_mac_ratio from trace,kernel_attrs.txt
+LightningIndexerV2,1795529071742159.787,28022.120,"4096,32,128;2033,64,1,128;4096,32;2;;;1;1;1,960;;",20,40,,0.273,99.925,MIX_AIC,MIX_AIC,61440,aic_mac_ratio from trace,kernel_attrs.txt
+SparseLightningIndexer,1795529074365442.474,984598.747,"4096,32,128;4065,64,1,128;4096,32;2;;;1;;1,1920;;;4096,1,2048;",20,40,15492.448,0.0157,98.940,MIX_AIC,MIX_AIC,122880,aic_mac_ratio=mac_time/dur,indexer_attrs.txt
+SparseLightningIndexer,1795529075924582.062,984610.528,"4096,32,128;4065,64,1,128;4096,32;2;;;1;;1,1920;;;4096,1,2048;",20,40,15492.411,0.0157,98.940,MIX_AIC,MIX_AIC,122880,aic_mac_ratio=mac_time/dur,indexer_attrs.txt
+SparseLightningIndexer,1795529077481318.759,984657.026,"4096,32,128;4065,64,1,128;4096,32;2;;;1;;1,1920;;;4096,1,2048;",20,40,15492.427,0.0157,98.935,MIX_AIC,MIX_AIC,122880,aic_mac_ratio=mac_time/dur,indexer_attrs.txt
+SparseLightningIndexer,1795529079038622.664,984491.030,"4096,32,128;4065,64,1,128;4096,32;2;;;1;;1,1920;;;4096,1,2048;",20,40,15492.407,0.0157,98.951,MIX_AIC,MIX_AIC,122880,aic_mac_ratio=mac_time/dur,indexer_attrs.txt
