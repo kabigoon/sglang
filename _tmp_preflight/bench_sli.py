@@ -135,12 +135,28 @@ def run_once(name, op, q, k, w, cu_q, seqused_k, block_table, cand):
     return op(q, k, w, TOPK, **kw)
 
 
-def timeit(fn, warmup: int, iters: int):
+def timeit(fn, warmup: int, iters: int, label: str = ""):
+    """先做一次**不计时**的调用（吸收 JIT 编译/懒加载），再计时 iters 次取中位。
+
+    经验：`sparse_lightning_indexer` / `lightning_indexer_v2` 在首次调用时会用 ccache 现场
+    编译成 .so（日志里能看到 `ccache c++ ... -o sparse_lightning_indexer.so`），耗时几秒；
+    不排掉就会把一次 0.5 ms 的调用测成几秒。
+    """
     import time
 
-    for _ in range(warmup):
-        fn()
+    t0 = time.perf_counter()
+    fn()
     sync()
+    first_ms = (time.perf_counter() - t0) * 1e3
+    if first_ms > 50:
+        print(
+            "[note] %s 首次调用 %.0f ms（含 JIT 编译/懒加载），已排除在计时外"
+            % (label or "op", first_ms),
+            file=sys.stderr,
+        )
+    for _ in range(max(0, warmup - 1)):
+        fn()
+        sync()
     ts = []
     for _ in range(iters):
         t = time.perf_counter()
@@ -202,7 +218,7 @@ def main() -> int:
                             lambda n=name, op=ops[name]: run_once(
                                 n, op, q, k, w, cu_q, seqused_k, bt, cand
                             ),
-                            args.warmup, args.iters,
+                            args.warmup, args.iters, label=name,
                         )
                     except Exception as e:
                         res[name] = float("nan")
