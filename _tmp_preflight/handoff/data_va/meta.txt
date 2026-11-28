@@ -1,0 +1,7 @@
+source_root: /home/a00821909/va_prof/dp2_pp0_tp0_dcp0_ep8_rank0_110056_20261126140227624_ascend_pt
+source_file: /home/a00821909/va_prof/dp2_pp0_tp0_dcp0_ep8_rank0_110056_20261126140227624_ascend_pt/ASCEND_PROFILER_OUTPUT/kernel_details.csv
+rank_dir: /home/a00821909/va_prof/dp2_pp0_tp0_dcp0_ep8_rank0_110056_20261126140227624_ascend_pt/ASCEND_PROFILER_OUTPUT
+kernel_details_bytes: 49122770
+kernel_rows: 146304
+total_kernel_us: 29982729
+columns: Device_id, Model ID, Task ID, Stream ID, Name, Type, OP State, Accelerator Core, Start Time(us), Duration(us), Wait Time(us), Block Num, Mix Block Num, HF32 Eligible, Input Shapes, Input Data Types, Input Formats, Output Shapes, Output Data Types, Output Formats, Context ID, aicore_time(us), aic_total_cycles, aic_mac_time(us), aic_mac_ratio, aic_scalar_time(us), aic_scalar_ratio, aic_mte1_time(us), aic_mte1_ratio, aic_mte2_time(us), aic_mte2_ratio, aic_fixpipe_time(us), aic_fixpipe_ratio, aic_icache_miss_rate, aiv_time(us), aiv_total_cycles, aiv_vec_time(us), aiv_vec_ratio, aiv_scalar_time(us), aiv_scalar_ratio, aiv_mte2_time(us), aiv_mte2_ratio, aiv_mte3_time(us), aiv_mte3_ratio, aiv_icache_miss_rate, cube_utilization(%)

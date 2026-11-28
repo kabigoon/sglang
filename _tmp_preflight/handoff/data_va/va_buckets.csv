@@ -1,0 +1,10 @@
+bucket,kernels,total_us,pct,avg_us,top3_kernels(us)
+comm,22104,8208303,27.38%,371,alltoallvAicpuKernel=1784072; allreduceAicpuKernel=1061386; allgatherAicpuKernel=618742
+indexer,1248,5892612,19.65%,4722,VllmAscendQuantLightningIndexerV2=5518269; _prepare_indexer_indices_kernel=240358; _quantize_indexer_query_kernel=113467
+mla_attn,2064,4885429,16.29%,2367,SparseFlashMla=4788142; aclnnSparseFlashMlaMetadata_SparseFlashMlaMetadata_SparseFlashMlaMetadata=97287
+mhc,7680,3909365,13.04%,509,HcPre=2510128; HcPost=1399237
+gemm,10743,2157822,7.20%,201,aclnnMatmul_MatMulV3Common_MatMulV3=1096153; aclnnMatmul_MatMulCommon_MatMulV2=713252; aclnnGroupedMatmulWeightNz_GroupedMatmul_GroupedMatmul=348417
+other,42203,1492450,4.98%,35,aclnnScatterNdUpdateSk_ScatterNdUpdateSkAiCore_ScatterNdUpdateSk=384524; RmsNorm=227493; aclnnForeachAddListV2_ForeachAddListV2_ForeachAddList=174229
+norm,36184,1158121,3.86%,32,aclnnTransposeBatchMatMul_TransposeBatchMatMul_TransposeBatchMatMul=419596; RmsNormCast=225080; aclnnInplaceCopy_TensorMoveAiCore_TensorMove=188449
+moe,12160,1142049,3.81%,94,aclnnGroupedMatmulSwigluQuantWeightNzV2_GroupedMatmulSwigluQuantV2_GroupedMatmulSwigluQuantV2=616421; MoeTokenUnpermute=138806; aclnnMoeInitRoutingV3_MoeInitRoutingV3_MoeInitRoutingV3=109789
+quant,11918,1136578,3.79%,95,aclnnQuantMatmulWeightNz_QuantBatchMatmulV3_QuantBatchMatmulV3=797651; aclnnDynamicQuantV2_DynamicQuant_DynamicQuant=269166; _engram_host_uva_gather_dequant_kernel=69761

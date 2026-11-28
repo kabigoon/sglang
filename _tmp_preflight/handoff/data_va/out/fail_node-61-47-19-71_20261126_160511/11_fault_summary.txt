@@ -1,0 +1,160 @@
+### 所有 fault kernel_name（去重）
+
+### 错误码族
+    324 EE9999
+     83 ERR00100
+     24 EZ9999
+      2 ERR99999
+      2 ERR02005
+
+### 最后一个 serve 日志的最后 150 行
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]   File "/vllm-workspace/vllm/vllm/v1/engine/core.py", line 1464, in _process_engine_step
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]     outputs, model_executed = self.step_fn()
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]                               ^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]   File "/vllm-workspace/vllm/vllm/v1/engine/core.py", line 706, in step_with_batch_queue
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]     model_output = future.result()
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]                    ^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]   File "/vllm-workspace/vllm/vllm/v1/executor/multiproc_executor.py", line 99, in result
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]     return super().result()
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]            ^^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]   File "/usr/local/python3.12.16/lib/python3.12/concurrent/futures/_base.py", line 449, in result
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]     return self.__get_result()
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]            ^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]   File "/usr/local/python3.12.16/lib/python3.12/concurrent/futures/_base.py", line 401, in __get_result
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]     raise self._exception
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]   File "/vllm-workspace/vllm/vllm/v1/executor/multiproc_executor.py", line 103, in _wait_for_response
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]     response = self.aggregate(self.get_response())
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]                               ^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]   File "/vllm-workspace/vllm/vllm/v1/executor/multiproc_executor.py", line 433, in get_response
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]     status, result = mq.dequeue(timeout=dequeue_timeout)
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]   File "/vllm-workspace/vllm/vllm/distributed/device_communicators/shm_broadcast.py", line 889, in dequeue
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]     with self.acquire_read(timeout, indefinite) as buf:
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]   File "/usr/local/python3.12.16/lib/python3.12/contextlib.py", line 137, in __enter__
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]     return next(self.gen)
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]            ^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]   File "/vllm-workspace/vllm/vllm/distributed/device_communicators/shm_broadcast.py", line 797, in acquire_read
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]     raise RuntimeError("cancelled")
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368] RuntimeError: cancelled
+(ApiServer_1 pid=240) INFO:     Shutting down
+(ApiServer_1 pid=240) INFO:     Waiting for application shutdown.
+(ApiServer_1 pid=240) INFO:     Application shutdown complete.
+(ApiServer_1 pid=240) INFO:     Finished server process [240]
+(ApiServer_1 pid=240) INFO 11-26 08:00:20 [core_client.py:744] [shutdown] MPClient: start timeout=0s
+(ApiServer_1 pid=240) INFO 11-26 08:00:20 [core_client.py:749] [shutdown] MPClient: cleaning up background resources
+(ApiServer_1 pid=240) INFO 11-26 08:00:20 [core_client.py:751] [shutdown] MPClient: complete
+(EngineCore_DP1 pid=203) WARNING 11-26 08:00:21 [parallel_state.py:2469] torch.accelerator.empty_host_cache() only available in Pytorch >=2.9
+(EngineCore_DP1 pid=203) Process EngineCore_DP1:
+(EngineCore_DP1 pid=203) Traceback (most recent call last):
+(EngineCore_DP1 pid=203)   File "/usr/local/python3.12.16/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(EngineCore_DP1 pid=203)     self.run()
+(EngineCore_DP1 pid=203)   File "/usr/local/python3.12.16/lib/python3.12/multiprocessing/process.py", line 108, in run
+(EngineCore_DP1 pid=203)     self._target(*self._args, **self._kwargs)
+(EngineCore_DP1 pid=203)   File "/home/a00821909/vllm-ascend/vllm_ascend/patch/platform/patch_engine_core.py", line 56, in _run_engine_core_patch_func
+(EngineCore_DP1 pid=203)     return _OriginalRunEngineCore(*args, dp_rank=dp_rank, local_dp_rank=local_dp_rank, **kwargs)
+(EngineCore_DP1 pid=203)            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203)   File "/vllm-workspace/vllm/vllm/v1/engine/core.py", line 1370, in run_engine_core
+(EngineCore_DP1 pid=203)     raise e
+(EngineCore_DP1 pid=203)   File "/vllm-workspace/vllm/vllm/v1/engine/core.py", line 1352, in run_engine_core
+(EngineCore_DP1 pid=203)     engine_core.run_busy_loop()
+(EngineCore_DP1 pid=203)   File "/vllm-workspace/vllm/vllm/v1/fault_tolerance/engine_core_sentinel.py", line 179, in run_with_fault_tolerance
+(EngineCore_DP1 pid=203)     busy_loop_func(self)
+(EngineCore_DP1 pid=203)   File "/vllm-workspace/vllm/vllm/v1/engine/core.py", line 2204, in run_busy_loop
+(EngineCore_DP1 pid=203)     executed = self._process_engine_step()
+(EngineCore_DP1 pid=203)                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203)   File "/vllm-workspace/vllm/vllm/v1/engine/core.py", line 1464, in _process_engine_step
+(EngineCore_DP1 pid=203)     outputs, model_executed = self.step_fn()
+(EngineCore_DP1 pid=203)                               ^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203)   File "/vllm-workspace/vllm/vllm/v1/engine/core.py", line 706, in step_with_batch_queue
+(EngineCore_DP1 pid=203)     model_output = future.result()
+(EngineCore_DP1 pid=203)                    ^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203)   File "/vllm-workspace/vllm/vllm/v1/executor/multiproc_executor.py", line 99, in result
+(EngineCore_DP1 pid=203)     return super().result()
+(EngineCore_DP1 pid=203)            ^^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203)   File "/usr/local/python3.12.16/lib/python3.12/concurrent/futures/_base.py", line 449, in result
+(EngineCore_DP1 pid=203)     return self.__get_result()
+(EngineCore_DP1 pid=203)            ^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203)   File "/usr/local/python3.12.16/lib/python3.12/concurrent/futures/_base.py", line 401, in __get_result
+(EngineCore_DP1 pid=203)     raise self._exception
+(EngineCore_DP1 pid=203)   File "/vllm-workspace/vllm/vllm/v1/executor/multiproc_executor.py", line 103, in _wait_for_response
+(EngineCore_DP1 pid=203)     response = self.aggregate(self.get_response())
+(EngineCore_DP1 pid=203)                               ^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203)   File "/vllm-workspace/vllm/vllm/v1/executor/multiproc_executor.py", line 433, in get_response
+(EngineCore_DP1 pid=203)     status, result = mq.dequeue(timeout=dequeue_timeout)
+(EngineCore_DP1 pid=203)                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203)   File "/vllm-workspace/vllm/vllm/distributed/device_communicators/shm_broadcast.py", line 889, in dequeue
+(EngineCore_DP1 pid=203)     with self.acquire_read(timeout, indefinite) as buf:
+(EngineCore_DP1 pid=203)          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203)   File "/usr/local/python3.12.16/lib/python3.12/contextlib.py", line 137, in __enter__
+(EngineCore_DP1 pid=203)     return next(self.gen)
+(EngineCore_DP1 pid=203)            ^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203)   File "/vllm-workspace/vllm/vllm/distributed/device_communicators/shm_broadcast.py", line 797, in acquire_read
+(EngineCore_DP1 pid=203)     raise RuntimeError("cancelled")
+(EngineCore_DP1 pid=203) RuntimeError: cancelled
+ERROR 11-26 08:00:23 [utils.py:604] Exception occurred while running API servers: Process ApiServer_1 (PID: 240) died with exit code None
+ERROR 11-26 08:00:23 [utils.py:604] Traceback (most recent call last):
+ERROR 11-26 08:00:23 [utils.py:604]   File "/vllm-workspace/vllm/vllm/v1/utils.py", line 591, in wait_for_completion_or_failure
+ERROR 11-26 08:00:23 [utils.py:604]     raise RuntimeError(
+ERROR 11-26 08:00:23 [utils.py:604] RuntimeError: Process ApiServer_1 (PID: 240) died with exit code None
+INFO 11-26 08:00:23 [utils.py:632] [shutdown] Process manager: send sigterm to process ApiServer_0
+(ApiServer_0 pid=239) INFO 11-26 08:00:23 [launcher.py:129] [shutdown] API server: shutdown triggered
+INFO 11-26 08:00:23 [utils.py:632] [shutdown] Process manager: send sigterm to process ApiServer_2
+INFO 11-26 08:00:23 [utils.py:632] [shutdown] Process manager: send sigterm to process ApiServer_3
+(ApiServer_0 pid=239) INFO 11-26 08:00:23 [launcher.py:145] [shutdown] API server: stopping engine client mode=abort timeout=0s
+(ApiServer_3 pid=242) INFO 11-26 08:00:23 [launcher.py:129] [shutdown] API server: shutdown triggered
+(ApiServer_2 pid=241) INFO 11-26 08:00:23 [launcher.py:129] [shutdown] API server: shutdown triggered
+(ApiServer_3 pid=242) INFO 11-26 08:00:23 [launcher.py:145] [shutdown] API server: stopping engine client mode=abort timeout=0s
+(ApiServer_0 pid=239) INFO 11-26 08:00:23 [core_client.py:744] [shutdown] MPClient: start timeout=0s
+(ApiServer_2 pid=241) INFO 11-26 08:00:23 [launcher.py:145] [shutdown] API server: stopping engine client mode=abort timeout=0s
+(ApiServer_0 pid=239) INFO 11-26 08:00:23 [core_client.py:749] [shutdown] MPClient: cleaning up background resources
+(ApiServer_0 pid=239) INFO 11-26 08:00:23 [core_client.py:751] [shutdown] MPClient: complete
+(ApiServer_3 pid=242) INFO 11-26 08:00:23 [core_client.py:744] [shutdown] MPClient: start timeout=0s
+(ApiServer_0 pid=239) INFO 11-26 08:00:23 [launcher.py:154] [shutdown] API server: engine client stopped
+(ApiServer_0 pid=239) INFO 11-26 08:00:23 [launcher.py:157] [shutdown] API server: signalling HTTP server shutdown
+(ApiServer_3 pid=242) INFO 11-26 08:00:23 [core_client.py:749] [shutdown] MPClient: cleaning up background resources
+(ApiServer_2 pid=241) INFO 11-26 08:00:23 [core_client.py:744] [shutdown] MPClient: start timeout=0s
+(ApiServer_3 pid=242) INFO 11-26 08:00:23 [core_client.py:751] [shutdown] MPClient: complete
+(ApiServer_2 pid=241) INFO 11-26 08:00:23 [core_client.py:749] [shutdown] MPClient: cleaning up background resources
+(ApiServer_3 pid=242) INFO 11-26 08:00:23 [launcher.py:154] [shutdown] API server: engine client stopped
+(ApiServer_2 pid=241) INFO 11-26 08:00:23 [core_client.py:751] [shutdown] MPClient: complete
+(ApiServer_3 pid=242) INFO 11-26 08:00:23 [launcher.py:157] [shutdown] API server: signalling HTTP server shutdown
+(ApiServer_2 pid=241) INFO 11-26 08:00:23 [launcher.py:154] [shutdown] API server: engine client stopped
+(ApiServer_2 pid=241) INFO 11-26 08:00:23 [launcher.py:157] [shutdown] API server: signalling HTTP server shutdown
+(ApiServer_0 pid=239) WARNING 11-26 08:00:23 [launcher.py:173] port 8900 is used by process psutil.Process(pid=242, name='VLLM::APIServer_3', status='running', started='07:54:28') launched with command:
+(ApiServer_0 pid=239) WARNING 11-26 08:00:23 [launcher.py:173] VLLM::APIServer_3                                                                                                                                     
+(ApiServer_0 pid=239) INFO 11-26 08:00:23 [launcher.py:179] [shutdown] API server: shutting down FastAPI HTTP server
+(ApiServer_0 pid=239) INFO:     Shutting down
+(ApiServer_3 pid=242) INFO 11-26 08:00:23 [launcher.py:179] [shutdown] API server: shutting down FastAPI HTTP server
+(ApiServer_3 pid=242) INFO:     Shutting down
+(ApiServer_2 pid=241) WARNING 11-26 08:00:23 [launcher.py:173] port 8900 is used by process psutil.Process(pid=242, name='VLLM::APIServer_3', status='sleeping', started='07:54:28') launched with command:
+(ApiServer_2 pid=241) WARNING 11-26 08:00:23 [launcher.py:173] VLLM::APIServer_3                                                                                                                                     
+(ApiServer_2 pid=241) INFO 11-26 08:00:23 [launcher.py:179] [shutdown] API server: shutting down FastAPI HTTP server
+(ApiServer_2 pid=241) INFO:     Shutting down
+(ApiServer_0 pid=239) INFO:     Waiting for application shutdown.
+(ApiServer_0 pid=239) INFO:     Application shutdown complete.
+(ApiServer_3 pid=242) INFO:     Waiting for application shutdown.
+(ApiServer_3 pid=242) INFO:     Application shutdown complete.
+(ApiServer_2 pid=241) INFO:     Waiting for application shutdown.
+(ApiServer_2 pid=241) INFO:     Application shutdown complete.
+INFO 11-26 08:00:24 [utils.py:632] [shutdown] Process manager: send sigterm to process EngineCore_DP0
+INFO 11-26 08:00:24 [utils.py:632] [shutdown] Process manager: send sigterm to process EngineCore_DP2
+INFO 11-26 08:00:24 [utils.py:632] [shutdown] Process manager: send sigterm to process EngineCore_DP3
+(EngineCore_DP3 pid=227) INFO 11-26 08:00:24 [core.py:1342] [shutdown] EngineCore: trigger received signal=SIGTERM
+INFO 11-26 08:00:24 [utils.py:632] [shutdown] Process manager: send sigterm to process VLLM_DP_Coordinator
+Traceback (most recent call last):
+  File "/usr/local/python3.12.16/bin/vllm", line 6, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/vllm-workspace/vllm/vllm/entrypoints/cli/main.py", line 106, in main
+    args.dispatch_function(args)
+  File "/vllm-workspace/vllm/vllm/entrypoints/cli/serve.py", line 150, in cmd
+    run_multi_api_server(args)
+  File "/vllm-workspace/vllm/vllm/entrypoints/cli/serve.py", line 393, in run_multi_api_server
+    wait_for_completion_or_failure(
+  File "/vllm-workspace/vllm/vllm/v1/utils.py", line 591, in wait_for_completion_or_failure
+    raise RuntimeError(
+RuntimeError: Process ApiServer_1 (PID: 240) died with exit code None
+[ERROR] 2026-11-26-08:00:25 (PID:161, Device:-1, RankID:-1) ERR99999 UNKNOWN applicaiton exception
+WARNING 11-26 08:00:29 [utils.py:652] [shutdown] Process manager: force killing remaining processes count=1
+WARNING 11-26 08:00:29 [utils.py:657] [shutdown] Process manager: force killing remaining process EngineCore_DP3 pid 227

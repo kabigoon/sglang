@@ -1,0 +1,46 @@
+=== _cann_ops_custom size ===
+54M	/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom
+=== dirs (depth<=5) ===
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/scripts
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_proto
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_proto/lib
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_proto/lib/linux
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_proto/inc
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/bin
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_api
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_api/lib
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_api/include
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_api/include/aclnnop
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/cpu
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/cpu/aicpu_kernel
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/cpu/config
+=== built kernel dirs (op names) ===
+ascend910_93
+config
+=== op proto json ===
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/config/ascend910_93/aic-ascend910_93-ops-info.json
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/kernel/ascend910_93/k2q_csr_row_prefix/K2qCsrRowPrefix_a4861e10541be14cc1e79f84c3a0215c.json
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/kernel/ascend910_93/chunk_gated_delta_rule_fwd_h_vllm/ChunkGatedDeltaRuleFwdHVllm_697b00ca76a27640a52cd32c3ee23de6.json
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/kernel/ascend910_93/chunk_gated_delta_rule_fwd_h_vllm/ChunkGatedDeltaRuleFwdHVllm_b7d4fb53873673469181120e94891830.json
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/kernel/ascend910_93/chunk_gated_delta_rule_fwd_h_vllm/ChunkGatedDeltaRuleFwdHVllm_19fc4be369d63985b4ec5647a0933b43.json
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/kernel/ascend910_93/chunk_gated_delta_rule_fwd_h_vllm/ChunkGatedDeltaRuleFwdHVllm_cb18b540a6af979d8765a3622f83dc41.json
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/kernel/ascend910_93/dequant_situ_quant/DequantSituQuant_f54a4d4eacc80deb728fecc3bcdc0762.json
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/kernel/ascend910_93/dequant_situ_quant/DequantSituQuant_155c0b64db4933bc3ce18e0c9bfff74c.json
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/kernel/ascend910_93/hc_post/HcPost_d2fe6614722b27afa6f8d964c215447e_relocatable.json
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/kernel/ascend910_93/hc_post/HcPost_be2dcafbf0c8af390bf57177141bf669.json
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/kernel/ascend910_93/hc_post/HcPost_d980ed89966470aa6bbdc62419309139.json
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/kernel/ascend910_93/hc_post/HcPost_d980ed89966470aa6bbdc62419309139_relocatable.json
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/kernel/ascend910_93/hc_post/HcPost_be2dcafbf0c8af390bf57177141bf669_relocatable.json
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/kernel/ascend910_93/hc_post/HcPost_f8d6568802bb9bf815c79fd66277cb55_relocatable.json
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/kernel/ascend910_93/hc_post/HcPost_2e5303ac4dede76effa18248fd20ec57_relocatable.json
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/kernel/ascend910_93/hc_post/HcPost_f8d6568802bb9bf815c79fd66277cb55.json
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/kernel/ascend910_93/hc_post/HcPost_d7d8f653fdae4af65c2dc961400185bd.json
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/kernel/ascend910_93/hc_post/HcPost_dffc3b13070cacc52a1006b48c22063b_relocatable.json
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/kernel/ascend910_93/hc_post/HcPost_e2220bcfb1da2706e99e1c9e5e9ab203.json
+/vllm-workspace/vllm-ascend/vllm_ascend/_cann_ops_custom/vendors/custom_transformer/op_impl/ai_core/tbe/kernel/ascend910_93/hc_post/HcPost_dffc3b13070cacc52a1006b48c22063b.json

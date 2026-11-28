@@ -1,0 +1,37 @@
+### VA_PROBE 总条数 = 480
+### tokens= 分布（看崩在 prefill 还是 decode）
+    481 tokens=1
+      8 tokens=
+      5 tokens=4096
+      2 tokens=0
+      1 tokens=4
+
+### 参数组合去重（每层一行）
+    216 [VA_PROBE] index_source=False candidate_source=False uses_cfilter=False has_long=True ratio=0 packed=False cand=2048x8 tokens=N
+    144 [VA_PROBE] index_source=False candidate_source=False uses_cfilter=True has_long=True ratio=0 packed=False cand=2048x8 tokens=N
+     48 [VA_PROBE] index_source=True candidate_source=False uses_cfilter=True has_long=True ratio=0 packed=False cand=2048x8 tokens=N
+     36 [VA_PROBE] index_source=True candidate_source=False uses_cfilter=False has_long=True ratio=0 packed=False cand=2048x8 tokens=N
+     24 [VA_PROBE] index_source=False candidate_source=False uses_cfilter=False has_long=False ratio=0 packed=False cand=2048x8 tokens=N
+     12 [VA_PROBE] index_source=True candidate_source=True uses_cfilter=False has_long=True ratio=0 packed=False cand=2048x8 tokens=N
+
+### 最后 20 条
+(Worker_DP2_TP3_EP11 pid=5656) [VA_PROBE] index_source=False candidate_source=False uses_cfilter=True has_long=True ratio=0 packed=False cand=2048x8 tokens=1
+(Worker_DP3_TP2_EP14 pid=2981) [VA_PROBE] index_source=True candidate_source=False uses_cfilter=True has_long=True ratio=0 packed=False cand=2048x8 tokens=1
+(Worker_DP3_TP3_EP15 pid=5666) [VA_PROBE] index_source=True candidate_source=False uses_cfilter=True has_long=True ratio=0 packed=False cand=2048x8 tokens=1
+(Worker_DP2_TP2_EP10 pid=2969) [VA_PROBE] index_source=False candidate_source=False uses_cfilter=True has_long=True ratio=0 packed=False cand=2048x8 tokens=1
+(Worker_DP2_TP1_EP9 pid=2904) [VA_PROBE] index_source=False candidate_source=False uses_cfilter=True has_long=True ratio=0 packed=False cand=2048x8 tokens=1
+(Worker_DP2_TP0_EP8 pid=2880) [VA_PROBE] index_source=False candidate_source=False uses_cfilter=True has_long=True ratio=0 packed=False cand=2048x8 tokens=1
+(Worker_DP3_TP2_EP14 pid=2981) [VA_PROBE] index_source=False candidate_source=False uses_cfilter=True has_long=True ratio=0 packed=False cand=2048x8 tokens=1
+(Worker_DP3_TP3_EP15 pid=5666) [VA_PROBE] index_source=False candidate_source=False uses_cfilter=True has_long=True ratio=0 packed=False cand=2048x8 tokens=1
+(Worker_DP2_TP1_EP9 pid=2904) [VA_PROBE] index_source=True candidate_source=False uses_cfilter=True has_long=True ratio=0 packed=False cand=2048x8 tokens=1
+(Worker_DP2_TP0_EP8 pid=2880) [VA_PROBE] index_source=True candidate_source=False uses_cfilter=True has_long=True ratio=0 packed=False cand=2048x8 tokens=1
+(Worker_DP3_TP2_EP14 pid=2981) [VA_PROBE] index_source=False candidate_source=False uses_cfilter=True has_long=True ratio=0 packed=False cand=2048x8 tokens=1
+(Worker_DP3_TP3_EP15 pid=5666) [VA_PROBE] index_source=False candidate_source=False uses_cfilter=True has_long=True ratio=0 packed=False cand=2048x8 tokens=1
+(Worker_DP2_TP1_EP9 pid=2904) [VA_PROBE] index_source=False candidate_source=False uses_cfilter=True has_long=True ratio=0 packed=False cand=2048x8 tokens=1
+(Worker_DP2_TP0_EP8 pid=2880) [VA_PROBE] index_source=False candidate_source=False uses_cfilter=True has_long=True ratio=0 packed=False cand=2048x8 tokens=1
+(Worker_DP3_TP2_EP14 pid=2981) [VA_PROBE] index_source=False candidate_source=False uses_cfilter=True has_long=True ratio=0 packed=False cand=2048x8 tokens=1
+(Worker_DP3_TP3_EP15 pid=5666) [VA_PROBE] index_source=False candidate_source=False uses_cfilter=True has_long=True ratio=0 packed=False cand=2048x8 tokens=1
+(Worker_DP2_TP1_EP9 pid=2904) [VA_PROBE] index_source=False candidate_source=False uses_cfilter=True has_long=True ratio=0 packed=False cand=2048x8 tokens=1
+(Worker_DP2_TP0_EP8 pid=2880) [VA_PROBE] index_source=False candidate_source=False uses_cfilter=True has_long=True ratio=0 packed=False cand=2048x8 tokens=1
+(Worker_DP2_TP1_EP9 pid=2904) [VA_PROBE] index_source=False candidate_source=False uses_cfilter=True has_long=True ratio=0 packed=False cand=2048x8 tokens=1
+(Worker_DP2_TP0_EP8 pid=2880) [VA_PROBE] index_source=False candidate_source=False uses_cfilter=True has_long=True ratio=0 packed=False cand=2048x8 tokens=1

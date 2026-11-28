@@ -1,0 +1,20 @@
+help_lines=2106
+enable-prefix-caching          1
+compilation-config             1
+speculative-config             1
+additional-config              1
+engram-config                  1
+async-scheduling               1
+swa-bounded-replay             0
+kv-cache-dtype                 2
+tokenizer-mode                 1
+quantization                   15
+safetensors-load-strategy      1
+max-num-batched-tokens         1
+max-num-seqs                   1
+data-parallel-size             2
+tensor-parallel-size           1
+enable-expert-parallel         1
+block-size                     3
+trust-remote-code              1
+enforce-eager                  1

@@ -1,0 +1,45 @@
+# failure summary  2026-11-26T16:05:14+08:00
+tag: fail_node-61-47-19-71_20261126_160511
+host: node-61-47-19-71
+
+--- 崩掉的 kernel（去重）
+### 所有 fault kernel_name（去重）
+
+### 错误码族
+    324 EE9999
+     83 ERR00100
+     24 EZ9999
+      2 ERR99999
+      2 ERR02005
+
+### 最后一个 serve 日志的最后 150 行
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]   File "/vllm-workspace/vllm/vllm/v1/engine/core.py", line 1464, in _process_engine_step
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]     outputs, model_executed = self.step_fn()
+
+--- 探针
+### VA_PROBE 总条数 = 480
+### tokens= 分布（看崩在 prefill 还是 decode）
+    481 tokens=1
+      8 tokens=
+      5 tokens=4096
+      2 tokens=0
+      1 tokens=4
+
+### 参数组合去重（每层一行）
+    216 [VA_PROBE] index_source=False candidate_source=False uses_cfilter=False has_long=True ratio=0 packed=False cand=2048x8 tokens=N
+    144 [VA_PROBE] index_source=False candidate_source=False uses_cfilter=True has_long=True ratio=0 packed=False cand=2048x8 tokens=N
+     48 [VA_PROBE] index_source=True candidate_source=False uses_cfilter=True has_long=True ratio=0 packed=False cand=2048x8 tokens=N
+
+--- 文件清单
+ 
+10_vllm_log_tail.txt 49K
+11_fault_summary.txt 15K
+12_va_probe.txt 4.1K
+60_ascend_log_tree.txt 2.9K
+61_device_errors.txt 2.4K
+62_plog_hccl_runtime.txt 40K
+63_fault_kernels.txt 142
+64_worker_env.txt 805
+65_container_state.txt 5.9K
+70_host_state.txt 140K
+99_summary.txt 1.3K

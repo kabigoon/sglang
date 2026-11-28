@@ -1,0 +1,21 @@
+ROOT=/vllm-workspace/vllm-ascend
+SRC=/vllm-workspace/vllm-ascend/vllm_ascend
+Python 3.12.16
+Name: vllm
+Version: 0.30.0+empty
+Location: /usr/local/python3.12.16/lib/python3.12/site-packages
+Name: vllm_ascend
+Version: 0.30.0
+Location: /usr/local/python3.12.16/lib/python3.12/site-packages
+torch 2.10.0+cpu | torch_npu 2.10.0.post7
+--- /usr/local/Ascend ---
+/usr/local/Ascend/ascend-toolkit
+/usr/local/Ascend/cann
+/usr/local/Ascend/cann-9.2.1
+/usr/local/Ascend/nnal
+--- py count ---
+768
+--- so count ---
+8
+--- package size ---
+68M	/vllm-workspace/vllm-ascend/vllm_ascend

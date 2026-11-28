@@ -1,0 +1,420 @@
+total 1372
+-rw-r--r--. 1 root root 441845 Nov 26 16:00 serve_b_r2.log
+-rw-r--r--. 1 root root 950903 Nov 26 15:41 serve_b.log
+
+===== /home/a00821909/logs/serve_b_r2.log  (size=436K)
+--- head 5
+INFO 11-26 07:53:11 [__init__.py:52] Available plugins for group vllm.platform_plugins:
+INFO 11-26 07:53:11 [__init__.py:54] - ascend -> vllm_ascend:register
+INFO 11-26 07:53:11 [__init__.py:57] All plugins in this group will be loaded. Set `VLLM_PLUGINS` to control which plugins to load.
+/usr/local/python3.12.16/lib/python3.12/site-packages/triton/language/extra/cann/extension/math_ops.py:13: FutureWarning: triton.language.extra.cann.extension.atan2 is deprecated and will be removed in the next release; use triton.language.extra.cann.libdevice.atan2 instead.
+  @_deprecated(replacement="triton.language.extra.cann.libdevice.atan2")
+--- tail 200
+(EngineCore_DP0 pid=193) ERROR 11-26 08:00:20 [core.py:1368] RuntimeError: Worker failed with error '[/pytorch/third_party/gloo/gloo/transport/tcp/pair.cc:547] Connection closed by peer [61.47.19.71]:53638', please check the stack trace above for the root cause
+(Worker_DP2_TP0_EP8 pid=2880) INFO 11-26 08:00:20 [multiproc_executor.py:836] Parent process exited, terminating worker queues
+(EngineCore_DP2 pid=215) INFO 11-26 08:00:20 [multiproc_executor.py:472] [shutdown] Executor: waiting for worker exit count=4
+(Worker_DP0_TP0_EP0 pid=2878) INFO 11-26 08:00:20 [multiproc_executor.py:836] Parent process exited, terminating worker queues
+(EngineCore_DP0 pid=193) INFO 11-26 08:00:20 [multiproc_executor.py:472] [shutdown] Executor: waiting for worker exit count=4
+(ApiServer_3 pid=242) ERROR 11-26 08:00:20 [async_llm.py:843] AsyncLLM output_handler failed.
+(ApiServer_3 pid=242) ERROR 11-26 08:00:20 [async_llm.py:843] Traceback (most recent call last):
+(ApiServer_3 pid=242) ERROR 11-26 08:00:20 [async_llm.py:843]   File "/vllm-workspace/vllm/vllm/v1/engine/async_llm.py", line 789, in output_handler
+(ApiServer_3 pid=242) ERROR 11-26 08:00:20 [async_llm.py:843]     outputs = await engine_core.get_output_async()
+(ApiServer_3 pid=242) ERROR 11-26 08:00:20 [async_llm.py:843]               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(ApiServer_3 pid=242) ERROR 11-26 08:00:20 [async_llm.py:843]   File "/vllm-workspace/vllm/vllm/v1/engine/core_client.py", line 1175, in get_output_async
+(ApiServer_3 pid=242) ERROR 11-26 08:00:20 [async_llm.py:843]     raise self._format_exception(outputs) from None
+(ApiServer_3 pid=242) ERROR 11-26 08:00:20 [async_llm.py:843] vllm.v1.engine.exceptions.EngineDeadError: EngineCore encountered an issue. See stack trace (above) for the root cause.
+(ApiServer_0 pid=239) ERROR 11-26 08:00:20 [async_llm.py:843] AsyncLLM output_handler failed.
+(ApiServer_0 pid=239) ERROR 11-26 08:00:20 [async_llm.py:843] Traceback (most recent call last):
+(ApiServer_0 pid=239) ERROR 11-26 08:00:20 [async_llm.py:843]   File "/vllm-workspace/vllm/vllm/v1/engine/async_llm.py", line 789, in output_handler
+(ApiServer_0 pid=239) ERROR 11-26 08:00:20 [async_llm.py:843]     outputs = await engine_core.get_output_async()
+(ApiServer_0 pid=239) ERROR 11-26 08:00:20 [async_llm.py:843]               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(ApiServer_0 pid=239) ERROR 11-26 08:00:20 [async_llm.py:843]   File "/vllm-workspace/vllm/vllm/v1/engine/core_client.py", line 1175, in get_output_async
+(ApiServer_0 pid=239) ERROR 11-26 08:00:20 [async_llm.py:843]     raise self._format_exception(outputs) from None
+(ApiServer_0 pid=239) ERROR 11-26 08:00:20 [async_llm.py:843] vllm.v1.engine.exceptions.EngineDeadError: EngineCore encountered an issue. See stack trace (above) for the root cause.
+(ApiServer_2 pid=241) ERROR 11-26 08:00:20 [async_llm.py:843] AsyncLLM output_handler failed.
+(ApiServer_2 pid=241) ERROR 11-26 08:00:20 [async_llm.py:843] Traceback (most recent call last):
+(ApiServer_2 pid=241) ERROR 11-26 08:00:20 [async_llm.py:843]   File "/vllm-workspace/vllm/vllm/v1/engine/async_llm.py", line 789, in output_handler
+(ApiServer_2 pid=241) ERROR 11-26 08:00:20 [async_llm.py:843]     outputs = await engine_core.get_output_async()
+(ApiServer_2 pid=241) ERROR 11-26 08:00:20 [async_llm.py:843]               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(ApiServer_2 pid=241) ERROR 11-26 08:00:20 [async_llm.py:843]   File "/vllm-workspace/vllm/vllm/v1/engine/core_client.py", line 1175, in get_output_async
+(ApiServer_2 pid=241) ERROR 11-26 08:00:20 [async_llm.py:843]     raise self._format_exception(outputs) from None
+(ApiServer_2 pid=241) ERROR 11-26 08:00:20 [async_llm.py:843] vllm.v1.engine.exceptions.EngineDeadError: EngineCore encountered an issue. See stack trace (above) for the root cause.
+(ApiServer_1 pid=240) ERROR 11-26 08:00:20 [async_llm.py:843] AsyncLLM output_handler failed.
+(ApiServer_1 pid=240) ERROR 11-26 08:00:20 [async_llm.py:843] Traceback (most recent call last):
+(ApiServer_1 pid=240) ERROR 11-26 08:00:20 [async_llm.py:843]   File "/vllm-workspace/vllm/vllm/v1/engine/async_llm.py", line 789, in output_handler
+(ApiServer_1 pid=240) ERROR 11-26 08:00:20 [async_llm.py:843]     outputs = await engine_core.get_output_async()
+(ApiServer_1 pid=240) ERROR 11-26 08:00:20 [async_llm.py:843]               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(ApiServer_1 pid=240) ERROR 11-26 08:00:20 [async_llm.py:843]   File "/vllm-workspace/vllm/vllm/v1/engine/core_client.py", line 1175, in get_output_async
+(ApiServer_1 pid=240) ERROR 11-26 08:00:20 [async_llm.py:843]     raise self._format_exception(outputs) from None
+(ApiServer_1 pid=240) ERROR 11-26 08:00:20 [async_llm.py:843] vllm.v1.engine.exceptions.EngineDeadError: EngineCore encountered an issue. See stack trace (above) for the root cause.
+(ApiServer_1 pid=240) INFO:     127.0.0.1:33388 - "POST /v1/completions HTTP/1.1" 500 Internal Server Error
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [dump_input.py:72] Dumping input data for V1 LLM engine (v0.30.0) with config: model='/home/weights/DeepSeek-V4.1-Flash-1017-w4a8', speculative_config=None, tokenizer='/home/weights/DeepSeek-V4.1-Flash-1017-w4a8', skip_tokenizer_init=False, tokenizer_mode=deepseek_v4, revision=None, tokenizer_revision=None, trust_remote_code=False, dtype=torch.bfloat16, max_seq_len=150000, download_dir=None, load_format=auto, tensor_parallel_size=4, pipeline_parallel_size=1, data_parallel_size=4, decode_context_parallel_size=1, dcp_comm_backend=ag_rs, disable_custom_all_reduce=True, quantization=ascend, quantization_config=None, enforce_eager=True, enable_return_routed_experts=False, kv_cache_dtype=auto, device_config=npu, structured_outputs_config=StructuredOutputsConfig(backend='auto', disable_any_whitespace=False, disable_additional_properties=False, reasoning_parser='', reasoning_parser_plugin='', enable_in_reasoning=False), observability_config=ObservabilityConfig(show_hidden_metrics_for_version=None, otlp_traces_endpoint=None, collect_detailed_traces=None, per_request_spec_decode_metrics='none', kv_cache_metrics=False, kv_cache_metrics_sample=0.01, cudagraph_metrics=False, enable_layerwise_nvtx_tracing=False, enable_mfu_metrics=False, enable_mm_processor_stats=False, enable_logging_iteration_details=False, jit_monitor_mode='warn', jit_monitor_verbose=False), seed=0, served_model_name=dsv41, enable_prefix_caching=True, enable_chunked_prefill=True, pooler_config=None, compilation_config={'mode': <CompilationMode.NONE: 0>, 'debug_dump_path': None, 'cache_dir': '', 'compile_cache_save_format': 'binary', 'backend': 'vllm_ascend.compilation.compiler_interface.AscendCompiler', 'custom_ops': ['all'], 'ir_enable_torch_wrap': False, 'splitting_ops': [], 'compile_mm_encoder': False, 'cudagraph_mm_encoder': False, 'encoder_cudagraph_token_budgets': [], 'encoder_cudagraph_max_vision_items_per_batch': 0, 'encoder_cudagraph_max_frames_per_batch': None, 'compile_sizes': [], 'compile_ranges_endpoints': [4096], 'inductor_compile_config': {'enable_auto_functionalized_v2': False, 'size_asserts': False, 'alignment_asserts': False, 'scalar_asserts': False, 'combo_kernels': True, 'benchmark_combo_kernel': True}, 'inductor_passes': {}, 'cudagraph_mode': <CUDAGraphMode.NONE: 0>, 'cudagraph_num_of_warmups': 1, 'cudagraph_capture_sizes': [], 'cudagraph_copy_inputs': False, 'cudagraph_specialize_lora': True, 'use_inductor_graph_partition': False, 'pass_config': {'fuse_norm_quant': True, 'fuse_act_quant': True, 'fuse_attn_quant': False, 'enable_sp': False, 'fuse_gemm_comms': False, 'fuse_allreduce_rms': False, 'enable_qk_norm_rope_fusion': False, 'fuse_rope_kvcache_cat_mla': False, 'fuse_act_padding': False, 'fuse_qk_norm_rope_kvcache': False}, 'max_cudagraph_capture_size': 0, 'dynamic_shapes_config': {'type': <DynamicShapesType.BACKED: 'backed'>, 'evaluate_guards': False, 'assume_32_bit_indexing': False}, 'local_cache_dir': None, 'fast_moe_cold_start': True, 'static_all_moe_layers': []}, kernel_config=KernelConfig(ir_op_priority=IrOpPriorityConfig(rms_norm=['native'], fused_add_rms_norm=['native'], gelu_and_mul_sparse=['native']), enable_flashinfer_autotune=True, enable_cutedsl_warmup=True, enable_jit_warmup=True, moe_backend='auto', sparse_indexer_topk_backend='auto', linear_backend='auto', linear_backend_per_quant=None), 
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [dump_input.py:79] Dumping scheduler output for model execution: SchedulerOutput(scheduled_new_reqs=[NewRequestData(req_id=cmpl-a8a75001ade4fd66-0-896f7dda,prompt_token_ids_len=1,prefill_token_ids_len=1,mm_features=[],sampling_params=SamplingParams(n=1, presence_penalty=0.0, frequency_penalty=0.0, repetition_penalty=1.0, temperature=0.0, watermarking=True, top_p=1.0, top_k=0, min_p=0.0, seed=None, stop=[], stop_token_ids=[], bad_words=[], thinking_token_budget=None, include_stop_str_in_output=False, ignore_eos=False, max_tokens=4, min_tokens=0, logprobs=None, prompt_logprobs=None, skip_special_tokens=True, spaces_between_special_tokens=True, structured_outputs=None, extra_args=None),block_ids=([1], [2], [3], [4], [5], [6], [7], [8], [9], [10], [11], [12]),num_computed_tokens=0,lora_request=None,prompt_embeds_shape=None)], scheduled_cached_reqs=CachedRequestData(req_ids=[],resumed_req_ids=set(),new_token_ids_lens=[],all_token_ids_lens={},new_block_ids=[],num_computed_tokens=[],num_output_tokens=[]), num_scheduled_tokens={cmpl-a8a75001ade4fd66-0-896f7dda: 1}, total_num_scheduled_tokens=1, scheduled_spec_decode_tokens={}, scheduled_encoder_inputs={}, num_common_prefix_blocks=[1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], finished_req_ids=[], free_encoder_mm_hashes=[], scheduled_encoder_input_stats=null, preempted_req_ids=[], has_structured_output_requests=false, pending_structured_output_tokens=false, num_invalid_spec_tokens=null, kv_connector_metadata=null, has_sync_kv_loads=false, ec_connector_metadata=null, ec_manager_metadata=null, new_block_ids_to_zero=[1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], kv_cache_block_copies=null, block_table_updates=null, kv_connector_block_state=null, num_spec_tokens_to_schedule=0)
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [dump_input.py:81] Dumping scheduler stats: SchedulerStats(num_running_reqs=1, num_waiting_reqs=0, num_skipped_waiting_reqs=0, step_counter=0, current_wave=0, kv_cache_usage=0.00022047880647468876, iteration_details=None, prefix_cache_stats=PrefixCacheStats(reset=False, requests=1, queries=1, hits=0, preempted_requests=0, preempted_queries=0, preempted_hits=0), connector_prefix_cache_stats=None, kv_cache_eviction_events=[], spec_decoding_stats=None, kv_connector_stats=None, waiting_lora_adapters={}, running_lora_adapters={}, cudagraph_stats=None, perf_stats=None)
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368] EngineCore encountered a fatal error.
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368] Traceback (most recent call last):
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]   File "/vllm-workspace/vllm/vllm/v1/engine/core.py", line 1352, in run_engine_core
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]     engine_core.run_busy_loop()
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]   File "/vllm-workspace/vllm/vllm/v1/fault_tolerance/engine_core_sentinel.py", line 179, in run_with_fault_tolerance
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]     busy_loop_func(self)
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]   File "/vllm-workspace/vllm/vllm/v1/engine/core.py", line 2204, in run_busy_loop
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]     executed = self._process_engine_step()
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]   File "/vllm-workspace/vllm/vllm/v1/engine/core.py", line 1464, in _process_engine_step
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]     outputs, model_executed = self.step_fn()
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]                               ^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]   File "/vllm-workspace/vllm/vllm/v1/engine/core.py", line 706, in step_with_batch_queue
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]     model_output = future.result()
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]                    ^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]   File "/vllm-workspace/vllm/vllm/v1/executor/multiproc_executor.py", line 99, in result
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]     return super().result()
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]            ^^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]   File "/usr/local/python3.12.16/lib/python3.12/concurrent/futures/_base.py", line 449, in result
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]     return self.__get_result()
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]            ^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]   File "/usr/local/python3.12.16/lib/python3.12/concurrent/futures/_base.py", line 401, in __get_result
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]     raise self._exception
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]   File "/vllm-workspace/vllm/vllm/v1/executor/multiproc_executor.py", line 103, in _wait_for_response
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]     response = self.aggregate(self.get_response())
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]                               ^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]   File "/vllm-workspace/vllm/vllm/v1/executor/multiproc_executor.py", line 433, in get_response
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]     status, result = mq.dequeue(timeout=dequeue_timeout)
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]   File "/vllm-workspace/vllm/vllm/distributed/device_communicators/shm_broadcast.py", line 889, in dequeue
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]     with self.acquire_read(timeout, indefinite) as buf:
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]   File "/usr/local/python3.12.16/lib/python3.12/contextlib.py", line 137, in __enter__
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]     return next(self.gen)
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]            ^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]   File "/vllm-workspace/vllm/vllm/distributed/device_communicators/shm_broadcast.py", line 797, in acquire_read
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368]     raise RuntimeError("cancelled")
+(EngineCore_DP1 pid=203) ERROR 11-26 08:00:20 [core.py:1368] RuntimeError: cancelled
+(ApiServer_1 pid=240) INFO:     Shutting down
+(ApiServer_1 pid=240) INFO:     Waiting for application shutdown.
+(ApiServer_1 pid=240) INFO:     Application shutdown complete.
+(ApiServer_1 pid=240) INFO:     Finished server process [240]
+(ApiServer_1 pid=240) INFO 11-26 08:00:20 [core_client.py:744] [shutdown] MPClient: start timeout=0s
+(ApiServer_1 pid=240) INFO 11-26 08:00:20 [core_client.py:749] [shutdown] MPClient: cleaning up background resources
+(ApiServer_1 pid=240) INFO 11-26 08:00:20 [core_client.py:751] [shutdown] MPClient: complete
+(EngineCore_DP1 pid=203) WARNING 11-26 08:00:21 [parallel_state.py:2469] torch.accelerator.empty_host_cache() only available in Pytorch >=2.9
+(EngineCore_DP1 pid=203) Process EngineCore_DP1:
+(EngineCore_DP1 pid=203) Traceback (most recent call last):
+(EngineCore_DP1 pid=203)   File "/usr/local/python3.12.16/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(EngineCore_DP1 pid=203)     self.run()
+(EngineCore_DP1 pid=203)   File "/usr/local/python3.12.16/lib/python3.12/multiprocessing/process.py", line 108, in run
+(EngineCore_DP1 pid=203)     self._target(*self._args, **self._kwargs)
+(EngineCore_DP1 pid=203)   File "/home/a00821909/vllm-ascend/vllm_ascend/patch/platform/patch_engine_core.py", line 56, in _run_engine_core_patch_func
+(EngineCore_DP1 pid=203)     return _OriginalRunEngineCore(*args, dp_rank=dp_rank, local_dp_rank=local_dp_rank, **kwargs)
+(EngineCore_DP1 pid=203)            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203)   File "/vllm-workspace/vllm/vllm/v1/engine/core.py", line 1370, in run_engine_core
+(EngineCore_DP1 pid=203)     raise e
+(EngineCore_DP1 pid=203)   File "/vllm-workspace/vllm/vllm/v1/engine/core.py", line 1352, in run_engine_core
+(EngineCore_DP1 pid=203)     engine_core.run_busy_loop()
+(EngineCore_DP1 pid=203)   File "/vllm-workspace/vllm/vllm/v1/fault_tolerance/engine_core_sentinel.py", line 179, in run_with_fault_tolerance
+(EngineCore_DP1 pid=203)     busy_loop_func(self)
+(EngineCore_DP1 pid=203)   File "/vllm-workspace/vllm/vllm/v1/engine/core.py", line 2204, in run_busy_loop
+(EngineCore_DP1 pid=203)     executed = self._process_engine_step()
+(EngineCore_DP1 pid=203)                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203)   File "/vllm-workspace/vllm/vllm/v1/engine/core.py", line 1464, in _process_engine_step
+(EngineCore_DP1 pid=203)     outputs, model_executed = self.step_fn()
+(EngineCore_DP1 pid=203)                               ^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203)   File "/vllm-workspace/vllm/vllm/v1/engine/core.py", line 706, in step_with_batch_queue
+(EngineCore_DP1 pid=203)     model_output = future.result()
+(EngineCore_DP1 pid=203)                    ^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203)   File "/vllm-workspace/vllm/vllm/v1/executor/multiproc_executor.py", line 99, in result
+(EngineCore_DP1 pid=203)     return super().result()
+(EngineCore_DP1 pid=203)            ^^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203)   File "/usr/local/python3.12.16/lib/python3.12/concurrent/futures/_base.py", line 449, in result
+(EngineCore_DP1 pid=203)     return self.__get_result()
+(EngineCore_DP1 pid=203)            ^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203)   File "/usr/local/python3.12.16/lib/python3.12/concurrent/futures/_base.py", line 401, in __get_result
+(EngineCore_DP1 pid=203)     raise self._exception
+(EngineCore_DP1 pid=203)   File "/vllm-workspace/vllm/vllm/v1/executor/multiproc_executor.py", line 103, in _wait_for_response
+(EngineCore_DP1 pid=203)     response = self.aggregate(self.get_response())
+(EngineCore_DP1 pid=203)                               ^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203)   File "/vllm-workspace/vllm/vllm/v1/executor/multiproc_executor.py", line 433, in get_response
+(EngineCore_DP1 pid=203)     status, result = mq.dequeue(timeout=dequeue_timeout)
+(EngineCore_DP1 pid=203)                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203)   File "/vllm-workspace/vllm/vllm/distributed/device_communicators/shm_broadcast.py", line 889, in dequeue
+(EngineCore_DP1 pid=203)     with self.acquire_read(timeout, indefinite) as buf:
+(EngineCore_DP1 pid=203)          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203)   File "/usr/local/python3.12.16/lib/python3.12/contextlib.py", line 137, in __enter__
+(EngineCore_DP1 pid=203)     return next(self.gen)
+(EngineCore_DP1 pid=203)            ^^^^^^^^^^^^^^
+(EngineCore_DP1 pid=203)   File "/vllm-workspace/vllm/vllm/distributed/device_communicators/shm_broadcast.py", line 797, in acquire_read
+(EngineCore_DP1 pid=203)     raise RuntimeError("cancelled")
+(EngineCore_DP1 pid=203) RuntimeError: cancelled
+ERROR 11-26 08:00:23 [utils.py:604] Exception occurred while running API servers: Process ApiServer_1 (PID: 240) died with exit code None
+ERROR 11-26 08:00:23 [utils.py:604] Traceback (most recent call last):
+ERROR 11-26 08:00:23 [utils.py:604]   File "/vllm-workspace/vllm/vllm/v1/utils.py", line 591, in wait_for_completion_or_failure
+ERROR 11-26 08:00:23 [utils.py:604]     raise RuntimeError(
+ERROR 11-26 08:00:23 [utils.py:604] RuntimeError: Process ApiServer_1 (PID: 240) died with exit code None
+INFO 11-26 08:00:23 [utils.py:632] [shutdown] Process manager: send sigterm to process ApiServer_0
+(ApiServer_0 pid=239) INFO 11-26 08:00:23 [launcher.py:129] [shutdown] API server: shutdown triggered
+INFO 11-26 08:00:23 [utils.py:632] [shutdown] Process manager: send sigterm to process ApiServer_2
+INFO 11-26 08:00:23 [utils.py:632] [shutdown] Process manager: send sigterm to process ApiServer_3
+(ApiServer_0 pid=239) INFO 11-26 08:00:23 [launcher.py:145] [shutdown] API server: stopping engine client mode=abort timeout=0s
+(ApiServer_3 pid=242) INFO 11-26 08:00:23 [launcher.py:129] [shutdown] API server: shutdown triggered
+(ApiServer_2 pid=241) INFO 11-26 08:00:23 [launcher.py:129] [shutdown] API server: shutdown triggered
+(ApiServer_3 pid=242) INFO 11-26 08:00:23 [launcher.py:145] [shutdown] API server: stopping engine client mode=abort timeout=0s
+(ApiServer_0 pid=239) INFO 11-26 08:00:23 [core_client.py:744] [shutdown] MPClient: start timeout=0s
+(ApiServer_2 pid=241) INFO 11-26 08:00:23 [launcher.py:145] [shutdown] API server: stopping engine client mode=abort timeout=0s
+(ApiServer_0 pid=239) INFO 11-26 08:00:23 [core_client.py:749] [shutdown] MPClient: cleaning up background resources
+(ApiServer_0 pid=239) INFO 11-26 08:00:23 [core_client.py:751] [shutdown] MPClient: complete
+(ApiServer_3 pid=242) INFO 11-26 08:00:23 [core_client.py:744] [shutdown] MPClient: start timeout=0s
+(ApiServer_0 pid=239) INFO 11-26 08:00:23 [launcher.py:154] [shutdown] API server: engine client stopped
+(ApiServer_0 pid=239) INFO 11-26 08:00:23 [launcher.py:157] [shutdown] API server: signalling HTTP server shutdown
+(ApiServer_3 pid=242) INFO 11-26 08:00:23 [core_client.py:749] [shutdown] MPClient: cleaning up background resources
+(ApiServer_2 pid=241) INFO 11-26 08:00:23 [core_client.py:744] [shutdown] MPClient: start timeout=0s
+(ApiServer_3 pid=242) INFO 11-26 08:00:23 [core_client.py:751] [shutdown] MPClient: complete
+(ApiServer_2 pid=241) INFO 11-26 08:00:23 [core_client.py:749] [shutdown] MPClient: cleaning up background resources
+(ApiServer_3 pid=242) INFO 11-26 08:00:23 [launcher.py:154] [shutdown] API server: engine client stopped
+(ApiServer_2 pid=241) INFO 11-26 08:00:23 [core_client.py:751] [shutdown] MPClient: complete
+(ApiServer_3 pid=242) INFO 11-26 08:00:23 [launcher.py:157] [shutdown] API server: signalling HTTP server shutdown
+(ApiServer_2 pid=241) INFO 11-26 08:00:23 [launcher.py:154] [shutdown] API server: engine client stopped
+(ApiServer_2 pid=241) INFO 11-26 08:00:23 [launcher.py:157] [shutdown] API server: signalling HTTP server shutdown
+(ApiServer_0 pid=239) WARNING 11-26 08:00:23 [launcher.py:173] port 8900 is used by process psutil.Process(pid=242, name='VLLM::APIServer_3', status='running', started='07:54:28') launched with command:
+(ApiServer_0 pid=239) WARNING 11-26 08:00:23 [launcher.py:173] VLLM::APIServer_3                                                                                                                                     
+(ApiServer_0 pid=239) INFO 11-26 08:00:23 [launcher.py:179] [shutdown] API server: shutting down FastAPI HTTP server
+(ApiServer_0 pid=239) INFO:     Shutting down
+(ApiServer_3 pid=242) INFO 11-26 08:00:23 [launcher.py:179] [shutdown] API server: shutting down FastAPI HTTP server
+(ApiServer_3 pid=242) INFO:     Shutting down
+(ApiServer_2 pid=241) WARNING 11-26 08:00:23 [launcher.py:173] port 8900 is used by process psutil.Process(pid=242, name='VLLM::APIServer_3', status='sleeping', started='07:54:28') launched with command:
+(ApiServer_2 pid=241) WARNING 11-26 08:00:23 [launcher.py:173] VLLM::APIServer_3                                                                                                                                     
+(ApiServer_2 pid=241) INFO 11-26 08:00:23 [launcher.py:179] [shutdown] API server: shutting down FastAPI HTTP server
+(ApiServer_2 pid=241) INFO:     Shutting down
+(ApiServer_0 pid=239) INFO:     Waiting for application shutdown.
+(ApiServer_0 pid=239) INFO:     Application shutdown complete.
+(ApiServer_3 pid=242) INFO:     Waiting for application shutdown.
+(ApiServer_3 pid=242) INFO:     Application shutdown complete.
+(ApiServer_2 pid=241) INFO:     Waiting for application shutdown.
+(ApiServer_2 pid=241) INFO:     Application shutdown complete.
+INFO 11-26 08:00:24 [utils.py:632] [shutdown] Process manager: send sigterm to process EngineCore_DP0
+INFO 11-26 08:00:24 [utils.py:632] [shutdown] Process manager: send sigterm to process EngineCore_DP2
+INFO 11-26 08:00:24 [utils.py:632] [shutdown] Process manager: send sigterm to process EngineCore_DP3
+(EngineCore_DP3 pid=227) INFO 11-26 08:00:24 [core.py:1342] [shutdown] EngineCore: trigger received signal=SIGTERM
+INFO 11-26 08:00:24 [utils.py:632] [shutdown] Process manager: send sigterm to process VLLM_DP_Coordinator
+Traceback (most recent call last):
+  File "/usr/local/python3.12.16/bin/vllm", line 6, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/vllm-workspace/vllm/vllm/entrypoints/cli/main.py", line 106, in main
+    args.dispatch_function(args)
+  File "/vllm-workspace/vllm/vllm/entrypoints/cli/serve.py", line 150, in cmd
+    run_multi_api_server(args)
+  File "/vllm-workspace/vllm/vllm/entrypoints/cli/serve.py", line 393, in run_multi_api_server
+    wait_for_completion_or_failure(
+  File "/vllm-workspace/vllm/vllm/v1/utils.py", line 591, in wait_for_completion_or_failure
+    raise RuntimeError(
+RuntimeError: Process ApiServer_1 (PID: 240) died with exit code None
+[ERROR] 2026-11-26-08:00:25 (PID:161, Device:-1, RankID:-1) ERR99999 UNKNOWN applicaiton exception
+WARNING 11-26 08:00:29 [utils.py:652] [shutdown] Process manager: force killing remaining processes count=1
+WARNING 11-26 08:00:29 [utils.py:657] [shutdown] Process manager: force killing remaining process EngineCore_DP3 pid 227
+===== /home/a00821909/logs/serve_b.log  (size=936K)
+--- head 5
+INFO 11-26 07:32:30 [__init__.py:52] Available plugins for group vllm.platform_plugins:
+INFO 11-26 07:32:30 [__init__.py:54] - ascend -> vllm_ascend:register
+INFO 11-26 07:32:30 [__init__.py:57] All plugins in this group will be loaded. Set `VLLM_PLUGINS` to control which plugins to load.
+/usr/local/python3.12.16/lib/python3.12/site-packages/triton/language/extra/cann/extension/math_ops.py:13: FutureWarning: triton.language.extra.cann.extension.atan2 is deprecated and will be removed in the next release; use triton.language.extra.cann.libdevice.atan2 instead.
+  @_deprecated(replacement="triton.language.extra.cann.libdevice.atan2")
+--- tail 200
+EE9999: Internal error!
+EE9999[PID: 3086] 2026-11-26-07:41:00.150.829 (EE9999):  rtDeviceSynchronizeWithTimeout execution failed, reason=vector core exception[FUNC:FuncErrorReason][FILE:error_message_manage.cc][LINE:76]
+TraceBack (most recent call last):
+ (function npuSynchronizeDevice)
+[W1126 07:41:00.430947760 NPUStream.cpp:716] Warning: NPU warning, error code is 507035[Error]: 
+[Error]: The vector core execution is abnormal. 
+        Rectify the fault based on the error information in the ascend log.
+EE9999: Internal error!
+EE9999[PID: 3076] 2026-11-26-07:41:00.151.403 (EE9999):  rtDeviceSynchronizeWithTimeout execution failed, reason=vector core exception[FUNC:FuncErrorReason][FILE:error_message_manage.cc][LINE:76]
+TraceBack (most recent call last):
+ (function npuSynchronizeDevice)
+[rank1]:[W1126 07:41:00.437678690 NPUStream.cpp:734] Warning: NPU warning, error code is 507035[Error]: 
+[Error]: The vector core execution is abnormal. 
+        Rectify the fault based on the error information in the ascend log.
+EE9999: Internal error!
+EE9999[PID: 2927] 2026-11-26-07:41:00.158.037 (EE9999):  rtDeviceSynchronizeWithTimeout execution failed, reason=vector core exception[FUNC:FuncErrorReason][FILE:error_message_manage.cc][LINE:76]
+TraceBack (most recent call last):
+ (function npuSynchronizeUsedDevices)
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.158000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582] Failed to shutdown process group during NPU exit.
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.158000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582] Traceback (most recent call last):
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.158000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582]   File "/usr/local/python3.12.16/lib/python3.12/site-packages/torch_npu/distributed/distributed_c10d.py", line 580, in _destructor_process_group
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.158000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582]     pg_to_shutdown.shutdown()
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.158000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582] RuntimeError: synchronize:../torch_npu/csrc/core/npu/NPUStream.cpp:414 NPU function error: c10_npu::acl::AclrtSynchronizeStreamWithTimeout(stream()), error code is 507035
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.158000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582] [ERROR] 2026-11-26-07:41:00 (PID:2927, Device:1, RankID:-1) ERR00100 PTA call acl api failed
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.158000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582] [Error]: The vector core execution is abnormal. 
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.158000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582]         Rectify the fault based on the error information in the ascend log.
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.158000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582] EE9999: Internal error!
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.158000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582] EE9999[PID: 2927] 2026-11-26-07:41:00.158.550 (EE9999):  rtStreamSynchronizeWithTimeout execution failed, reason=vector core exception[FUNC:FuncErrorReason][FILE:error_message_manage.cc][LINE:76]
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.158000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582] TraceBack (most recent call last):
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.158000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582] 
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.161000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582] Failed to shutdown process group during NPU exit.
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.161000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582] Traceback (most recent call last):
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.161000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582]   File "/usr/local/python3.12.16/lib/python3.12/site-packages/torch_npu/distributed/distributed_c10d.py", line 580, in _destructor_process_group
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.161000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582]     pg_to_shutdown.shutdown()
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.161000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582] RuntimeError: synchronize:../torch_npu/csrc/core/npu/NPUStream.cpp:414 NPU function error: c10_npu::acl::AclrtSynchronizeStreamWithTimeout(stream()), error code is 507035
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.161000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582] [ERROR] 2026-11-26-07:41:00 (PID:2927, Device:1, RankID:-1) ERR00100 PTA call acl api failed
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.161000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582] [Error]: The vector core execution is abnormal. 
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.161000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582]         Rectify the fault based on the error information in the ascend log.
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.161000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582] EE9999: Internal error!
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.161000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582] EE9999[PID: 2927] 2026-11-26-07:41:00.160.850 (EE9999):  rtStreamSynchronizeWithTimeout execution failed, reason=vector core exception[FUNC:FuncErrorReason][FILE:error_message_manage.cc][LINE:76]
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.161000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582] TraceBack (most recent call last):
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.161000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582] 
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.162000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582] Failed to shutdown process group during NPU exit.
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.162000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582] Traceback (most recent call last):
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.162000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582]   File "/usr/local/python3.12.16/lib/python3.12/site-packages/torch_npu/distributed/distributed_c10d.py", line 580, in _destructor_process_group
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.162000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582]     pg_to_shutdown.shutdown()
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.162000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582] RuntimeError: synchronize:../torch_npu/csrc/core/npu/NPUStream.cpp:414 NPU function error: c10_npu::acl::AclrtSynchronizeStreamWithTimeout(stream()), error code is 507035
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.162000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582] [ERROR] 2026-11-26-07:41:00 (PID:2927, Device:1, RankID:-1) ERR00100 PTA call acl api failed
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.162000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582] [Error]: The vector core execution is abnormal. 
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.162000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582]         Rectify the fault based on the error information in the ascend log.
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.162000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582] EE9999: Internal error!
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.162000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582] EE9999[PID: 2927] 2026-11-26-07:41:00.162.483 (EE9999):  rtStreamSynchronizeWithTimeout execution failed, reason=vector core exception[FUNC:FuncErrorReason][FILE:error_message_manage.cc][LINE:76]
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.162000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582] TraceBack (most recent call last):
+(Worker_DP0_TP1_EP1 pid=2927) [rank1]:W1126 07:41:00.162000 2927 site-packages/torch_npu/distributed/distributed_c10d.py:582] 
+[W1126 07:41:00.452460870 NPUStream.cpp:716] Warning: NPU warning, error code is 507035[Error]: 
+[Error]: The vector core execution is abnormal. 
+        Rectify the fault based on the error information in the ascend log.
+EE9999: Internal error!
+EE9999[PID: 2927] 2026-11-26-07:41:00.172.813 (EE9999):  rtDeviceSynchronizeWithTimeout execution failed, reason=vector core exception[FUNC:FuncErrorReason][FILE:error_message_manage.cc][LINE:76]
+TraceBack (most recent call last):
+ (function npuSynchronizeDevice)
+[W1126 07:41:00.452857350 NPUStream.cpp:716] Warning: NPU warning, error code is 507035[Error]: 
+[Error]: The vector core execution is abnormal. 
+        Rectify the fault based on the error information in the ascend log.
+EE9999: Internal error!
+EE9999[PID: 2927] 2026-11-26-07:41:00.173.339 (EE9999):  rtDeviceSynchronizeWithTimeout execution failed, reason=vector core exception[FUNC:FuncErrorReason][FILE:error_message_manage.cc][LINE:76]
+TraceBack (most recent call last):
+ (function npuSynchronizeDevice)
+[W1126 07:41:00.460673170 NPUStream.cpp:716] Warning: NPU warning, error code is 507035[Error]: 
+[Error]: The vector core execution is abnormal. 
+        Rectify the fault based on the error information in the ascend log.
+EE9999: Internal error!
+EE9999[PID: 2927] 2026-11-26-07:41:00.181.153 (EE9999):  rtDeviceSynchronizeWithTimeout execution failed, reason=vector core exception[FUNC:FuncErrorReason][FILE:error_message_manage.cc][LINE:76]
+TraceBack (most recent call last):
+ (function npuSynchronizeDevice)
+[W1126 07:41:00.514365060 Logger.cpp:75] Warning: Failed to generate log message. (function operator())
+[E1126 07:41:00.514428200 ProcessGroupHCCL.cpp:2104] [Rank 1] HCCL watchdog thread terminated with exception: 
+[ERROR] 2026-11-26-07:41:00 (PID:2927, Device:1, RankID:-1) ERR02005 DIST internal error
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  [Rank 1] HCCL watchdog thread terminated with exception: 
+[ERROR] 2026-11-26-07:41:00 (PID:2927, Device:1, RankID:-1) ERR02005 DIST internal error
+[W1126 07:41:00.604157300 NPUStream.cpp:716] Warning: NPU warning, error code is 507035[Error]: 
+[Error]: The vector core execution is abnormal. 
+        Rectify the fault based on the error information in the ascend log.
+EE9999: Internal error!
+EE9999[PID: 2927] 2026-11-26-07:41:00.321.590 (EE9999):  rtDeviceSynchronizeWithTimeout execution failed, reason=vector core exception[FUNC:FuncErrorReason][FILE:error_message_manage.cc][LINE:76]
+TraceBack (most recent call last):
+ (function npuSynchronizeDevice)
+(ApiServer_3 pid=264) INFO:     Shutting down
+(ApiServer_1 pid=262) INFO:     Shutting down
+(ApiServer_0 pid=261) INFO:     Shutting down
+(ApiServer_2 pid=263) INFO:     Shutting down
+(ApiServer_3 pid=264) INFO:     Waiting for application shutdown.
+(ApiServer_3 pid=264) INFO:     Application shutdown complete.
+(ApiServer_3 pid=264) INFO:     Finished server process [264]
+(ApiServer_3 pid=264) INFO 11-26 07:41:03 [core_client.py:744] [shutdown] MPClient: start timeout=0s
+(ApiServer_3 pid=264) INFO 11-26 07:41:03 [core_client.py:749] [shutdown] MPClient: cleaning up background resources
+(ApiServer_3 pid=264) INFO 11-26 07:41:03 [core_client.py:751] [shutdown] MPClient: complete
+(ApiServer_1 pid=262) INFO:     Waiting for application shutdown.
+(ApiServer_1 pid=262) INFO:     Application shutdown complete.
+(ApiServer_1 pid=262) INFO:     Finished server process [262]
+(ApiServer_1 pid=262) INFO 11-26 07:41:03 [core_client.py:744] [shutdown] MPClient: start timeout=0s
+(ApiServer_1 pid=262) INFO 11-26 07:41:03 [core_client.py:749] [shutdown] MPClient: cleaning up background resources
+(ApiServer_1 pid=262) INFO 11-26 07:41:03 [core_client.py:751] [shutdown] MPClient: complete
+(ApiServer_0 pid=261) INFO:     Waiting for application shutdown.
+(ApiServer_2 pid=263) INFO:     Waiting for application shutdown.
+(ApiServer_0 pid=261) INFO:     Application shutdown complete.
+(ApiServer_2 pid=263) INFO:     Application shutdown complete.
+(ApiServer_0 pid=261) INFO:     Finished server process [261]
+(ApiServer_2 pid=263) INFO:     Finished server process [263]
+(ApiServer_2 pid=263) INFO 11-26 07:41:03 [core_client.py:744] [shutdown] MPClient: start timeout=0s
+(ApiServer_0 pid=261) INFO 11-26 07:41:03 [core_client.py:744] [shutdown] MPClient: start timeout=0s
+(ApiServer_0 pid=261) INFO 11-26 07:41:03 [core_client.py:749] [shutdown] MPClient: cleaning up background resources
+(ApiServer_2 pid=263) INFO 11-26 07:41:03 [core_client.py:749] [shutdown] MPClient: cleaning up background resources
+(ApiServer_0 pid=261) INFO 11-26 07:41:03 [core_client.py:751] [shutdown] MPClient: complete
+(ApiServer_2 pid=263) INFO 11-26 07:41:03 [core_client.py:751] [shutdown] MPClient: complete
+ERROR 11-26 07:41:04 [utils.py:604] Exception occurred while running API servers: Process ApiServer_2 (PID: 263) died with exit code None
+ERROR 11-26 07:41:04 [utils.py:604] Traceback (most recent call last):
+ERROR 11-26 07:41:04 [utils.py:604]   File "/vllm-workspace/vllm/vllm/v1/utils.py", line 591, in wait_for_completion_or_failure
+ERROR 11-26 07:41:04 [utils.py:604]     raise RuntimeError(
+ERROR 11-26 07:41:04 [utils.py:604] RuntimeError: Process ApiServer_2 (PID: 263) died with exit code None
+INFO 11-26 07:41:04 [utils.py:632] [shutdown] Process manager: send sigterm to process ApiServer_0
+INFO 11-26 07:41:04 [utils.py:632] [shutdown] Process manager: send sigterm to process ApiServer_1
+INFO 11-26 07:41:04 [utils.py:632] [shutdown] Process manager: send sigterm to process ApiServer_3
+INFO 11-26 07:41:04 [utils.py:632] [shutdown] Process manager: send sigterm to process EngineCore_DP0
+INFO 11-26 07:41:04 [utils.py:632] [shutdown] Process manager: send sigterm to process EngineCore_DP1
+INFO 11-26 07:41:04 [utils.py:632] [shutdown] Process manager: send sigterm to process EngineCore_DP2
+INFO 11-26 07:41:04 [utils.py:632] [shutdown] Process manager: send sigterm to process EngineCore_DP3
+(EngineCore_DP2 pid=237) INFO 11-26 07:41:04 [core.py:1342] [shutdown] EngineCore: trigger received signal=SIGTERM
+(EngineCore_DP2 pid=237) ERROR 11-26 07:41:04 [core.py:1368] EngineCore encountered a fatal error.
+(EngineCore_DP2 pid=237) ERROR 11-26 07:41:04 [core.py:1368] Traceback (most recent call last):
+(EngineCore_DP2 pid=237) ERROR 11-26 07:41:04 [core.py:1368]   File "/vllm-workspace/vllm/vllm/v1/engine/core.py", line 1352, in run_engine_core
+(EngineCore_DP2 pid=237) ERROR 11-26 07:41:04 [core.py:1368]     engine_core.run_busy_loop()
+(EngineCore_DP2 pid=237) ERROR 11-26 07:41:04 [core.py:1368]   File "/vllm-workspace/vllm/vllm/v1/fault_tolerance/engine_core_sentinel.py", line 179, in run_with_fault_tolerance
+(EngineCore_DP2 pid=237) ERROR 11-26 07:41:04 [core.py:1368]     busy_loop_func(self)
+(EngineCore_DP2 pid=237) ERROR 11-26 07:41:04 [core.py:1368]   File "/vllm-workspace/vllm/vllm/v1/engine/core.py", line 2225, in run_busy_loop
+(EngineCore_DP2 pid=237) ERROR 11-26 07:41:04 [core.py:1368]     self.engines_running = self._has_global_unfinished_reqs(
+(EngineCore_DP2 pid=237) ERROR 11-26 07:41:04 [core.py:1368]                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP2 pid=237) ERROR 11-26 07:41:04 [core.py:1368]   File "/vllm-workspace/vllm/vllm/v1/engine/core.py", line 2270, in _has_global_unfinished_reqs
+(EngineCore_DP2 pid=237) ERROR 11-26 07:41:04 [core.py:1368]     has_unfinished, pause_consensus = ParallelConfig.sync_dp_state(
+(EngineCore_DP2 pid=237) ERROR 11-26 07:41:04 [core.py:1368]                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP2 pid=237) ERROR 11-26 07:41:04 [core.py:1368]   File "/vllm-workspace/vllm/vllm/config/parallel.py", line 801, in sync_dp_state
+(EngineCore_DP2 pid=237) ERROR 11-26 07:41:04 [core.py:1368]     torch.distributed.all_reduce(tensor, op=ReduceOp.SUM, group=dp_group)
+(EngineCore_DP2 pid=237) ERROR 11-26 07:41:04 [core.py:1368]   File "/usr/local/python3.12.16/lib/python3.12/site-packages/torch/distributed/c10d_logger.py", line 83, in wrapper
+(EngineCore_DP2 pid=237) ERROR 11-26 07:41:04 [core.py:1368]     return func(*args, **kwargs)
+(EngineCore_DP2 pid=237) ERROR 11-26 07:41:04 [core.py:1368]            ^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP2 pid=237) ERROR 11-26 07:41:04 [core.py:1368]   File "/usr/local/python3.12.16/lib/python3.12/site-packages/torch/distributed/distributed_c10d.py", line 3014, in all_reduce
+(EngineCore_DP2 pid=237) ERROR 11-26 07:41:04 [core.py:1368]     work.wait()
+(EngineCore_DP2 pid=237) ERROR 11-26 07:41:04 [core.py:1368] RuntimeError: [/pytorch/third_party/gloo/gloo/transport/tcp/pair.cc:547] Connection closed by peer [61.47.19.71]:8083
+(EngineCore_DP2 pid=237) WARNING 11-26 07:41:08 [parallel_state.py:2469] torch.accelerator.empty_host_cache() only available in Pytorch >=2.9
+(EngineCore_DP2 pid=237) Process EngineCore_DP2:
+(EngineCore_DP2 pid=237) Traceback (most recent call last):
+(EngineCore_DP2 pid=237)   File "/usr/local/python3.12.16/lib/python3.12/multiprocessing/process.py", line 314, in _bootstrap
+(EngineCore_DP2 pid=237)     self.run()
+(EngineCore_DP2 pid=237)   File "/usr/local/python3.12.16/lib/python3.12/multiprocessing/process.py", line 108, in run
+(EngineCore_DP2 pid=237)     self._target(*self._args, **self._kwargs)
+(EngineCore_DP2 pid=237)   File "/home/a00821909/vllm-ascend/vllm_ascend/patch/platform/patch_engine_core.py", line 56, in _run_engine_core_patch_func
+(EngineCore_DP2 pid=237)     return _OriginalRunEngineCore(*args, dp_rank=dp_rank, local_dp_rank=local_dp_rank, **kwargs)
+(EngineCore_DP2 pid=237)            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP2 pid=237)   File "/vllm-workspace/vllm/vllm/v1/engine/core.py", line 1370, in run_engine_core
+(EngineCore_DP2 pid=237)     raise e
+(EngineCore_DP2 pid=237)   File "/vllm-workspace/vllm/vllm/v1/engine/core.py", line 1352, in run_engine_core
+(EngineCore_DP2 pid=237)     engine_core.run_busy_loop()
+(EngineCore_DP2 pid=237)   File "/vllm-workspace/vllm/vllm/v1/fault_tolerance/engine_core_sentinel.py", line 179, in run_with_fault_tolerance
+(EngineCore_DP2 pid=237)     busy_loop_func(self)
+(EngineCore_DP2 pid=237)   File "/vllm-workspace/vllm/vllm/v1/engine/core.py", line 2225, in run_busy_loop
+(EngineCore_DP2 pid=237)     self.engines_running = self._has_global_unfinished_reqs(
+(EngineCore_DP2 pid=237)                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP2 pid=237)   File "/vllm-workspace/vllm/vllm/v1/engine/core.py", line 2270, in _has_global_unfinished_reqs
+(EngineCore_DP2 pid=237)     has_unfinished, pause_consensus = ParallelConfig.sync_dp_state(
+(EngineCore_DP2 pid=237)                                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP2 pid=237)   File "/vllm-workspace/vllm/vllm/config/parallel.py", line 801, in sync_dp_state
+(EngineCore_DP2 pid=237)     torch.distributed.all_reduce(tensor, op=ReduceOp.SUM, group=dp_group)
+(EngineCore_DP2 pid=237)   File "/usr/local/python3.12.16/lib/python3.12/site-packages/torch/distributed/c10d_logger.py", line 83, in wrapper
+(EngineCore_DP2 pid=237)     return func(*args, **kwargs)
+(EngineCore_DP2 pid=237)            ^^^^^^^^^^^^^^^^^^^^^
+(EngineCore_DP2 pid=237)   File "/usr/local/python3.12.16/lib/python3.12/site-packages/torch/distributed/distributed_c10d.py", line 3014, in all_reduce
+(EngineCore_DP2 pid=237)     work.wait()
+(EngineCore_DP2 pid=237) RuntimeError: [/pytorch/third_party/gloo/gloo/transport/tcp/pair.cc:547] Connection closed by peer [61.47.19.71]:8083
+WARNING 11-26 07:41:09 [utils.py:652] [shutdown] Process manager: force killing remaining processes count=1
+WARNING 11-26 07:41:09 [utils.py:657] [shutdown] Process manager: force killing remaining process EngineCore_DP2 pid 237
+INFO 11-26 07:41:09 [utils.py:632] [shutdown] Process manager: send sigterm to process VLLM_DP_Coordinator
+Traceback (most recent call last):
+  File "/usr/local/python3.12.16/bin/vllm", line 6, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/vllm-workspace/vllm/vllm/entrypoints/cli/main.py", line 106, in main
+    args.dispatch_function(args)
+  File "/vllm-workspace/vllm/vllm/entrypoints/cli/serve.py", line 150, in cmd
+    run_multi_api_server(args)
+  File "/vllm-workspace/vllm/vllm/entrypoints/cli/serve.py", line 393, in run_multi_api_server
+    wait_for_completion_or_failure(
+  File "/vllm-workspace/vllm/vllm/v1/utils.py", line 591, in wait_for_completion_or_failure
+    raise RuntimeError(
+RuntimeError: Process ApiServer_2 (PID: 263) died with exit code None
+[ERROR] 2026-11-26-07:41:13 (PID:183, Device:-1, RankID:-1) ERR99999 UNKNOWN applicaiton exception
+/usr/local/python3.12.16/lib/python3.12/multiprocessing/resource_tracker.py:279: UserWarning: resource_tracker: There appear to be 4 leaked semaphore objects to clean up at shutdown
+  warnings.warn('resource_tracker: There appear to be %d '
+/usr/local/python3.12.16/lib/python3.12/multiprocessing/resource_tracker.py:279: UserWarning: resource_tracker: There appear to be 23 leaked shared_memory objects to clean up at shutdown
+  warnings.warn('resource_tracker: There appear to be %d '

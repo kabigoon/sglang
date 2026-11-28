@@ -1,0 +1,24 @@
+405:  --quantization QUANTIZATION, -q QUANTIZATION
+406-                        Method used to quantize the weights. If `None`, we
+407-                        first check the `quantization_config` attribute in the
+408-                        model config file. If that is `None`, we assume the
+--
+466:  --tokenizer-mode ['auto', 'cohere', 'deepseek_v32', 'deepseek_v4', 'hf', 'inkling', 'kimi_k3', 'mistral', 'slow']
+467-                        Tokenizer mode:
+468-                        - "auto" will use the tokenizer from `mistral_common`
+469-                        for Mistral models if available, otherwise it will use
+--
+574:  --safetensors-load-strategy {eager,lazy,prefetch,torchao,None}
+575-                        Specifies the loading strategy for safetensors
+576-                        weights.
+577-                        - None (default): Uses memory-mapped (lazy) loading.
+--
+996:  --kv-cache-dtype {auto,bfloat16,float16,fp8,fp8_ds_mla,fp8_e4m3,fp8_e5m2,fp8_inc,fp8_per_token_head,int4_per_token_head,int8,int8_per_token_head,mxfp8,nvfp4,nvfp4_4over6,turboquant_3bit_nc,turboquant_4bit_nc,turboquant_k3v4_nc,turboquant_k8v4}
+997-                        Data type for kv cache storage. If "auto", will use
+998-                        model data type. CUDA 11.8+ supports fp8 (=fp8_e4m3)
+999-                        and fp8_e5m2. ROCm (AMD GPU) supports fp8 (=fp8_e4m3).
+--
+2004:  --kv-transfer-config KV_TRANSFER_CONFIG
+2005-                        The configurations for distributed KV cache transfer.
+2006-                        API docs: https://docs.vllm.ai/en/v0.30.0/api/vllm/con
+2007-                        fig/#vllm.config.KVTransferConfig

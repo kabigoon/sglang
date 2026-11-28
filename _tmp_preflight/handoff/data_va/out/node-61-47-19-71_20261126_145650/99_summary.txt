@@ -1,0 +1,41 @@
+# summary  2026-11-26T14:57:18+08:00
+image: quay.io/ascend/vllm-ascend:v0.30.0-a3
+host : node-61-47-19-71
+npu-smi: | npu-smi 25.5.1 Version: 25.5.1 |
+driver : Version=25.5.1 Innerversion=V100R001C23SPC006B220 
+
+ROOT=/vllm-workspace/vllm-ascend
+img_py=768  fork_py=714
+only_in_image=54
+img_non_py=1391  fork_non_py=1391
+non_py_only_in_image=0
+
+dsa_v41:
+ec347f270b01d592a11be4322c06842a  /vllm-workspace/vllm-ascend/vllm_ascend/attention/dsa_v41.py
+1474 /vllm-workspace/vllm-ascend/vllm_ascend/attention/dsa_v41.py
+feb9cc0e55a52255aa8ef1cbfbd966e5  /fork/vllm_ascend/attention/dsa_v41.py
+1498 /fork/vllm_ascend/attention/dsa_v41.py
+
+weights:
+/home/weights/AI-ModelScope
+/home/weights/CohereForAI
+/home/weights/DeepSeek-Coder-V2-Lite-Instruct
+/home/weights/DeepSeek-R1-0528-W8A8
+/home/weights/DeepSeek-V2-Lite-W8A8
+/home/weights/DeepSeek-V3.2-W8A8
+/home/weights/DeepSeek-V4.1-Flash-1017-w4a8
+/home/weights/DeepSeek-V4-Flash-0731-W4A8
+/home/weights/DeepSeek-V4-Flash-0731-w8a8
+/home/weights/Eagle3-Qwen3-32B-zh
+/home/weights/Eagle3-Spec-Minimax-M2.5-Exp14
+/home/weights/Falcon-H1-34B-Instruct
+/home/weights/fishaudio
+/home/weights/Gemma
+/home/weights/GLM-5.2-DSpark-NPU-0805
+/home/weights/GLM-5.2-original
+/home/weights/GLM-5.2-w4a8
+/home/weights/GLM-5.2-w8a8
+/home/weights/GLM-5.2-w8a8-out
+/home/weights/GLM-5.3-Flash-w8a8
+
+out size: 152K   files: 15
